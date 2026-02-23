@@ -1,0 +1,12 @@
+using System.Net.WebSockets;
+
+namespace SttGcp.Api.Services;
+
+public interface IStreamingTranscriptionService
+{
+    string ProviderName { get; }
+
+    Task TranscribeStreamAsync(
+        WebSocket webSocket,
+        CancellationToken ct = default);
+}

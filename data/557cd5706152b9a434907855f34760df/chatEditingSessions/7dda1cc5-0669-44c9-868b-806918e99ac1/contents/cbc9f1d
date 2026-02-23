@@ -1,0 +1,4 @@
+vars {
+  baseUrl: http://localhost:5145
+  wsUrl: ws://localhost:5145
+}

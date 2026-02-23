@@ -1,0 +1,16 @@
+namespace SttGcp.Api.Models;
+
+public sealed record TranscribeResponse(
+    string ProviderName,
+    string Transcription,
+    double Confidence,
+    long LatencyMs,
+    int WordCount,
+    List<string> MedicalTermsDetected,
+    List<SpeakerSegment> SpeakerSegments);
+
+public sealed record SpeakerSegment(
+    int SpeakerTag,
+    string Text,
+    TimeSpan StartTime,
+    TimeSpan EndTime);

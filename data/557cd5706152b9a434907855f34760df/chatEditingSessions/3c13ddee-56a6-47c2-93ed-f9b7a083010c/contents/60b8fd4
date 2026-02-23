@@ -1,0 +1,107 @@
+using System.Diagnostics;
+using SttGcp.Api.Models;
+using SttGcp.Api.Services;
+
+namespace SttGcp.Api.Endpoints;
+
+public static class CompareEndpoints
+{
+    public static IEndpointRouteBuilder MapCompareEndpoints(this IEndpointRouteBuilder app)
+    {
+        app.MapPost("/api/transcribe/compare", CompareSync)
+            .WithTags("Compare")
+            .WithName("CompareProviders")
+            .WithSummary("Transcribe audio with all enabled providers in parallel and compare results")
+            .Produces<ComparisonResult>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .DisableAntiforgery();
+
+        app.MapPost("/api/transcribe/compare/batch", CompareBatch)
+            .WithTags("Compare")
+            .WithName("CompareProvidersBatch")
+            .WithSummary("Batch transcription with all enabled providers (uploads to GCS first)")
+            .Produces<ComparisonResult>()
+            .ProducesProblem(StatusCodes.Status400BadRequest)
+            .DisableAntiforgery();
+
+        return app;
+    }
+
+    private static async Task<IResult> CompareSync(
+        IFormFile audio,
+        [FromKeyedServices("stt-v1")] ISpeechToTextService sttV1,
+        [FromKeyedServices("stt-v2")] ISpeechToTextService sttV2,
+        [FromKeyedServices("chirp")] ISpeechToTextService chirp,
+        [FromKeyedServices("gemini")] ISpeechToTextService gemini,
+        CancellationToken ct)
+    {
+        if (audio.Length == 0)
+            return TypedResults.BadRequest("No audio file provided.");
+
+        // Read audio into memory so we can send to multiple providers
+        using var ms = new MemoryStream();
+        await audio.OpenReadStream().CopyToAsync(ms, ct);
+        var audioBytes = ms.ToArray();
+
+        var services = new[] { sttV1, sttV2, chirp, gemini };
+        var tasks = services.Select(async svc =>
+        {
+            using var stream = new MemoryStream(audioBytes);
+            return await svc.TranscribeSyncAsync(stream, audio.ContentType, ct);
+        });
+
+        var results = await Task.WhenAll(tasks);
+
+        var audioInfo = new AudioInfo(
+            FileName: audio.FileName,
+            DurationSeconds: 0, // cannot determine without parsing audio headers
+            Format: audio.ContentType,
+            SizeBytes: audio.Length);
+
+        return TypedResults.Ok(BuildComparison(audioInfo, results.ToList()));
+    }
+
+    private static async Task<IResult> CompareBatch(
+        IFormFile audio,
+        [FromKeyedServices("stt-v1")] ISpeechToTextService sttV1,
+        [FromKeyedServices("stt-v2")] ISpeechToTextService sttV2,
+        [FromKeyedServices("chirp")] ISpeechToTextService chirp,
+        IStorageService storageService,
+        CancellationToken ct)
+    {
+        if (audio.Length == 0)
+            return TypedResults.BadRequest("No audio file provided.");
+
+        // Upload once, use GCS URI for all batch-capable providers
+        await using var uploadStream = audio.OpenReadStream();
+        var gcsUri = await storageService.UploadAsync(uploadStream, audio.FileName, audio.ContentType, ct);
+
+        var services = new[] { sttV1, sttV2, chirp }.Where(s => s.SupportsBatch);
+        var tasks = services.Select(svc => svc.TranscribeBatchAsync(gcsUri, audio.ContentType, ct));
+
+        var results = await Task.WhenAll(tasks);
+
+        var audioInfo = new AudioInfo(
+            FileName: audio.FileName,
+            DurationSeconds: 0,
+            Format: audio.ContentType,
+            SizeBytes: audio.Length);
+
+        return TypedResults.Ok(BuildComparison(audioInfo, results.ToList()));
+    }
+
+    private static ComparisonResult BuildComparison(AudioInfo audioInfo, List<TranscribeResponse> results)
+    {
+        var fastest = results.MinBy(r => r.LatencyMs)?.ProviderName ?? "N/A";
+        var highestConfidence = results.MaxBy(r => r.Confidence)?.ProviderName ?? "N/A";
+        var mostWords = results.MaxBy(r => r.WordCount)?.ProviderName ?? "N/A";
+
+        return new ComparisonResult(
+            AudioInfo: audioInfo,
+            Results: results,
+            Comparison: new ComparisonSummary(
+                FastestProvider: fastest,
+                HighestConfidence: highestConfidence,
+                MostWords: mostWords));
+    }
+}

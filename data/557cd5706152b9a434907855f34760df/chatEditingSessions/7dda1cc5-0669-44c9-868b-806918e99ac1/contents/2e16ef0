@@ -1,0 +1,9 @@
+{
+  "version": "1",
+  "name": "HV_POC_STT_GCP",
+  "type": "collection",
+  "ignore": [
+    "node_modules",
+    ".git"
+  ]
+}

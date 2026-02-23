@@ -1,0 +1,11 @@
+namespace SttGcp.Api.Models;
+
+public sealed record ComparisonResult(
+    AudioInfo AudioInfo,
+    List<TranscribeResponse> Results,
+    ComparisonSummary Comparison);
+
+public sealed record ComparisonSummary(
+    string FastestProvider,
+    string HighestConfidence,
+    string MostWords);

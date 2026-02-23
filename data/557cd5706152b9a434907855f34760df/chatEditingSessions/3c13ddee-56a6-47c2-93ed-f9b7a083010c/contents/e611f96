@@ -1,0 +1,167 @@
+using SttGcp.Api.Models;
+using SttGcp.Api.Services;
+
+namespace SttGcp.Api.Endpoints;
+
+public static class TranscribeEndpoints
+{
+    public static IEndpointRouteBuilder MapTranscribeEndpoints(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/api/transcribe")
+            .WithTags("Transcribe")
+            .DisableAntiforgery();
+
+        // STT V1
+        group.MapPost("/stt-v1/sync", TranscribeSttV1Sync)
+            .WithName("TranscribeSttV1Sync")
+            .WithSummary("Synchronous transcription via Speech-to-Text V1 (≤ 60s audio)")
+            .Produces<TranscribeResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        group.MapPost("/stt-v1/batch", TranscribeSttV1Batch)
+            .WithName("TranscribeSttV1Batch")
+            .WithSummary("Batch transcription via Speech-to-Text V1 LongRunningRecognize (up to 480 min)")
+            .Produces<TranscribeResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        // STT V2
+        group.MapPost("/stt-v2/sync", TranscribeSttV2Sync)
+            .WithName("TranscribeSttV2Sync")
+            .WithSummary("Synchronous transcription via Speech-to-Text V2 (≤ 60s audio)")
+            .Produces<TranscribeResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        group.MapPost("/stt-v2/batch", TranscribeSttV2Batch)
+            .WithName("TranscribeSttV2Batch")
+            .WithSummary("Batch transcription via Speech-to-Text V2 BatchRecognize (up to 480 min)")
+            .Produces<TranscribeResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        // Chirp
+        group.MapPost("/chirp/sync", TranscribeChirpSync)
+            .WithName("TranscribeChirpSync")
+            .WithSummary("Synchronous transcription via Chirp model (≤ 60s audio)")
+            .Produces<TranscribeResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        group.MapPost("/chirp/batch", TranscribeChirpBatch)
+            .WithName("TranscribeChirpBatch")
+            .WithSummary("Batch transcription via Chirp model BatchRecognize (up to 480 min)")
+            .Produces<TranscribeResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        // Gemini (Vertex AI)
+        group.MapPost("/gemini/sync", TranscribeGeminiSync)
+            .WithName("TranscribeGeminiSync")
+            .WithSummary("Synchronous transcription via Gemini (Vertex AI) — ≤ 20 MB audio")
+            .Produces<TranscribeResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        return app;
+    }
+
+    // --- STT V1 ---
+
+    private static async Task<IResult> TranscribeSttV1Sync(
+        IFormFile audio,
+        [FromKeyedServices("stt-v1")] ISpeechToTextService service,
+        CancellationToken ct)
+    {
+        if (audio.Length == 0)
+            return TypedResults.BadRequest("No audio file provided.");
+
+        await using var stream = audio.OpenReadStream();
+        var result = await service.TranscribeSyncAsync(stream, audio.ContentType, ct);
+        return TypedResults.Ok(result);
+    }
+
+    private static async Task<IResult> TranscribeSttV1Batch(
+        IFormFile audio,
+        [FromKeyedServices("stt-v1")] ISpeechToTextService service,
+        IStorageService storageService,
+        CancellationToken ct)
+    {
+        if (audio.Length == 0)
+            return TypedResults.BadRequest("No audio file provided.");
+
+        await using var stream = audio.OpenReadStream();
+        var gcsUri = await storageService.UploadAsync(stream, audio.FileName, audio.ContentType, ct);
+        var result = await service.TranscribeBatchAsync(gcsUri, audio.ContentType, ct);
+        return TypedResults.Ok(result);
+    }
+
+    // --- STT V2 ---
+
+    private static async Task<IResult> TranscribeSttV2Sync(
+        IFormFile audio,
+        [FromKeyedServices("stt-v2")] ISpeechToTextService service,
+        CancellationToken ct)
+    {
+        if (audio.Length == 0)
+            return TypedResults.BadRequest("No audio file provided.");
+
+        await using var stream = audio.OpenReadStream();
+        var result = await service.TranscribeSyncAsync(stream, audio.ContentType, ct);
+        return TypedResults.Ok(result);
+    }
+
+    private static async Task<IResult> TranscribeSttV2Batch(
+        IFormFile audio,
+        [FromKeyedServices("stt-v2")] ISpeechToTextService service,
+        IStorageService storageService,
+        CancellationToken ct)
+    {
+        if (audio.Length == 0)
+            return TypedResults.BadRequest("No audio file provided.");
+
+        await using var stream = audio.OpenReadStream();
+        var gcsUri = await storageService.UploadAsync(stream, audio.FileName, audio.ContentType, ct);
+        var result = await service.TranscribeBatchAsync(gcsUri, audio.ContentType, ct);
+        return TypedResults.Ok(result);
+    }
+
+    // --- Chirp ---
+
+    private static async Task<IResult> TranscribeChirpSync(
+        IFormFile audio,
+        [FromKeyedServices("chirp")] ISpeechToTextService service,
+        CancellationToken ct)
+    {
+        if (audio.Length == 0)
+            return TypedResults.BadRequest("No audio file provided.");
+
+        await using var stream = audio.OpenReadStream();
+        var result = await service.TranscribeSyncAsync(stream, audio.ContentType, ct);
+        return TypedResults.Ok(result);
+    }
+
+    private static async Task<IResult> TranscribeChirpBatch(
+        IFormFile audio,
+        [FromKeyedServices("chirp")] ISpeechToTextService service,
+        IStorageService storageService,
+        CancellationToken ct)
+    {
+        if (audio.Length == 0)
+            return TypedResults.BadRequest("No audio file provided.");
+
+        await using var stream = audio.OpenReadStream();
+        var gcsUri = await storageService.UploadAsync(stream, audio.FileName, audio.ContentType, ct);
+        var result = await service.TranscribeBatchAsync(gcsUri, audio.ContentType, ct);
+        return TypedResults.Ok(result);
+    }
+
+    // --- Gemini ---
+
+    private static async Task<IResult> TranscribeGeminiSync(
+        IFormFile audio,
+        [FromKeyedServices("gemini")] ISpeechToTextService service,
+        CancellationToken ct)
+    {
+        if (audio.Length == 0)
+            return TypedResults.BadRequest("No audio file provided.");
+
+        await using var stream = audio.OpenReadStream();
+        var result = await service.TranscribeSyncAsync(stream, audio.ContentType, ct);
+        return TypedResults.Ok(result);
+    }
+}

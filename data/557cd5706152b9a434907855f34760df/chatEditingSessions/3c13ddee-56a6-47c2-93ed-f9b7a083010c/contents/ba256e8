@@ -1,0 +1,35 @@
+using Google.Cloud.Storage.V1;
+using Microsoft.Extensions.Options;
+using SttGcp.Api.Configuration;
+
+namespace SttGcp.Api.Services;
+
+public sealed class CloudStorageService(
+    StorageClient storageClient,
+    IOptions<GcpSettings> settings,
+    ILogger<CloudStorageService> logger) : IStorageService
+{
+    public async Task<string> UploadAsync(
+        Stream stream,
+        string fileName,
+        string contentType,
+        CancellationToken ct = default)
+    {
+        var bucket = settings.Value.StorageBucket;
+        var objectName = $"audio/{Guid.NewGuid():N}/{fileName}";
+
+        logger.LogInformation("Uploading {FileName} to gs://{Bucket}/{Object}", fileName, bucket, objectName);
+
+        await storageClient.UploadObjectAsync(
+            bucket,
+            objectName,
+            contentType,
+            stream,
+            cancellationToken: ct);
+
+        var gcsUri = $"gs://{bucket}/{objectName}";
+        logger.LogInformation("Upload complete: {GcsUri}", gcsUri);
+
+        return gcsUri;
+    }
+}

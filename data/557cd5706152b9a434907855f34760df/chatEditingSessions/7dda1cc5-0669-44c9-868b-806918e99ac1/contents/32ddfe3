@@ -1,0 +1,15 @@
+meta {
+  name: STT V2 Sync
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/transcribe/stt-v2/sync
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  audio: @file()
+}

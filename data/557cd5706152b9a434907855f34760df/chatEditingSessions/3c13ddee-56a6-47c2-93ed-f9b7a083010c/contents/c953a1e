@@ -1,0 +1,218 @@
+using System.Diagnostics;
+using Google.Cloud.Speech.V1;
+using Google.Protobuf;
+using Microsoft.Extensions.Options;
+using SttGcp.Api.Configuration;
+using SttGcp.Api.Models;
+
+namespace SttGcp.Api.Services;
+
+public sealed class SpeechToTextV1Service(
+    SpeechClient client,
+    IOptions<GcpSettings> settings,
+    ILogger<SpeechToTextV1Service> logger) : ISpeechToTextService
+{
+    public string ProviderName => "STT V1";
+    public bool SupportsBatch => true;
+
+    public async Task<TranscribeResponse> TranscribeSyncAsync(
+        Stream audioStream,
+        string contentType,
+        CancellationToken ct = default)
+    {
+        var sw = Stopwatch.StartNew();
+
+        var audio = RecognitionAudio.FromStream(audioStream);
+        var config = BuildConfig(contentType);
+
+        logger.LogInformation("STT V1 sync recognition starting");
+
+        var response = await client.RecognizeAsync(config, audio, ct);
+
+        sw.Stop();
+        return MapResponse(response, sw.ElapsedMilliseconds);
+    }
+
+    public async Task<TranscribeResponse> TranscribeBatchAsync(
+        string gcsUri,
+        string contentType,
+        CancellationToken ct = default)
+    {
+        var sw = Stopwatch.StartNew();
+
+        var config = BuildConfig(contentType);
+        var audio = new RecognitionAudio { Uri = gcsUri };
+
+        logger.LogInformation("STT V1 long-running recognition starting for {GcsUri}", gcsUri);
+
+        var operation = await client.LongRunningRecognizeAsync(config, audio, ct);
+        var completed = await operation.PollUntilCompletedAsync();
+
+        sw.Stop();
+        logger.LogInformation("STT V1 long-running recognition completed in {Ms}ms", sw.ElapsedMilliseconds);
+
+        return MapResponse(completed.Result, sw.ElapsedMilliseconds);
+    }
+
+    private RecognitionConfig BuildConfig(string contentType)
+    {
+        var cfg = settings.Value;
+        var providerCfg = cfg.Providers.SttV1;
+
+        return new RecognitionConfig
+        {
+            Encoding = MapEncoding(contentType),
+            LanguageCode = cfg.LanguageCode,
+            EnableAutomaticPunctuation = true,
+            EnableWordTimeOffsets = true,
+            Model = string.IsNullOrEmpty(providerCfg.Model) ? "default" : providerCfg.Model,
+            UseEnhanced = true,
+            DiarizationConfig = new SpeakerDiarizationConfig
+            {
+                EnableSpeakerDiarization = true,
+                MinSpeakerCount = 2,
+                MaxSpeakerCount = 2
+            }
+        };
+    }
+
+    private static RecognitionConfig.Types.AudioEncoding MapEncoding(string contentType) =>
+        contentType.ToLowerInvariant() switch
+        {
+            "audio/wav" or "audio/x-wav" or "audio/wave" => RecognitionConfig.Types.AudioEncoding.Linear16,
+            "audio/flac" or "audio/x-flac" => RecognitionConfig.Types.AudioEncoding.Flac,
+            "audio/ogg" => RecognitionConfig.Types.AudioEncoding.OggOpus,
+            "audio/mp3" or "audio/mpeg" => RecognitionConfig.Types.AudioEncoding.Mp3,
+            "audio/webm" => RecognitionConfig.Types.AudioEncoding.WebmOpus,
+            _ => RecognitionConfig.Types.AudioEncoding.EncodingUnspecified
+        };
+
+    private static TranscribeResponse MapResponse(RecognizeResponse response, long latencyMs)
+    {
+        var transcription = string.Join(" ",
+            response.Results.Select(r => r.Alternatives.FirstOrDefault()?.Transcript ?? ""));
+
+        var confidence = response.Results
+            .SelectMany(r => r.Alternatives)
+            .Select(a => a.Confidence)
+            .DefaultIfEmpty(0)
+            .Average();
+
+        var words = transcription.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        var segments = ExtractSpeakerSegments(response);
+
+        return new TranscribeResponse(
+            ProviderName: "STT V1",
+            Transcription: transcription.Trim(),
+            Confidence: Math.Round(confidence, 4),
+            LatencyMs: latencyMs,
+            WordCount: words.Length,
+            MedicalTermsDetected: DetectMedicalTerms(transcription),
+            SpeakerSegments: segments);
+    }
+
+    private static TranscribeResponse MapResponse(LongRunningRecognizeResponse response, long latencyMs)
+    {
+        var transcription = string.Join(" ",
+            response.Results.Select(r => r.Alternatives.FirstOrDefault()?.Transcript ?? ""));
+
+        var confidence = response.Results
+            .SelectMany(r => r.Alternatives)
+            .Select(a => a.Confidence)
+            .DefaultIfEmpty(0)
+            .Average();
+
+        var words = transcription.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        var segments = new List<SpeakerSegment>();
+        var lastResult = response.Results.LastOrDefault();
+        if (lastResult?.Alternatives.Count > 0)
+        {
+            var wordsInfo = lastResult.Alternatives[0].Words;
+            segments = BuildSpeakerSegments(wordsInfo);
+        }
+
+        return new TranscribeResponse(
+            ProviderName: "STT V1",
+            Transcription: transcription.Trim(),
+            Confidence: Math.Round(confidence, 4),
+            LatencyMs: latencyMs,
+            WordCount: words.Length,
+            MedicalTermsDetected: DetectMedicalTerms(transcription),
+            SpeakerSegments: segments);
+    }
+
+    private static List<SpeakerSegment> ExtractSpeakerSegments(RecognizeResponse response)
+    {
+        var lastResult = response.Results.LastOrDefault();
+        if (lastResult?.Alternatives.Count is null or 0)
+            return [];
+
+        var wordsInfo = lastResult.Alternatives[0].Words;
+        return BuildSpeakerSegments(wordsInfo);
+    }
+
+    private static List<SpeakerSegment> BuildSpeakerSegments(
+        Google.Protobuf.Collections.RepeatedField<WordInfo> wordsInfo)
+    {
+        if (wordsInfo.Count == 0)
+            return [];
+
+        var segments = new List<SpeakerSegment>();
+        var currentSpeaker = wordsInfo[0].SpeakerTag;
+        var currentWords = new List<string> { wordsInfo[0].Word };
+        var segmentStart = wordsInfo[0].StartTime.ToTimeSpan();
+        var segmentEnd = wordsInfo[0].EndTime.ToTimeSpan();
+
+        for (var i = 1; i < wordsInfo.Count; i++)
+        {
+            var word = wordsInfo[i];
+            if (word.SpeakerTag == currentSpeaker)
+            {
+                currentWords.Add(word.Word);
+                segmentEnd = word.EndTime.ToTimeSpan();
+            }
+            else
+            {
+                segments.Add(new SpeakerSegment(
+                    currentSpeaker,
+                    string.Join(" ", currentWords),
+                    segmentStart,
+                    segmentEnd));
+
+                currentSpeaker = word.SpeakerTag;
+                currentWords = [word.Word];
+                segmentStart = word.StartTime.ToTimeSpan();
+                segmentEnd = word.EndTime.ToTimeSpan();
+            }
+        }
+
+        segments.Add(new SpeakerSegment(
+            currentSpeaker,
+            string.Join(" ", currentWords),
+            segmentStart,
+            segmentEnd));
+
+        return segments;
+    }
+
+    private static List<string> DetectMedicalTerms(string text)
+    {
+        // Simple keyword-based detection for PoC — not exhaustive
+        string[] medicalTerms =
+        [
+            "dipirona", "omeprazol", "losartana", "metformina", "paracetamol",
+            "amoxicilina", "ibuprofeno", "enalapril", "sinvastatina", "atenolol",
+            "diabetes", "hipertensão", "fibromialgia", "artrite", "asma",
+            "pneumonia", "bronquite", "gastrite", "anemia", "arritmia",
+            "abdômen", "tórax", "cervical", "lombar", "craniano",
+            "ecocardiograma", "tomografia", "ressonância", "ultrassom", "endoscopia",
+            "dispneia", "cefaleia", "náusea", "artralgia", "taquicardia",
+            "hemograma", "glicemia", "creatinina", "colesterol", "triglicerídeos"
+        ];
+
+        var lowerText = text.ToLowerInvariant();
+        return medicalTerms.Where(term => lowerText.Contains(term)).ToList();
+    }
+}

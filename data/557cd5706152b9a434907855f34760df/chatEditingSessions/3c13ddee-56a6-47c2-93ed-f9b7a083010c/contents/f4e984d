@@ -1,0 +1,118 @@
+using System.Net.WebSockets;
+using System.Text;
+using System.Text.Json;
+using Google.Cloud.Speech.V1;
+using Microsoft.Extensions.Options;
+using SttGcp.Api.Configuration;
+using SttGcp.Api.Models;
+
+namespace SttGcp.Api.Services;
+
+public sealed class StreamingV1Service(
+    SpeechClient client,
+    IOptions<GcpSettings> settings,
+    ILogger<StreamingV1Service> logger) : IStreamingTranscriptionService
+{
+    private const int MaxChunkSize = 25_000; // 25 KB per gRPC message
+
+    public string ProviderName => "STT V1";
+
+    public async Task TranscribeStreamAsync(WebSocket webSocket, CancellationToken ct = default)
+    {
+        var cfg = settings.Value;
+        var providerCfg = cfg.Providers.SttV1;
+        var model = string.IsNullOrEmpty(providerCfg.Model) ? "default" : providerCfg.Model;
+
+        var streamingCall = client.StreamingRecognize();
+
+        // Send initial config (no audio)
+        await streamingCall.WriteAsync(new StreamingRecognizeRequest
+        {
+            StreamingConfig = new StreamingRecognitionConfig
+            {
+                Config = new RecognitionConfig
+                {
+                    Encoding = RecognitionConfig.Types.AudioEncoding.Linear16,
+                    SampleRateHertz = 16000,
+                    LanguageCode = cfg.LanguageCode,
+                    EnableAutomaticPunctuation = true,
+                    Model = model,
+                    UseEnhanced = true
+                },
+                InterimResults = true
+            }
+        }, ct);
+
+        logger.LogInformation("STT V1 streaming session started");
+
+        // Read responses from gRPC and forward to WebSocket
+        var readTask = Task.Run(async () =>
+        {
+            await foreach (var response in streamingCall.GetResponseStream().ReadAllAsync(ct))
+            {
+                foreach (var result in response.Results)
+                {
+                    var alt = result.Alternatives.FirstOrDefault();
+                    if (alt is null) continue;
+
+                    var streamResult = new StreamingTranscribeResult(
+                        IsFinal: result.IsFinal,
+                        Transcript: alt.Transcript,
+                        Confidence: alt.Confidence,
+                        Stability: result.Stability);
+
+                    var json = JsonSerializer.Serialize(streamResult);
+                    var bytes = Encoding.UTF8.GetBytes(json);
+
+                    if (webSocket.State == WebSocketState.Open)
+                    {
+                        await webSocket.SendAsync(
+                            new ArraySegment<byte>(bytes),
+                            WebSocketMessageType.Text,
+                            endOfMessage: true,
+                            ct);
+                    }
+                }
+            }
+        }, ct);
+
+        // Read audio chunks from WebSocket and forward to gRPC
+        var buffer = new byte[MaxChunkSize];
+        try
+        {
+            while (webSocket.State == WebSocketState.Open && !ct.IsCancellationRequested)
+            {
+                var received = await webSocket.ReceiveAsync(new ArraySegment<byte>(buffer), ct);
+
+                if (received.MessageType == WebSocketMessageType.Close)
+                {
+                    logger.LogInformation("STT V1 streaming: client closed connection");
+                    break;
+                }
+
+                if (received.Count > 0)
+                {
+                    await streamingCall.WriteAsync(new StreamingRecognizeRequest
+                    {
+                        AudioContent = Google.Protobuf.ByteString.CopyFrom(buffer, 0, received.Count)
+                    }, ct);
+                }
+            }
+        }
+        finally
+        {
+            await streamingCall.WriteCompleteAsync();
+            await readTask;
+
+            if (webSocket.State == WebSocketState.Open)
+            {
+                await webSocket.CloseAsync(
+                    WebSocketCloseStatus.NormalClosure,
+                    "Transcription complete",
+                    ct);
+            }
+
+            logger.LogInformation("STT V1 streaming session ended");
+        }
+    }
+}

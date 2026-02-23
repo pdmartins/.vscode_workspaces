@@ -1,0 +1,60 @@
+using SttGcp.Api.Services;
+
+namespace SttGcp.Api.Endpoints;
+
+public static class StreamingEndpoints
+{
+    public static IEndpointRouteBuilder MapStreamingEndpoints(this IEndpointRouteBuilder app)
+    {
+        app.Map("/ws/transcribe/stt-v1", HandleSttV1Streaming);
+        app.Map("/ws/transcribe/stt-v2", HandleSttV2Streaming);
+        app.Map("/ws/transcribe/chirp", HandleChirpStreaming);
+
+        return app;
+    }
+
+    private static async Task HandleSttV1Streaming(
+        HttpContext context,
+        [FromKeyedServices("stt-v1")] IStreamingTranscriptionService service)
+    {
+        if (!context.WebSockets.IsWebSocketRequest)
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await context.Response.WriteAsync("WebSocket connection required.");
+            return;
+        }
+
+        using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+        await service.TranscribeStreamAsync(webSocket, context.RequestAborted);
+    }
+
+    private static async Task HandleSttV2Streaming(
+        HttpContext context,
+        [FromKeyedServices("stt-v2")] IStreamingTranscriptionService service)
+    {
+        if (!context.WebSockets.IsWebSocketRequest)
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await context.Response.WriteAsync("WebSocket connection required.");
+            return;
+        }
+
+        using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+        await service.TranscribeStreamAsync(webSocket, context.RequestAborted);
+    }
+
+    private static async Task HandleChirpStreaming(
+        HttpContext context,
+        [FromKeyedServices("chirp")] IStreamingTranscriptionService service)
+    {
+        if (!context.WebSockets.IsWebSocketRequest)
+        {
+            context.Response.StatusCode = StatusCodes.Status400BadRequest;
+            await context.Response.WriteAsync("WebSocket connection required.");
+            return;
+        }
+
+        using var webSocket = await context.WebSockets.AcceptWebSocketAsync();
+        await service.TranscribeStreamAsync(webSocket, context.RequestAborted);
+    }
+}

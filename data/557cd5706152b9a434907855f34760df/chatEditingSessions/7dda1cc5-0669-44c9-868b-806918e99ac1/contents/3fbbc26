@@ -1,0 +1,15 @@
+meta {
+  name: Compare Batch
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/transcribe/compare/batch
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  audio: @file()
+}

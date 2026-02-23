@@ -1,0 +1,120 @@
+@host = http://localhost:5145
+
+### Health Check
+GET {{host}}/api/health
+
+### ===== SYNC TRANSCRIPTION (≤ 60s audio) =====
+
+### STT V1 — Sync
+POST {{host}}/api/transcribe/stt-v1/sync
+Content-Type: multipart/form-data; boundary=----boundary
+
+------boundary
+Content-Disposition: form-data; name="audio"; filename="sample.wav"
+Content-Type: audio/wav
+
+< ./samples/sample.wav
+------boundary--
+
+### STT V2 — Sync
+POST {{host}}/api/transcribe/stt-v2/sync
+Content-Type: multipart/form-data; boundary=----boundary
+
+------boundary
+Content-Disposition: form-data; name="audio"; filename="sample.wav"
+Content-Type: audio/wav
+
+< ./samples/sample.wav
+------boundary--
+
+### Chirp — Sync
+POST {{host}}/api/transcribe/chirp/sync
+Content-Type: multipart/form-data; boundary=----boundary
+
+------boundary
+Content-Disposition: form-data; name="audio"; filename="sample.wav"
+Content-Type: audio/wav
+
+< ./samples/sample.wav
+------boundary--
+
+### Gemini (Vertex AI) — Sync
+POST {{host}}/api/transcribe/gemini/sync
+Content-Type: multipart/form-data; boundary=----boundary
+
+------boundary
+Content-Disposition: form-data; name="audio"; filename="sample.wav"
+Content-Type: audio/wav
+
+< ./samples/sample.wav
+------boundary--
+
+### ===== BATCH TRANSCRIPTION (long audio, up to 480 min) =====
+
+### STT V1 — Batch (uploads to GCS, then LongRunningRecognize)
+POST {{host}}/api/transcribe/stt-v1/batch
+Content-Type: multipart/form-data; boundary=----boundary
+
+------boundary
+Content-Disposition: form-data; name="audio"; filename="long_audio.wav"
+Content-Type: audio/wav
+
+< ./samples/long_audio.wav
+------boundary--
+
+### STT V2 — Batch (uploads to GCS, then BatchRecognize)
+POST {{host}}/api/transcribe/stt-v2/batch
+Content-Type: multipart/form-data; boundary=----boundary
+
+------boundary
+Content-Disposition: form-data; name="audio"; filename="long_audio.wav"
+Content-Type: audio/wav
+
+< ./samples/long_audio.wav
+------boundary--
+
+### Chirp — Batch
+POST {{host}}/api/transcribe/chirp/batch
+Content-Type: multipart/form-data; boundary=----boundary
+
+------boundary
+Content-Disposition: form-data; name="audio"; filename="long_audio.wav"
+Content-Type: audio/wav
+
+< ./samples/long_audio.wav
+------boundary--
+
+### ===== COMPARE PROVIDERS =====
+
+### Compare all providers — Sync (short audio)
+POST {{host}}/api/transcribe/compare
+Content-Type: multipart/form-data; boundary=----boundary
+
+------boundary
+Content-Disposition: form-data; name="audio"; filename="sample.wav"
+Content-Type: audio/wav
+
+< ./samples/sample.wav
+------boundary--
+
+### Compare all providers — Batch (long audio)
+POST {{host}}/api/transcribe/compare/batch
+Content-Type: multipart/form-data; boundary=----boundary
+
+------boundary
+Content-Disposition: form-data; name="audio"; filename="long_audio.wav"
+Content-Type: audio/wav
+
+< ./samples/long_audio.wav
+------boundary--
+
+### ===== STREAMING TRANSCRIPTION (WebSocket) =====
+# WebSocket endpoints — use a WebSocket client (not HTTP):
+#   ws://localhost:5145/ws/transcribe/stt-v1
+#   ws://localhost:5145/ws/transcribe/stt-v2
+#   ws://localhost:5145/ws/transcribe/chirp
+#
+# Protocol:
+#   Client sends: binary frames (audio PCM 16kHz 16-bit mono, chunks ≤ 25KB)
+#   Server sends: text frames (JSON StreamingTranscribeResult)
+#   Close: client sends close frame → server completes and closes

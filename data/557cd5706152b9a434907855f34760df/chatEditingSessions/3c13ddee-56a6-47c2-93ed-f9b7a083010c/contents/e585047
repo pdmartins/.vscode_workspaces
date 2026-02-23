@@ -1,0 +1,29 @@
+namespace SttGcp.Api.Configuration;
+
+public sealed class GcpSettings
+{
+    public string ProjectId { get; init; } = string.Empty;
+    public string Region { get; init; } = "us-central1";
+    public string LanguageCode { get; init; } = "pt-BR";
+    public string StorageBucket { get; init; } = string.Empty;
+    public ProvidersSettings Providers { get; init; } = new();
+}
+
+public sealed class ProvidersSettings
+{
+    public ProviderSettings SttV1 { get; init; } = new();
+    public ProviderSettings SttV2 { get; init; } = new();
+    public ChirpProviderSettings Chirp { get; init; } = new();
+    public ProviderSettings Gemini { get; init; } = new();
+}
+
+public sealed class ProviderSettings
+{
+    public bool Enabled { get; init; } = true;
+    public string Model { get; init; } = string.Empty;
+}
+
+public sealed class ChirpProviderSettings : ProviderSettings
+{
+    public string RegionalEndpoint { get; init; } = "us-speech.googleapis.com";
+}

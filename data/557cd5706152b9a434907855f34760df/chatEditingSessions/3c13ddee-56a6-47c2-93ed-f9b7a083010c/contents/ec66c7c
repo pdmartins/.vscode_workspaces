@@ -1,0 +1,10 @@
+using System.Diagnostics;
+using Google.Cloud.AIPlatform.V1;
+using Google.Protobuf;
+using Microsoft.Extensions.Options;
+using SttGcp.Api.Configuration;
+using SttGcp.Api.Models;
+
+namespace SttGcp.Api.Services;
+
+/// <summary>

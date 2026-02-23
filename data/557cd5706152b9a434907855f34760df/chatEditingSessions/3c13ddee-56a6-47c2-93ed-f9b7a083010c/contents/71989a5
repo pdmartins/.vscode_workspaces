@@ -1,0 +1,7 @@
+namespace SttGcp.Api.Models;
+
+public sealed record AudioInfo(
+    string FileName,
+    double DurationSeconds,
+    string Format,
+    long SizeBytes);

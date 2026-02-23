@@ -1,0 +1,6 @@
+@poc_stt_gcp_HostAddress = http://localhost:5145
+
+GET {{poc_stt_gcp_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

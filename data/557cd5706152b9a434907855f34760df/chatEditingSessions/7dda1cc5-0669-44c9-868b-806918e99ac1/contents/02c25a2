@@ -1,0 +1,21 @@
+meta {
+  name: Streaming STT V2
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{wsUrl}}/ws/transcribe/stt-v2
+  body: none
+  auth: none
+}
+
+docs {
+  WebSocket endpoint — requires a WebSocket client.
+  Send binary audio frames and receive JSON transcription results.
+  
+  Bruno does not natively support WebSocket connections.
+  Use a dedicated WebSocket client (e.g., websocat, wscat) to test:
+  
+  wscat -c ws://localhost:5145/ws/transcribe/stt-v2
+}

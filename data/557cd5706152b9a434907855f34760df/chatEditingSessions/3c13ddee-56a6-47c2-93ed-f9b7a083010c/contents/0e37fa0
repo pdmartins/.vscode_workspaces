@@ -1,0 +1,34 @@
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "Gcp": {
+    "ProjectId": "poc-stt-gcp",
+    "Region": "us-central1",
+    "LanguageCode": "pt-BR",
+    "StorageBucket": "poc-stt-gcp-audio",
+    "Providers": {
+      "SttV1": {
+        "Enabled": true,
+        "Model": "default"
+      },
+      "SttV2": {
+        "Enabled": true,
+        "Model": "long"
+      },
+      "Chirp": {
+        "Enabled": true,
+        "Model": "chirp_2",
+        "RegionalEndpoint": "us-speech.googleapis.com"
+      },
+      "Gemini": {
+        "Enabled": true,
+        "Model": "gemini-2.0-flash"
+      }
+    }
+  }
+}

@@ -1,0 +1,41 @@
+using Microsoft.Extensions.Options;
+using SttGcp.Api.Configuration;
+
+namespace SttGcp.Api.Endpoints;
+
+public static class HealthEndpoints
+{
+    public static IEndpointRouteBuilder MapHealthEndpoints(this IEndpointRouteBuilder app)
+    {
+        app.MapGet("/api/health", GetHealth)
+            .WithTags("Health")
+            .WithName("HealthCheck")
+            .WithSummary("Returns API status and enabled providers")
+            .Produces<HealthResponse>();
+
+        return app;
+    }
+
+    private static IResult GetHealth(IOptions<GcpSettings> settings)
+    {
+        var providers = settings.Value.Providers;
+
+        var enabledProviders = new List<string>();
+        if (providers.SttV1.Enabled) enabledProviders.Add("stt-v1");
+        if (providers.SttV2.Enabled) enabledProviders.Add("stt-v2");
+        if (providers.Chirp.Enabled) enabledProviders.Add("chirp");
+        if (providers.Gemini.Enabled) enabledProviders.Add("gemini");
+
+        return TypedResults.Ok(new HealthResponse(
+            Status: "healthy",
+            ProjectId: settings.Value.ProjectId,
+            Region: settings.Value.Region,
+            EnabledProviders: enabledProviders));
+    }
+
+    private sealed record HealthResponse(
+        string Status,
+        string ProjectId,
+        string Region,
+        List<string> EnabledProviders);
+}

@@ -1,0 +1,69 @@
+using Google.Cloud.AIPlatform.V1;
+using Google.Cloud.Speech.V2;
+using Google.Cloud.Storage.V1;
+using SttGcp.Api.Configuration;
+using SttGcp.Api.Endpoints;
+using SttGcp.Api.Services;
+
+using SpeechClientV1 = Google.Cloud.Speech.V1.SpeechClient;
+using SpeechClientV2 = Google.Cloud.Speech.V2.SpeechClient;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Configuration
+builder.Services.Configure<GcpSettings>(builder.Configuration.GetSection("Gcp"));
+
+// Swagger
+builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddSwaggerGen();
+
+// GCP Clients — singletons (thread-safe, reusable)
+builder.Services.AddSingleton(_ => SpeechClientV1.Create());
+builder.Services.AddSingleton(_ => SpeechClientV2.Create());
+builder.Services.AddSingleton(_ => StorageClient.Create());
+builder.Services.AddSingleton(_ => new PredictionServiceClientBuilder
+{
+    Endpoint = $"{builder.Configuration["Gcp:Region"]}-aiplatform.googleapis.com"
+}.Build());
+
+// Chirp uses V2 client with regional endpoint
+builder.Services.AddKeyedSingleton("chirp-client", (_, _) =>
+    new SpeechClientBuilder
+    {
+        Endpoint = builder.Configuration["Gcp:Providers:Chirp:RegionalEndpoint"]
+                   ?? "us-speech.googleapis.com"
+    }.Build());
+
+// STT Services — keyed by provider name
+builder.Services.AddKeyedScoped<ISpeechToTextService, SpeechToTextV1Service>("stt-v1");
+builder.Services.AddKeyedScoped<ISpeechToTextService, SpeechToTextV2Service>("stt-v2");
+builder.Services.AddKeyedScoped<ISpeechToTextService, ChirpService>("chirp");
+builder.Services.AddKeyedScoped<ISpeechToTextService, VertexAiService>("gemini");
+
+// Streaming Services — keyed by provider name
+builder.Services.AddKeyedScoped<IStreamingTranscriptionService, StreamingV1Service>("stt-v1");
+builder.Services.AddKeyedScoped<IStreamingTranscriptionService, StreamingV2Service>("stt-v2");
+builder.Services.AddKeyedScoped<IStreamingTranscriptionService, StreamingChirpService>("chirp");
+
+// Storage Service
+builder.Services.AddScoped<IStorageService, CloudStorageService>();
+
+var app = builder.Build();
+
+// Middleware
+if (app.Environment.IsDevelopment())
+{
+    app.UseSwagger();
+    app.UseSwaggerUI();
+}
+
+app.UseHttpsRedirection();
+app.UseWebSockets();
+
+// Endpoints
+app.MapTranscribeEndpoints();
+app.MapStreamingEndpoints();
+app.MapCompareEndpoints();
+app.MapHealthEndpoints();
+
+app.Run();

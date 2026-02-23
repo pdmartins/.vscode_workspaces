@@ -1,0 +1,6 @@
+{
+  "git.scanRepositories": [
+    ".copilot-core",
+    ".copilot-project"
+  ]
+}

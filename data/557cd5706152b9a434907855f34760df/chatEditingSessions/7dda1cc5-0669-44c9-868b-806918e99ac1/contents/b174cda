@@ -1,0 +1,15 @@
+meta {
+  name: Compare Sync
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/api/transcribe/compare
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  audio: @file()
+}

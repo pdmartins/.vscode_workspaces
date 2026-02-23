@@ -1,0 +1,111 @@
+using System.Diagnostics;
+using Google.Cloud.AIPlatform.V1;
+using Google.Protobuf;
+using Microsoft.Extensions.Options;
+using SttGcp.Api.Configuration;
+using SttGcp.Api.Models;
+
+namespace SttGcp.Api.Services;
+
+/// <summary>
+/// Vertex AI Gemini — multimodal audio transcription via generative model.
+/// </summary>
+public sealed class VertexAiService(
+    PredictionServiceClient predictionClient,
+    IOptions<GcpSettings> settings,
+    ILogger<VertexAiService> logger) : ISpeechToTextService
+{
+    public string ProviderName => "Gemini";
+    public bool SupportsBatch => false;
+
+    public async Task<TranscribeResponse> TranscribeSyncAsync(
+        Stream audioStream,
+        string contentType,
+        CancellationToken ct = default)
+    {
+        var sw = Stopwatch.StartNew();
+        var cfg = settings.Value;
+        var providerCfg = cfg.Providers.Gemini;
+        var model = string.IsNullOrEmpty(providerCfg.Model) ? "gemini-2.0-flash" : providerCfg.Model;
+
+        using var ms = new MemoryStream();
+        await audioStream.CopyToAsync(ms, ct);
+        var audioBytes = ms.ToArray();
+
+        var endpoint = $"projects/{cfg.ProjectId}/locations/{cfg.Region}/publishers/google/models/{model}";
+
+        var request = new GenerateContentRequest
+        {
+            Model = endpoint,
+            Contents =
+            {
+                new Content
+                {
+                    Role = "user",
+                    Parts =
+                    {
+                        new Part
+                        {
+                            InlineData = new Blob
+                            {
+                                MimeType = contentType,
+                                Data = ByteString.CopyFrom(audioBytes)
+                            }
+                        },
+                        new Part
+                        {
+                            Text = BuildTranscriptionPrompt(cfg.LanguageCode)
+                        }
+                    }
+                }
+            },
+            GenerationConfig = new GenerationConfig
+            {
+                Temperature = 0.0f,
+                MaxOutputTokens = 8192
+            }
+        };
+
+        logger.LogInformation("Gemini transcription starting with model {Model}", model);
+
+        var response = await predictionClient.GenerateContentAsync(request, ct);
+
+        sw.Stop();
+
+        var transcription = response.Candidates.FirstOrDefault()?
+            .Content.Parts.FirstOrDefault()?
+            .Text ?? string.Empty;
+
+        var words = transcription.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+        return new TranscribeResponse(
+            ProviderName: ProviderName,
+            Transcription: transcription.Trim(),
+            Confidence: 0, // Gemini does not return a confidence score
+            LatencyMs: sw.ElapsedMilliseconds,
+            WordCount: words.Length,
+            MedicalTermsDetected: SpeechToTextV2Service.DetectMedicalTerms(transcription),
+            SpeakerSegments: []); // Gemini does not return structured diarization
+    }
+
+    public Task<TranscribeResponse> TranscribeBatchAsync(
+        string gcsUri,
+        string contentType,
+        CancellationToken ct = default)
+    {
+        throw new NotSupportedException(
+            $"{ProviderName} does not support batch transcription. Use sync mode instead.");
+    }
+
+    private static string BuildTranscriptionPrompt(string languageCode) =>
+        $"""
+        You are a medical transcription assistant. Transcribe the audio exactly as spoken.
+        Rules:
+        - Language: {languageCode}
+        - Include all words exactly as spoken, including medical terminology
+        - Add proper punctuation
+        - If multiple speakers are present, prefix each speaker change with [Speaker 1] or [Speaker 2]
+        - Do NOT summarize. Do NOT interpret. Only transcribe.
+        - Output ONLY the transcription text, nothing else.
+        """;
+}

@@ -1,0 +1,21 @@
+meta {
+  name: Streaming Chirp
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{wsUrl}}/ws/transcribe/chirp
+  body: none
+  auth: none
+}
+
+docs {
+  WebSocket endpoint — requires a WebSocket client.
+  Send binary audio frames and receive JSON transcription results.
+  
+  Bruno does not natively support WebSocket connections.
+  Use a dedicated WebSocket client (e.g., websocat, wscat) to test:
+  
+  wscat -c ws://localhost:5145/ws/transcribe/chirp
+}

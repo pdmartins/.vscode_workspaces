@@ -1,0 +1,19 @@
+using SttGcp.Api.Models;
+
+namespace SttGcp.Api.Services;
+
+public interface ISpeechToTextService
+{
+    string ProviderName { get; }
+    bool SupportsBatch { get; }
+
+    Task<TranscribeResponse> TranscribeSyncAsync(
+        Stream audioStream,
+        string contentType,
+        CancellationToken ct = default);
+
+    Task<TranscribeResponse> TranscribeBatchAsync(
+        string gcsUri,
+        string contentType,
+        CancellationToken ct = default);
+}

@@ -1,0 +1,7 @@
+namespace SttGcp.Api.Models;
+
+public sealed record StreamingTranscribeResult(
+    bool IsFinal,
+    string Transcript,
+    double Confidence,
+    double Stability);

@@ -1,0 +1,88 @@
+using System.Diagnostics;
+using Google.Cloud.Speech.V2;
+using Google.Protobuf;
+using Microsoft.Extensions.Options;
+using SttGcp.Api.Configuration;
+using SttGcp.Api.Models;
+
+namespace SttGcp.Api.Services;
+
+/// <summary>
+/// Chirp (via Speech-to-Text V2 API with chirp model and regional endpoint).
+/// </summary>
+public sealed class ChirpService(
+    [FromKeyedServices("chirp-client")] SpeechClient client,
+    IOptions<GcpSettings> settings,
+    ILogger<ChirpService> logger) : ISpeechToTextService
+{
+    public string ProviderName => "Chirp";
+    public bool SupportsBatch => true;
+
+    public async Task<TranscribeResponse> TranscribeSyncAsync(
+        Stream audioStream,
+        string contentType,
+        CancellationToken ct = default)
+    {
+        var sw = Stopwatch.StartNew();
+        var cfg = settings.Value;
+        var providerCfg = cfg.Providers.Chirp;
+
+        using var ms = new MemoryStream();
+        await audioStream.CopyToAsync(ms, ct);
+        var audioBytes = ms.ToArray();
+
+        var recognizer = $"projects/{cfg.ProjectId}/locations/{cfg.Region}/recognizers/_";
+        var model = string.IsNullOrEmpty(providerCfg.Model) ? "chirp_2" : providerCfg.Model;
+
+        var request = new RecognizeRequest
+        {
+            Recognizer = recognizer,
+            Config = SpeechToTextV2Service.BuildConfig(cfg, model),
+            Content = ByteString.CopyFrom(audioBytes)
+        };
+
+        logger.LogInformation("Chirp sync recognition starting with model {Model}", model);
+
+        var response = await client.RecognizeAsync(request, ct);
+
+        sw.Stop();
+        return SpeechToTextV2Service.MapResponse(response, sw.ElapsedMilliseconds, ProviderName);
+    }
+
+    public async Task<TranscribeResponse> TranscribeBatchAsync(
+        string gcsUri,
+        string contentType,
+        CancellationToken ct = default)
+    {
+        var sw = Stopwatch.StartNew();
+        var cfg = settings.Value;
+        var providerCfg = cfg.Providers.Chirp;
+
+        var recognizer = $"projects/{cfg.ProjectId}/locations/{cfg.Region}/recognizers/_";
+        var model = string.IsNullOrEmpty(providerCfg.Model) ? "chirp_2" : providerCfg.Model;
+
+        var request = new BatchRecognizeRequest
+        {
+            Recognizer = recognizer,
+            Config = SpeechToTextV2Service.BuildConfig(cfg, model),
+            Files =
+            {
+                new BatchRecognizeFileMetadata { Uri = gcsUri }
+            },
+            RecognitionOutputConfig = new RecognitionOutputConfig
+            {
+                InlineResponseConfig = new InlineOutputConfig()
+            }
+        };
+
+        logger.LogInformation("Chirp batch recognition starting for {GcsUri} with model {Model}", gcsUri, model);
+
+        var operation = await client.BatchRecognizeAsync(request, ct);
+        var completed = await operation.PollUntilCompletedAsync(cancellationToken: ct);
+
+        sw.Stop();
+        logger.LogInformation("Chirp batch recognition completed in {Ms}ms", sw.ElapsedMilliseconds);
+
+        return SpeechToTextV2Service.MapBatchResponse(completed.Result, gcsUri, sw.ElapsedMilliseconds, ProviderName);
+    }
+}

@@ -1,0 +1,15 @@
+meta {
+  name: STT V1 Batch
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/api/transcribe/stt-v1/batch
+  body: multipartForm
+  auth: none
+}
+
+body:multipart-form {
+  audio: @file()
+}
