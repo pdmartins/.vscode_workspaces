@@ -1,0 +1,252 @@
+I now have all the data needed. Here's the comprehensive research summary:
+
+---
+
+# GCP Speech-to-Text Research Summary for .NET 8
+
+## Existing Project Context
+
+The project at [src/poc_stt_gcp/poc_stt_gcp.csproj](src/poc_stt_gcp/poc_stt_gcp.csproj) is a bare ASP.NET Core 8 Web API (controller-based) with only Swashbuckle. No GCP packages installed yet. [Program.cs](src/poc_stt_gcp/Program.cs) is stock template code.
+
+---
+
+## 1. GCP STT V1 (`google.cloud.speech.v1`)
+
+### Methods
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `Recognize` | `rpc Recognize(RecognizeRequest) returns (RecognizeResponse)` | Synchronous: send all audio, get result back |
+| `LongRunningRecognize` | `rpc LongRunningRecognize(LongRunningRecognizeRequest) returns (Operation)` | Async: returns an Operation, poll for results |
+| `StreamingRecognize` | `rpc StreamingRecognize(stream StreamingRecognizeRequest) returns (stream StreamingRecognizeResponse)` | Bidirectional gRPC stream. **gRPC only, not REST.** |
+
+### Duration Limits (V1)
+
+| Method | Max Duration | Max Size | Audio Source |
+|--------|-------------|----------|--------------|
+| **Recognize** | **60 seconds** | 10 MB | Inline bytes OR GCS URI |
+| **LongRunningRecognize** | **480 min (8 hours)** | N/A | Inline up to 60s; **GCS required for >60s** |
+| **StreamingRecognize** | **~5 min per stream** | 25 KB per individual request message | Inline bytes only (streamed) |
+
+### LongRunningRecognize Details
+- Does NOT strictly require GCS, but local files (inline content) are limited to 60 seconds
+- For audio >60s, **GCS URI is required** (`gs://bucket/object`)
+- Can optionally output results to a GCS bucket via `TranscriptOutputConfig`
+- Returns an `Operation` you poll via `google.longrunning.Operations`
+
+### StreamingRecognize Details
+- **Bidirectional gRPC stream** (not REST)
+- First message: `StreamingRecognitionConfig` (no audio)
+- Subsequent messages: `audio_content` bytes (max 25 KB per message)
+- Supports `interim_results`, `single_utterance`, `voice_activity_events`
+- Audio must be sent at approximately real-time rate
+
+### NuGet Package
+- **`Google.Cloud.Speech.V1`** version **3.9.0** (latest as of Feb 2026)
+
+> **Note**: Google recommends migrating to V2 for new projects.
+
+---
+
+## 2. GCP STT V2 (`google.cloud.speech.v2`)
+
+### Methods
+
+| Method | Signature | Description |
+|--------|-----------|-------------|
+| `Recognize` | `rpc Recognize(RecognizeRequest) returns (RecognizeResponse)` | Synchronous recognition |
+| `BatchRecognize` | `rpc BatchRecognize(BatchRecognizeRequest) returns (Operation)` | Replaces LongRunningRecognize. Long-running async |
+| `StreamingRecognize` | `rpc StreamingRecognize(stream StreamingRecognizeRequest) returns (stream StreamingRecognizeResponse)` | Bidirectional gRPC stream |
+| `CreateRecognizer` | `rpc CreateRecognizer(CreateRecognizerRequest) returns (Operation)` | Create a Recognizer resource |
+| + many CRUD methods | For Recognizers, PhraseSets, CustomClasses, Config | Resource management |
+
+### Duration Limits (V2)
+
+| Method | Max Duration | Audio Source | Notes |
+|--------|-------------|--------------|-------|
+| **Recognize** | **60 seconds** / 10 MB | Inline bytes OR GCS URI | Same as V1 |
+| **BatchRecognize** | **480 min (8 hours)** | **GCS URI only** | Up to 15 files per request |
+| **StreamingRecognize** | **~5 min per stream** | Inline bytes only (25 KB/msg) | gRPC only |
+
+### Recognizer Resource
+- V2 **supports** but does NOT **require** a Recognizer resource
+- You can use the **implicit recognizer** with `_`: `projects/{project}/locations/{location}/recognizers/_`
+- Or create a named recognizer with `CreateRecognizer` to store default config (model, language, features)
+- Recognizers store `default_recognition_config` that can be overridden per request via `config` + `config_mask`
+- **Best practice**: create recognizers infrequently, reuse them
+
+### BatchRecognize Details
+- **Requires GCS** for audio input (only accepts GCS URIs in `BatchRecognizeFileMetadata.uri`)
+- **Output options**: GCS (`GcsOutputConfig`) or inline (`InlineOutputConfig` - single file only)
+- Supports `DYNAMIC_BATCHING` processing strategy (lower cost, up to 24h turnaround)
+- Can output in native JSON, VTT, or SRT format
+- Up to 15 files per batch request
+
+### Available Models (V2)
+
+| Model | Description |
+|-------|-------------|
+| `chirp_3` | Latest gen. Best accuracy, multilingual, diarization, auto language detection |
+| `chirp_2` | USM + LLM powered. Streaming and batch. Multilingual |
+| `telephony` | Optimized for phone call audio (8 kHz) |
+| `long` | General long-form transcription |
+| `latest_long` | Latest version of long-form model |
+| `latest_short` | Latest version of short-form/command model |
+
+> Note: `medical_dictation` / `medical_conversation` were V1 models. Check V2 availability per region.
+
+### NuGet Package
+- **`Google.Cloud.Speech.V2`** version **1.7.0** (latest as of Feb 2026)
+
+---
+
+## 3. Chirp / Chirp 2 / Chirp 3
+
+### Key Findings
+
+| Question | Answer |
+|----------|--------|
+| API version | **V2 only** -- Chirp models are exclusively available in Speech-to-Text API V2 |
+| Model identifiers | `chirp_2` and `chirp_3` (separate models). No plain `chirp` identifier in current docs |
+| Supports all V2 modes? | **Yes** -- `Recognize` (sync), `BatchRecognize` (batch), `StreamingRecognize` (streaming) all supported for Chirp 3 |
+| Regional endpoints | Chirp 3 GA in `us` and `eu` multi-regions. Must use regional endpoint: `{REGION}-speech.googleapis.com` |
+| Special config | Use `auto_decoding_config` for automatic format detection. Set `language_codes=["auto"]` for automatic language detection |
+
+### Chirp 3 Feature Support
+
+| Feature | Status |
+|---------|--------|
+| Automatic punctuation | GA (auto-generated, can be disabled) |
+| Automatic capitalization | GA |
+| Speaker diarization | GA (BatchRecognize and Recognize only) |
+| Speech adaptation (biasing) | GA (up to 1,000 phrases) |
+| Language-agnostic transcription | GA (`language_codes=["auto"]`) |
+| Word-level timestamps | Available in Recognize + BatchRecognize (some degradation expected) |
+| Denoiser | Supported (`denoiser_config.denoise_audio = true`) |
+| Utterance-level timestamps | GA (StreamingRecognize only) |
+
+### Configuration Pattern (Chirp 3 in .NET)
+```
+// Key config points:
+// 1. Use regional endpoint (e.g., "us-speech.googleapis.com")
+// 2. Model = "chirp_3"
+// 3. Recognizer = "projects/{project}/locations/{region}/recognizers/_"
+// 4. AutoDetectDecodingConfig for automatic format detection
+```
+
+---
+
+## 4. Vertex AI for Audio Transcription (Gemini)
+
+### Can Gemini Process Audio?
+- **Yes** -- Gemini models (gemini-1.5-pro, gemini-2.0-flash, etc.) accept audio as multimodal input
+- Audio can be provided inline (base64) or via GCS URI
+- Gemini is a general-purpose LLM -- it can transcribe, summarize, translate, answer questions about audio
+
+### Limits
+- **Inline audio**: Up to 20 MB per request
+- **GCS audio**: Larger files supported (up to hours of audio)
+- Supported formats: WAV, MP3, AIFF, AAC, OGG, FLAC
+- Max audio duration varies by model but generally supports long audio
+
+### NuGet Package
+- **`Google.Cloud.AIPlatform.V1`** version **3.64.0** (latest as of Feb 2026)
+
+### Comparison vs Dedicated STT
+
+| Aspect | Cloud STT (V2/Chirp) | Gemini (Vertex AI) |
+|--------|----------------------|-------------------|
+| **Primary purpose** | Dedicated ASR | General multimodal AI |
+| **Accuracy** | Optimized for transcription | Good but not ASR-specialized |
+| **Streaming** | Native bidirectional gRPC | No native audio streaming |
+| **Word timestamps** | Yes | No (not structured) |
+| **Speaker diarization** | Yes (Chirp 3) | Can attempt but not structured |
+| **Cost** | Lower for pure transcription | Higher (LLM pricing) |
+| **Latency** | Lower (specialized) | Higher (general LLM) |
+| **Best for** | Production transcription | Audio understanding, Q&A, summarization |
+
+**Recommendation**: Use Cloud STT V2 with Chirp 3 for transcription. Use Gemini when you need audio *understanding* beyond pure transcription.
+
+---
+
+## 5. Streaming in ASP.NET Core (.NET 8)
+
+### WebSocket Pattern (Minimal API)
+
+```
+// 1. Accept WebSocket in Minimal API:
+app.Map("/ws/transcribe", async (HttpContext context) => {
+    if (context.WebSockets.IsWebSocketRequest) {
+        var ws = await context.WebSockets.AcceptWebSocketAsync();
+        // Bridge to GCP StreamingRecognize
+    }
+});
+
+// 2. Requires: app.UseWebSockets();
+```
+
+### SignalR as Alternative
+- **Yes**, SignalR can work as an alternative to raw WebSockets
+- Advantages: automatic reconnection, fallback transports, hub pattern, strongly typed clients
+- The client sends audio chunks via SignalR hub method; server bridges to GCP gRPC stream
+- SignalR is better for most web apps; raw WebSocket gives more control
+
+### Bridging WebSocket to GCP StreamingRecognize
+
+The pattern involves:
+1. **Client** -> WebSocket/SignalR -> sends audio chunks (PCM/Opus bytes)
+2. **Server** opens a `SpeechClient.StreamingRecognize()` bidirectional gRPC call
+3. First gRPC message: `StreamingRecognizeRequest` with `StreamingRecognitionConfig`
+4. For each WebSocket message received: write `StreamingRecognizeRequest` with `audio` bytes to the gRPC stream
+5. Read responses from gRPC stream concurrently, forward transcription results back via WebSocket/SignalR
+6. On WebSocket close: complete the gRPC write stream, await final results
+
+**Key considerations**:
+- Each gRPC stream message max: **25 KB** audio
+- Stream max duration: **~5 minutes** (implement reconnection for longer sessions)
+- Use `CancellationToken` for proper cleanup
+- Run read/write loops as concurrent tasks
+
+---
+
+## 6. Cloud Storage
+
+### Upload Pattern for Batch/LongRunning
+
+```
+// 1. Upload audio to GCS
+var storage = StorageClient.Create();
+using var stream = File.OpenRead("audio.wav");
+storage.UploadObject("bucket-name", "audio/file.wav", "audio/wav", stream);
+
+// 2. Use GCS URI in STT request
+var uri = "gs://bucket-name/audio/file.wav";
+```
+
+- For batch operations, upload first, then reference `gs://` URI
+- The STT service account (`service-{PROJECT_NUMBER}@gcp-sa-speech.iam.gserviceaccount.com`) needs read access to the bucket
+- For cross-project access, grant the Speech-to-Text Service Agent role
+
+### NuGet Package
+- **`Google.Cloud.Storage.V1`** version **4.14.0** (latest as of Feb 2026)
+
+---
+
+## NuGet Package Summary
+
+| Package | Latest Version | Purpose |
+|---------|---------------|---------|
+| `Google.Cloud.Speech.V1` | **3.9.0** | STT V1 API (legacy, being deprecated) |
+| `Google.Cloud.Speech.V2` | **1.7.0** | STT V2 API (recommended) |
+| `Google.Cloud.Storage.V1` | **4.14.0** | Cloud Storage (upload audio for batch) |
+| `Google.Cloud.AIPlatform.V1` | **3.64.0** | Vertex AI / Gemini (multimodal audio) |
+
+---
+
+## Recommendation for This POC
+
+Use **V2 API** (`Google.Cloud.Speech.V2`) with **Chirp 3** model as the primary approach. The implementation would cover three modes:
+
+1. **Sync** (`Recognize`) -- for short audio (<60s), simple request/response
+2. **Batch** (`BatchRecognize`) -- for long audio, upload to GCS first
+3. **Streaming** (`StreamingRecognize`) -- for real-time, bridge WebSocket/SignalR to gRPC
