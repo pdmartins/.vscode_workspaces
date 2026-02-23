@@ -1,0 +1,577 @@
+Here are the full contents of all requested files:
+
+---
+
+## 1. [.copilot-project/skills/stt-gcp-integration/SKILL.md](.copilot-project/skills/stt-gcp-integration/SKILL.md)
+
+````skill
+---
+name: stt-gcp-integration
+description: Padrões e configuração para integração com Google Cloud Speech-to-Text (v1, v2, Chirp), Cloud Storage e Vertex AI. Define como criar clients, configurar authentication, e avaliar resultados de transcrição. Triggers — integrar GCP, configurar speech-to-text, criar client GCP, comparar providers, avaliar transcrição.
+metadata:
+  author: _poc/stt_gcp
+  version: "1.0"
+  category: infra
+---
+
+# STT GCP Integration
+
+Guia de integração com os serviços GCP de Speech-to-Text para a PoC hospitalar.
+
+## Quando Usar
+
+- Criar ou modificar integração com GCP
+- Adicionar novo provider de STT
+- Configurar autenticação GCP
+- Definir parâmetros de transcrição (encoding, sample rate, language)
+- Comparar resultados entre providers
+
+## Providers
+
+### Speech-to-Text v1
+
+```csharp
+using Google.Cloud.Speech.V1;
+
+public sealed class SpeechToTextV1Service(
+    SpeechClient client,
+    IOptions<GcpSettings> settings,
+    ILogger<SpeechToTextV1Service> logger) : ISpeechToTextService
+{
+    public string ProviderName => "Speech-to-Text v1";
+
+    public async Task<TranscribeResponse> TranscribeAsync(
+        Stream audioStream, string contentType, CancellationToken ct = default)
+    {
+        var audio = RecognitionAudio.FromStream(audioStream);
+
+        var config = new RecognitionConfig
+        {
+            Encoding = GetEncoding(contentType),
+            LanguageCode = settings.Value.LanguageCode,  // "pt-BR"
+            EnableAutomaticPunctuation = true,
+            EnableWordTimeOffsets = true,
+            Model = "medical_dictation",  // if available, otherwise "default"
+            UseEnhanced = true,
+            DiarizationConfig = new SpeakerDiarizationConfig
+            {
+                EnableSpeakerDiarization = true,
+                MinSpeakerCount = 2,
+                MaxSpeakerCount = 2  // médico + paciente
+            }
+        };
+
+        var response = await client.RecognizeAsync(config, audio, ct);
+        return MapResponse(response);
+    }
+}
+```
+
+### Speech-to-Text v2 / Chirp
+
+```csharp
+using Google.Cloud.Speech.V2;
+
+// V2 usa Recognizer resources
+// Chirp é configurado via model no Recognizer
+
+var recognizerName = RecognizerName.FromProjectLocationRecognizer(
+    projectId, "global", recognizerId);
+
+var config = new RecognitionConfig
+{
+    AutoDecodingConfig = new AutoDetectDecodingConfig(),
+    LanguageCodes = { "pt-BR" },
+    Model = "chirp_2",  // ou "long" para v2 standard
+    Features = new RecognitionFeatures
+    {
+        EnableAutomaticPunctuation = true,
+        EnableWordTimeOffsets = true,
+        DiarizationConfig = new SpeakerDiarizationConfig
+        {
+            MinSpeakerCount = 2,
+            MaxSpeakerCount = 2
+        }
+    }
+};
+```
+
+### Vertex AI
+
+Para processamento avançado ou pós-processamento da transcrição (ex: gerar anamnese):
+
+```csharp
+using Google.Cloud.AIPlatform.V1;
+
+// Vertex AI pode ser usado para:
+// 1. Modelos custom de STT (se necessário)
+// 2. Pós-processamento: transcrição → anamnese estruturada
+// 3. Sugestões de diagnóstico (futuro)
+```
+
+## Configuração
+
+### appsettings.json
+
+```json
+{
+  "Gcp": {
+    "ProjectId": "my-gcp-project",
+    "Region": "us-central1",
+    "LanguageCode": "pt-BR",
+    "StorageBucket": "stt-gcp-audio",
+    "Providers": {
+      "V1": { "Enabled": true, "Model": "medical_dictation" },
+      "V2": { "Enabled": true, "Model": "long" },
+      "Chirp": { "Enabled": true, "Model": "chirp_2" },
+      "VertexAi": { "Enabled": false }
+    }
+  }
+}
+```
+
+### Autenticação
+
+| Ambiente | Método | Setup |
+|----------|--------|-------|
+| Local | ADC | `gcloud auth application-default login` |
+| Docker | Service Account | Mount JSON key, set `GOOGLE_APPLICATION_CREDENTIALS` |
+| GCP (Cloud Run) | Workload Identity | Automatic |
+
+## Formatos de Áudio Suportados
+
+| Formato | Encoding | Ext | Notas |
+|---------|----------|-----|-------|
+| WAV/PCM | LINEAR16 | .wav | Melhor qualidade, sem compressão |
+| FLAC | FLAC | .flac | Compressão lossless |
+| OGG Opus | OGG_OPUS | .ogg | Comum em webRTC/telemedicina |
+| MP3 | MP3 | .mp3 | Comum mas lossy |
+| WebM | WEBM_OPUS | .webm | Gravação browser |
+
+## Comparação de Resultados
+
+O endpoint `/api/transcribe/compare` deve retornar:
+
+```json
+{
+  "audioInfo": {
+    "fileName": "consulta_01.wav",
+    "durationSeconds": 120.5,
+    "format": "LINEAR16"
+  },
+  "results": [
+    {
+      "provider": "Speech-to-Text v1",
+      "transcription": "...",
+      "confidence": 0.92,
+      "latencyMs": 3200,
+      "wordCount": 450,
+      "medicalTermsDetected": ["dipirona", "cefaleia", "tomografia"],
+      "speakerSegments": ["..."]
+    }
+  ],
+  "comparison": {
+    "fastestProvider": "Chirp",
+    "highestConfidence": "Speech-to-Text v2",
+    "bestMedicalTermAccuracy": "..."
+  }
+}
+```
+
+## Regras
+
+1. **Sempre `pt-BR`** como language code
+2. **Speaker diarization** habilitada por padrão (min=2, max=2 para consultas)
+3. **Automatic punctuation** sempre habilitada
+4. **Word time offsets** habilitados para análise temporal
+5. **Modelo médico** quando disponível (`medical_dictation` para v1)
+6. **Timeout generoso** — áudios de consulta podem ter 30+ minutos
+7. **Streaming vs Batch** — usar batch para PoC (simpler), streaming como evolução futura
+8. **Não enviar PII em metadata** — mesmo com dados de teste
+````
+
+---
+
+## 2. `.copilot-project/skills/stt-gcp-integration/config.yml`
+
+**File does not exist.**
+
+---
+
+## 3. [.copilot-project/skills/stt-coding-conventions/SKILL.md](.copilot-project/skills/stt-coding-conventions/SKILL.md)
+
+````skill
+---
+name: stt-coding-conventions
+description: Convenções de código .NET 8 Minimal API para a PoC STT GCP. Define naming, estrutura, patterns e estilo. Triggers — criar endpoint, novo serviço, adicionar código, convenções, padrões de código.
+metadata:
+  author: _poc/stt_gcp
+  version: "1.0"
+  category: code
+---
+
+# STT Coding Conventions
+
+Convenções de código para a PoC de Speech-to-Text com GCP.
+
+## Quando Usar
+
+- Criar novo endpoint, serviço ou modelo
+- Definir padrão de código
+- Review de código
+
+## Stack
+
+- **.NET 8** com **Minimal API**
+- **C# 12** (file-scoped namespaces, primary constructors, raw string literals)
+- Sem controllers — endpoints registrados via extension methods
+
+## Estrutura de Pastas
+
+```
+SttGcp.Api/
+├── Program.cs                     # Entry point + DI + endpoint mapping
+├── Endpoints/                     # Extension methods para registrar endpoints
+│   ├── TranscribeEndpoints.cs
+│   └── HealthEndpoints.cs
+├── Services/                      # Lógica de negócio / integração GCP
+│   ├── ISpeechToTextService.cs
+│   ├── SpeechToTextV1Service.cs
+│   ├── SpeechToTextV2Service.cs
+│   ├── ChirpService.cs
+│   └── VertexAiService.cs
+├── Models/                        # DTOs e value objects
+│   ├── TranscribeRequest.cs
+│   ├── TranscribeResponse.cs
+│   └── ComparisonResult.cs
+├── Configuration/                 # Opções e settings
+│   └── GcpSettings.cs
+└── appsettings.json
+```
+
+## Naming
+
+| Elemento | Convenção | Exemplo |
+|----------|-----------|---------|
+| Namespace | `SttGcp.Api.{Pasta}` | `SttGcp.Api.Services` |
+| Interface | `I{Nome}` | `ISpeechToTextService` |
+| Serviço | `{Provider}Service` | `SpeechToTextV1Service` |
+| Endpoint group | `{Feature}Endpoints` | `TranscribeEndpoints` |
+| DTO Request | `{Ação}Request` | `TranscribeRequest` |
+| DTO Response | `{Ação}Response` | `TranscribeResponse` |
+| Settings | `{Feature}Settings` | `GcpSettings` |
+
+## Padrões
+
+### Endpoints (Minimal API)
+
+```csharp
+public static class TranscribeEndpoints
+{
+    public static IEndpointRouteBuilder MapTranscribeEndpoints(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/api/transcribe")
+            .WithTags("Transcribe");
+
+        group.MapPost("/v1", TranscribeV1)
+            .WithName("TranscribeV1")
+            .Produces<TranscribeResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        return app;
+    }
+
+    private static async Task<IResult> TranscribeV1(
+        IFormFile audio,
+        ISpeechToTextService service,
+        CancellationToken ct)
+    {
+        // implementation
+    }
+}
+```
+
+### Serviços
+
+```csharp
+public interface ISpeechToTextService
+{
+    string ProviderName { get; }
+    Task<TranscribeResponse> TranscribeAsync(Stream audioStream, string contentType, CancellationToken ct = default);
+}
+```
+
+### DI Registration
+
+```csharp
+// Program.cs
+builder.Services.Configure<GcpSettings>(builder.Configuration.GetSection("Gcp"));
+builder.Services.AddSingleton<ISpeechToTextService, SpeechToTextV1Service>();
+```
+
+### Options Pattern
+
+```csharp
+public sealed class GcpSettings
+{
+    public string ProjectId { get; init; } = string.Empty;
+    public string Region { get; init; } = "us-central1";
+    public string LanguageCode { get; init; } = "pt-BR";
+}
+```
+
+## Regras
+
+1. **File-scoped namespaces** — sempre (`namespace SttGcp.Api.Services;`)
+2. **Primary constructors** para serviços com DI
+3. **`sealed`** em classes concretas que não serão herdadas
+4. **`CancellationToken`** em todo método async
+5. **`IResult`** como retorno de endpoints (TypedResults)
+6. **Sem try/catch genérico** — usar middleware de exception handling
+7. **Logs estruturados** — `ILogger<T>` com `LoggerMessage.Define`
+8. **Sem dados de paciente em logs** — mesmo em PoC com dados de teste
+````
+
+---
+
+## 4. `.copilot-project/skills/stt-coding-conventions/config.yml`
+
+**File does not exist.**
+
+---
+
+## 5. [.copilot-project/context/architecture/overview.md](.copilot-project/context/architecture/overview.md)
+
+```markdown
+# Architecture — Overview
+
+## Tipo de Aplicação
+
+**API/Serviço** — expõe endpoints REST para receber áudios e retornar transcrições.
+
+## Arquitetura
+
+PoC com projeto único (sem separação em layers). Foco em validar a viabilidade técnica antes de investir em arquitetura elaborada.
+
+```
+[Client] → [Minimal API] → [Service Layer] → [GCP Speech-to-Text]
+                                            → [GCP Cloud Storage]
+                                            → [GCP Vertex AI]
+```
+
+### Componentes
+
+| Componente | Responsabilidade |
+|------------|-----------------|
+| API Endpoints | Receber áudios, rotear para serviço correto, retornar resultado |
+| STT Service | Abstração sobre os diferentes providers GCP (v1, v2, Chirp, Vertex) |
+| Storage Service | Upload de áudios para Cloud Storage (para processamento async/batch) |
+| Configuration | Gestão de credentials, feature flags por provider |
+
+### Endpoints Planejados
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| POST | `/api/transcribe/v1` | Transcrição via Speech-to-Text v1 |
+| POST | `/api/transcribe/v2` | Transcrição via Speech-to-Text v2 |
+| POST | `/api/transcribe/chirp` | Transcrição via Chirp |
+| POST | `/api/transcribe/vertex` | Transcrição via Vertex AI |
+| POST | `/api/transcribe/compare` | Envia para todos e compara resultados |
+| GET | `/api/health` | Health check |
+
+### Padrões
+
+- **Minimal API** — sem controllers, registra endpoints diretamente
+- **Dependency Injection** — serviços registrados no `Program.cs`
+- **Options Pattern** — configuração via `IOptions<T>`
+- **Result Pattern** — respostas padronizadas com sucesso/erro
+
+## Decisões Técnicas
+
+| Decisão | Rationale |
+|---------|-----------|
+| Projeto único | PoC — simplicidade > arquitetura |
+| Minimal API | Menos boilerplate, rápido para prototipar |
+| Sem banco de dados | PoC não persiste dados (apenas processa e retorna) |
+| Múltiplos endpoints por provider | Permite comparar resultados lado a lado |
+
+## Última Atualização
+
+**Data**: 2026-02-17
+**Motivo**: Criação inicial
+```
+
+---
+
+## 6. [.copilot-project/context/infrastructure/stack.md](.copilot-project/context/infrastructure/stack.md)
+
+```markdown
+# Infrastructure — Stack
+
+## Stack Principal
+
+| Componente | Tecnologia | Versão |
+|------------|------------|--------|
+| Linguagem | C# | 12 |
+| Runtime | .NET | 8 (LTS) |
+| Framework | Minimal API | — |
+| Cloud | Google Cloud Platform | — |
+
+## Serviços GCP
+
+A PoC avaliará **todas** as opções de STT do GCP para determinar a melhor solução para ambiente hospitalar:
+
+| Serviço | API | Propósito na PoC |
+|---------|-----|-------------------|
+| Speech-to-Text v1 | `google.cloud.speech.v1` | Baseline — API estável e madura |
+| Speech-to-Text v2 | `google.cloud.speech.v2` | API mais recente com melhorias |
+| Chirp | via STT v2 | Modelo universal do Google — avaliar qualidade PT-BR médico |
+| Cloud Storage | `google.cloud.storage` | Armazenamento de áudios para processamento batch |
+| Vertex AI | `google.cloud.aiplatform` | Modelos avançados, possível pós-processamento de transcrição |
+
+## Estrutura do Projeto
+
+Projeto único (PoC simples):
+
+```
+stt_gcp/
+├── SttGcp.Api/                    # Minimal API (.NET 8)
+│   ├── Program.cs                 # Entry point + endpoints
+│   ├── Services/                  # Service layer (STT clients)
+│   ├── Models/                    # Request/Response DTOs
+│   ├── Configuration/             # GCP config, settings
+│   └── appsettings.json
+├── SttGcp.Api.sln
+└── README.md
+```
+
+## Dependências NuGet (esperadas)
+
+| Package | Propósito |
+|---------|-----------|
+| `Google.Cloud.Speech.V1` | Client STT v1 |
+| `Google.Cloud.Speech.V2` | Client STT v2 |
+| `Google.Cloud.Storage.V1` | Upload/download de áudios |
+| `Google.Cloud.AIPlatform.V1` | Vertex AI integration |
+
+## Autenticação GCP
+
+- **Desenvolvimento**: Application Default Credentials (ADC) via `gcloud auth application-default login`
+- **Produção**: Service Account Key (JSON) via `GOOGLE_APPLICATION_CREDENTIALS`
+
+## Última Atualização
+
+**Data**: 2026-02-17
+**Motivo**: Criação inicial
+```
+
+---
+
+## 7. [.copilot-project/context/business-rules/domain.md](.copilot-project/context/business-rules/domain.md)
+
+```markdown
+# Business Rules — Domínio Hospitalar
+
+## Contexto
+
+Transcrição de áudio em ambiente hospitalar com foco em:
+- **Conversa médico-paciente** (presencial ou telemedicina)
+- **Laudos médicos** (ditados)
+
+## Idioma
+
+**Português PT-BR** — todo áudio e transcrição em português brasileiro.
+
+## Tipos de Output Esperados
+
+| Tipo | Descrição | Prioridade |
+|------|-----------|------------|
+| Transcrição pura | Texto literal do áudio | Alta (PoC) |
+| Transcrição estruturada | Texto com identificação de speakers, timestamps | Alta (PoC) |
+| Anamnese | Extração estruturada da conversa médica | Média (futuro) |
+| Sugestões de diagnóstico | Baseado na transcrição | Baixa (futuro) |
+
+## Vocabulário Médico
+
+A PoC deve avaliar a capacidade de cada solução GCP em reconhecer termos médicos:
+
+### Categorias de Termos
+
+| Categoria | Exemplos |
+|-----------|----------|
+| Termos anatômicos | abdômen, tórax, cefálico, cervical |
+| Patologias | diabetes mellitus, hipertensão arterial, fibromialgia |
+| Medicamentos | dipirona, omeprazol, losartana, metformina |
+| Procedimentos | ecocardiograma, tomografia, ressonância magnética |
+| Códigos CID | CID-10, códigos como J06, I10, E11 |
+| Sinais e sintomas | dispneia, cefaleia, náusea, artralgia |
+
+### Métricas de Avaliação
+
+Para comparar os providers GCP, considerar:
+
+| Métrica | Descrição |
+|---------|-----------|
+| WER (Word Error Rate) | Taxa de erro de palavras geral |
+| WER médico | Taxa de erro especifica para termos médicos |
+| Latência | Tempo de resposta de cada provider |
+| Custo | Custo por minuto de áudio processado |
+| Speaker diarization | Qualidade da separação médico vs paciente |
+
+## Restrições
+
+| Restrição | Status |
+|-----------|--------|
+| LGPD/HIPAA | N/A — PoC usa apenas dados de teste |
+| Produção com dados reais | Fora do escopo da PoC |
+| PII em logs | Evitar mesmo com dados de teste |
+
+## Última Atualização
+
+**Data**: 2026-02-17
+**Motivo**: Criação inicial
+```
+
+---
+
+## 8. `.copilot-project/context/conventions/coding.md`
+
+**File does not exist.**
+
+---
+
+## 9. [.copilot-project/context/index.md](.copilot-project/context/index.md)
+
+```markdown
+# Context Index
+
+Catálogo de contexto do projeto. O agente lê este índice primeiro e carrega subpastas sob demanda.
+
+---
+
+## Subtipos
+
+| Tipo | Pasta | Descrição | Status |
+|------|-------|-----------|--------|
+| Architecture | `architecture/` | Decisões arquiteturais, estrutura do sistema, padrões adotados | `overview.md` |
+| Business Rules | `business-rules/` | Regras de domínio, restrições de negócio, requisitos | `domain.md` |
+| Code Map | `code-map/` | Inventário de artefatos, módulos, dependências | — |
+| Conventions | `conventions/` | Nomenclatura, estilo, processos de desenvolvimento | — |
+| Infrastructure | `infrastructure/` | Stack tecnológico, ferramentas, integrações, deploy | `stack.md` |
+| Team Process | `team-process/` | SDLC, normas da equipe, workflows (opt-in) | — |
+
+## Resumo do Projeto
+
+**Objetivo**: PoC de Speech-to-Text (STT) usando Google Cloud Platform para ambiente hospitalar — avaliar múltiplas soluções GCP (STT v1/v2, Chirp, Vertex AI) para transcrição de conversas médico-paciente e laudos em Português PT-BR, com foco em vocabulário médico especializado.
+**Stack principal**: .NET 8 / C# (Minimal API)
+**Fase**: PoC (inicial)
+
+## Última Atualização
+
+**Data**: 2026-02-17
+**Motivo**: Criação inicial do projeto
+```
+
+---
+
+**Summary**: 6 of 9 files exist and were returned in full. 3 files do not exist: `stt-gcp-integration/config.yml`, `stt-coding-conventions/config.yml`, and `conventions/coding.md`.
