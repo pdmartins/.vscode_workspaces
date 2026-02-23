@@ -1,0 +1,158 @@
+#!/bin/bash
+# Script para desinstalar Docker Engine do Linux (Ubuntu/Debian)
+# Autor: GitHub Copilot
+# Data: 2026-01-30
+# Uso: ./uninstall-docker-engine.sh
+# Nota: Requer sudo/root
+
+# Cores
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# Verificar se está rodando como root ou com sudo disponível
+check_privileges() {
+    if [ "$EUID" -ne 0 ]; then
+        if ! command -v sudo &> /dev/null; then
+            echo -e "${RED}❌ Este script precisa ser executado como root ou ter sudo disponível${NC}"
+            exit 1
+        fi
+        SUDO="sudo"
+    else
+        SUDO=""
+    fi
+}
+
+# Verificar se Docker está instalado
+check_docker_installed() {
+    if ! command -v docker &> /dev/null; then
+        echo -e "${YELLOW}ℹ️  Docker não está instalado. Nada a fazer.${NC}"
+        exit 0
+    fi
+    
+    DOCKER_VERSION=$(docker --version 2>/dev/null || echo "desconhecida")
+    echo -e "${GREEN}✅ Docker encontrado: $DOCKER_VERSION${NC}"
+}
+
+# Confirmar desinstalação (só em modo interativo)
+confirm_uninstall() {
+    # Se não for terminal interativo, pular confirmação
+    if [ ! -t 0 ]; then
+        return 0
+    fi
+    
+    echo ""
+    echo -e "${YELLOW}⚠️  ATENÇÃO: Esta ação irá remover:${NC}"
+    echo -e "   • Docker Engine (docker-ce, docker-ce-cli)"
+    echo -e "   • Containerd"
+    echo -e "   • Docker Buildx e Compose plugins"
+    echo -e "   • Todas as imagens, containers e volumes Docker"
+    echo -e "   • Configurações do Docker"
+    echo ""
+    
+    read -p "❓ Deseja continuar? (s/n): " confirm
+    if [[ ! "$confirm" =~ ^[sS]$ ]]; then
+        echo -e "${RED}❌ Operação cancelada pelo usuário.${NC}"
+        exit 0
+    fi
+}
+
+# Desinstalar Docker
+uninstall_docker() {
+    echo -e "${CYAN}🐳 Desinstalando Docker Engine...${NC}"
+    
+    # Configurar para não pedir confirmação em apt
+    export DEBIAN_FRONTEND=noninteractive
+    
+    # Parar serviço Docker (com timeout)
+    echo -e "${YELLOW}🛑 Parando serviço Docker...${NC}"
+    $SUDO timeout 10 service docker stop 2>/dev/null || \
+    $SUDO timeout 10 systemctl stop docker 2>/dev/null || \
+    echo -e "${YELLOW}   (serviço já parado ou timeout)${NC}"
+    
+    # Matar processos docker restantes
+    $SUDO pkill -9 dockerd 2>/dev/null || true
+    $SUDO pkill -9 containerd 2>/dev/null || true
+    
+    # Parar todos os containers em execução
+    echo -e "${YELLOW}🛑 Parando todos os containers...${NC}"
+    if $SUDO docker ps -aq 2>/dev/null | grep -q .; then
+        $SUDO docker stop $($SUDO docker ps -aq) 2>/dev/null || true
+    else
+        echo -e "${YELLOW}   (nenhum container encontrado)${NC}"
+    fi
+    
+    # Remover todos os containers
+    echo -e "${YELLOW}🗑️ Removendo todos os containers...${NC}"
+    if $SUDO docker ps -aq 2>/dev/null | grep -q .; then
+        $SUDO docker rm -f $($SUDO docker ps -aq) 2>/dev/null || true
+    else
+        echo -e "${YELLOW}   (nenhum container para remover)${NC}"
+    fi
+    
+    # Remover todas as imagens
+    echo -e "${YELLOW}🗑️ Removendo todas as imagens...${NC}"
+    if $SUDO docker images -aq 2>/dev/null | grep -q .; then
+        $SUDO docker rmi -f $($SUDO docker images -aq) 2>/dev/null || true
+    else
+        echo -e "${YELLOW}   (nenhuma imagem para remover)${NC}"
+    fi
+    
+    # Remover todos os volumes
+    echo -e "${YELLOW}🗑️ Removendo todos os volumes...${NC}"
+    if $SUDO docker volume ls -q 2>/dev/null | grep -q .; then
+        $SUDO docker volume rm -f $($SUDO docker volume ls -q) 2>/dev/null || true
+    else
+        echo -e "${YELLOW}   (nenhum volume para remover)${NC}"
+    fi
+    
+    # Remover todas as networks customizadas
+    echo -e "${YELLOW}🗑️ Removendo networks customizadas...${NC}"
+    $SUDO docker network prune -f 2>/dev/null || true
+    
+    # Desinstalar pacotes Docker
+    echo -e "${YELLOW}📦 Desinstalando pacotes Docker...${NC}"
+    $SUDO apt-get purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin 2>/dev/null || true
+    
+    # Remover pacotes órfãos
+    echo -e "${YELLOW}🧹 Removendo pacotes órfãos...${NC}"
+    $SUDO apt-get autoremove -y 2>/dev/null || true
+    
+    # Remover diretórios do Docker
+    echo -e "${YELLOW}📁 Removendo diretórios do Docker...${NC}"
+    $SUDO rm -rf /var/lib/docker
+    $SUDO rm -rf /var/lib/containerd
+    $SUDO rm -rf /etc/docker
+    rm -rf ~/.docker
+    
+    # Remover chave GPG e repositório
+    echo -e "${YELLOW}🔑 Removendo chave GPG e repositório...${NC}"
+    $SUDO rm -f /etc/apt/keyrings/docker.gpg
+    $SUDO rm -f /etc/apt/sources.list.d/docker.list
+    
+    # Remover grupo docker do usuário (opcional)
+    echo -e "${YELLOW}👤 Removendo usuário do grupo docker...${NC}"
+    $SUDO gpasswd -d $USER docker 2>/dev/null || true
+    
+    # Atualizar lista de pacotes
+    echo -e "${YELLOW}📦 Atualizando lista de pacotes...${NC}"
+    $SUDO apt-get update
+    
+    echo -e "${GREEN}✅ Docker Engine desinstalado com sucesso!${NC}"
+    echo -e "${CYAN}💡 Todos os containers, imagens e volumes foram removidos.${NC}"
+}
+
+# Main
+main() {
+    echo -e "${CYAN}🐳 Desinstalador do Docker Engine${NC}"
+    echo ""
+    
+    check_privileges
+    check_docker_installed
+    confirm_uninstall
+    uninstall_docker
+}
+
+main "$@"

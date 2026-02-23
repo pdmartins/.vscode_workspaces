@@ -1,0 +1,69 @@
+{
+  "version": 3,
+  "responderUsername": "GitHub Copilot",
+  "responderAvatarIconUri": {
+    "id": "copilot"
+  },
+  "initialLocation": "panel",
+  "requests": [],
+  "sessionId": "f614cb74-5228-46f2-9828-6b8b9b9df48e",
+  "creationDate": 1769692574553,
+  "lastMessageDate": 1769692574553,
+  "hasPendingEdits": false,
+  "inputState": {
+    "contrib": {
+      "chatDynamicVariableModel": []
+    },
+    "attachments": [],
+    "mode": {
+      "id": "agent",
+      "kind": "agent"
+    },
+    "selectedModel": {
+      "identifier": "copilot/claude-sonnet-4.5",
+      "metadata": {
+        "extension": {
+          "value": "GitHub.copilot-chat",
+          "_lower": "github.copilot-chat"
+        },
+        "id": "claude-sonnet-4.5",
+        "vendor": "copilot",
+        "name": "Claude Sonnet 4.5",
+        "family": "claude-sonnet-4.5",
+        "detail": "1x",
+        "tooltip": "Claude Sonnet 4.5 (claude-sonnet-4.5) is counted at a 1x rate.",
+        "version": "claude-sonnet-4.5",
+        "maxInputTokens": 127805,
+        "maxOutputTokens": 16000,
+        "auth": {
+          "providerLabel": "GitHub Copilot Chat",
+          "accountLabel": "pdmartins"
+        },
+        "isDefault": true,
+        "isUserSelectable": true,
+        "modelPickerCategory": {
+          "label": "Premium Models",
+          "order": 1
+        },
+        "capabilities": {
+          "vision": true,
+          "toolCalling": true,
+          "agentMode": true
+        }
+      }
+    },
+    "inputText": "",
+    "selections": [
+      {
+        "startLineNumber": 1,
+        "startColumn": 1,
+        "endLineNumber": 1,
+        "endColumn": 1,
+        "selectionStartLineNumber": 1,
+        "selectionStartColumn": 1,
+        "positionLineNumber": 1,
+        "positionColumn": 1
+      }
+    ]
+  }
+}

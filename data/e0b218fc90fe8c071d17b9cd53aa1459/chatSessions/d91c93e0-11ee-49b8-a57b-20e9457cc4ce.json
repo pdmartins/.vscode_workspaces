@@ -1,0 +1,66 @@
+{
+  "version": 3,
+  "responderUsername": "",
+  "initialLocation": "panel",
+  "requests": [],
+  "sessionId": "d91c93e0-11ee-49b8-a57b-20e9457cc4ce",
+  "creationDate": 1769810336563,
+  "lastMessageDate": 1769810336563,
+  "hasPendingEdits": false,
+  "inputState": {
+    "contrib": {
+      "chatDynamicVariableModel": []
+    },
+    "attachments": [],
+    "mode": {
+      "id": "agent",
+      "kind": "agent"
+    },
+    "selectedModel": {
+      "identifier": "copilot/claude-opus-4.5",
+      "metadata": {
+        "extension": {
+          "value": "GitHub.copilot-chat",
+          "_lower": "github.copilot-chat"
+        },
+        "id": "claude-opus-4.5",
+        "vendor": "copilot",
+        "name": "Claude Opus 4.5",
+        "family": "claude-opus-4.5",
+        "detail": "3x",
+        "tooltip": "Claude Opus 4.5 (claude-opus-4.5) is counted at a 3x rate.",
+        "version": "claude-opus-4.5",
+        "maxInputTokens": 127805,
+        "maxOutputTokens": 16000,
+        "auth": {
+          "providerLabel": "GitHub Copilot Chat",
+          "accountLabel": "pdmartins"
+        },
+        "isDefault": false,
+        "isUserSelectable": true,
+        "modelPickerCategory": {
+          "label": "Premium Models",
+          "order": 1
+        },
+        "capabilities": {
+          "vision": true,
+          "toolCalling": true,
+          "agentMode": true
+        }
+      }
+    },
+    "inputText": "",
+    "selections": [
+      {
+        "startLineNumber": 1,
+        "startColumn": 1,
+        "endLineNumber": 1,
+        "endColumn": 1,
+        "selectionStartLineNumber": 1,
+        "selectionStartColumn": 1,
+        "positionLineNumber": 1,
+        "positionColumn": 1
+      }
+    ]
+  }
+}

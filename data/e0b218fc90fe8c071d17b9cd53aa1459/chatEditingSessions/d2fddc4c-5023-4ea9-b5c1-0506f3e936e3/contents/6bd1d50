@@ -1,0 +1,246 @@
+# Script para desinstalar Docker Engine do WSL2
+# Autor: GitHub Copilot
+# Data: 2026-01-30
+# Nota: Este script remove o Docker Engine instalado via WSL2
+
+# Cores para output
+$ErrorActionPreference = "Stop"
+
+Write-Host "🐳 Desinstalando Docker Engine do WSL2..." -ForegroundColor Cyan
+
+# Verificar se WSL está instalado
+Write-Host "🔍 Verificando instalação do WSL..." -ForegroundColor Yellow
+
+$wslInstalled = $false
+try {
+    $wslVersion = wsl --version 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        $wslInstalled = $true
+    }
+} catch {
+    $wslInstalled = $false
+}
+
+if (-not $wslInstalled) {
+    Write-Host "❌ WSL não está instalado. Nada a fazer." -ForegroundColor Red
+    exit 0
+}
+
+Write-Host "✅ WSL está instalado" -ForegroundColor Green
+
+# Verificar se existe uma distribuição Linux instalada
+Write-Host "🔍 Verificando distribuições Linux instaladas..." -ForegroundColor Yellow
+
+$distroList = wsl --list --quiet 2>$null | Where-Object { $_ -and $_.Trim() -ne "" -and $_ -notmatch "docker-desktop" }
+# Limpar caracteres nulos que o WSL às vezes retorna
+$distroList = $distroList | ForEach-Object { $_ -replace "`0", "" } | Where-Object { $_.Trim() -ne "" }
+
+if (-not $distroList -or @($distroList).Count -eq 0) {
+    Write-Host "❌ Nenhuma distribuição Linux encontrada. Nada a fazer." -ForegroundColor Red
+    exit 0
+}
+
+# Converter para array se necessário
+$distroList = @($distroList)
+
+# Selecionar distro
+if ($distroList.Count -eq 1) {
+    $selectedDistro = $distroList[0].Trim()
+    Write-Host "✅ Distribuição Linux encontrada: $selectedDistro" -ForegroundColor Green
+} else {
+    Write-Host "📋 Múltiplas distribuições Linux encontradas:" -ForegroundColor Cyan
+    for ($i = 0; $i -lt $distroList.Count; $i++) {
+        Write-Host "   [$($i + 1)] $($distroList[$i].Trim())" -ForegroundColor White
+    }
+    Write-Host ""
+    
+    do {
+        $selection = Read-Host "🐧 Escolha a distribuição (1-$($distroList.Count))"
+        $selectionIndex = [int]$selection - 1
+    } while ($selectionIndex -lt 0 -or $selectionIndex -ge $distroList.Count)
+    
+    $selectedDistro = $distroList[$selectionIndex].Trim()
+    Write-Host "✅ Distribuição selecionada: $selectedDistro" -ForegroundColor Green
+}
+
+# Verificar se Docker está instalado no WSL
+Write-Host "🔍 Verificando se Docker está instalado no WSL ($selectedDistro)..." -ForegroundColor Yellow
+
+$dockerInstalled = wsl -d $selectedDistro -- docker --version 2>$null
+if ($LASTEXITCODE -ne 0 -or -not $dockerInstalled) {
+    Write-Host "ℹ️  Docker não está instalado nesta distribuição. Nada a fazer." -ForegroundColor Cyan
+    exit 0
+}
+
+Write-Host "✅ Docker encontrado: $dockerInstalled" -ForegroundColor Green
+
+# Confirmar desinstalação
+Write-Host ""
+Write-Host "⚠️  ATENÇÃO: Esta ação irá remover:" -ForegroundColor Yellow
+Write-Host "   • Docker Engine (docker-ce, docker-ce-cli)" -ForegroundColor White
+Write-Host "   • Containerd" -ForegroundColor White
+Write-Host "   • Docker Buildx e Compose plugins" -ForegroundColor White
+Write-Host "   • Todas as imagens, containers e volumes Docker" -ForegroundColor White
+Write-Host "   • Configurações do Docker" -ForegroundColor White
+Write-Host ""
+
+$confirm = Read-Host "❓ Deseja continuar? (s/n)"
+if ($confirm -ne "s" -and $confirm -ne "S") {
+    Write-Host "❌ Operação cancelada pelo usuário." -ForegroundColor Red
+    exit 0
+}
+
+Write-Host ""
+Write-Host "┌─────────────────────────────────────────────────────────────┐" -ForegroundColor Magenta
+Write-Host "│  🐧 Output do WSL será exibido com prefixo [WSL] em roxo   │" -ForegroundColor Magenta
+Write-Host "└─────────────────────────────────────────────────────────────┘" -ForegroundColor Magenta
+Write-Host ""
+
+# Script de desinstalação do Docker para rodar no WSL
+$dockerUninstallScript = @'
+#!/bin/bash
+set -e
+
+# Cores
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+echo -e "${CYAN}🐳 Desinstalando Docker Engine...${NC}"
+
+# Parar serviço Docker
+echo -e "${YELLOW}🛑 Parando serviço Docker...${NC}"
+sudo service docker stop 2>/dev/null || true
+
+# Parar todos os containers em execução
+echo -e "${YELLOW}🛑 Parando todos os containers...${NC}"
+sudo docker stop $(sudo docker ps -aq) 2>/dev/null || true
+
+# Remover todos os containers
+echo -e "${YELLOW}🗑️ Removendo todos os containers...${NC}"
+sudo docker rm -f $(sudo docker ps -aq) 2>/dev/null || true
+
+# Remover todas as imagens
+echo -e "${YELLOW}🗑️ Removendo todas as imagens...${NC}"
+sudo docker rmi -f $(sudo docker images -aq) 2>/dev/null || true
+
+# Remover todos os volumes
+echo -e "${YELLOW}🗑️ Removendo todos os volumes...${NC}"
+sudo docker volume rm -f $(sudo docker volume ls -q) 2>/dev/null || true
+
+# Remover todas as networks customizadas
+echo -e "${YELLOW}🗑️ Removendo networks customizadas...${NC}"
+sudo docker network prune -f 2>/dev/null || true
+
+# Desinstalar pacotes Docker
+echo -e "${YELLOW}📦 Desinstalando pacotes Docker...${NC}"
+sudo apt-get purge -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin 2>/dev/null || true
+
+# Remover pacotes órfãos
+echo -e "${YELLOW}🧹 Removendo pacotes órfãos...${NC}"
+sudo apt-get autoremove -y 2>/dev/null || true
+
+# Remover diretórios do Docker
+echo -e "${YELLOW}📁 Removendo diretórios do Docker...${NC}"
+sudo rm -rf /var/lib/docker
+sudo rm -rf /var/lib/containerd
+sudo rm -rf /etc/docker
+sudo rm -rf ~/.docker
+
+# Remover chave GPG e repositório
+echo -e "${YELLOW}🔑 Removendo chave GPG e repositório...${NC}"
+sudo rm -f /etc/apt/keyrings/docker.gpg
+sudo rm -f /etc/apt/sources.list.d/docker.list
+
+# Remover grupo docker do usuário (opcional, não causa erro se não existir)
+echo -e "${YELLOW}👤 Removendo usuário do grupo docker...${NC}"
+sudo gpasswd -d $USER docker 2>/dev/null || true
+
+# Atualizar lista de pacotes
+echo -e "${YELLOW}📦 Atualizando lista de pacotes...${NC}"
+sudo apt-get update
+
+echo -e "${GREEN}✅ Docker Engine desinstalado com sucesso!${NC}"
+echo -e "${CYAN}💡 Todos os containers, imagens e volumes foram removidos.${NC}"
+'@
+
+# Salvar script temporário e executar no WSL (com line endings Unix LF)
+$tempScript = [System.IO.Path]::GetTempFileName() -replace '\.tmp$', '.sh'
+$dockerUninstallScriptLF = $dockerUninstallScript -replace "`r`n", "`n" -replace "`r", "`n"
+[System.IO.File]::WriteAllText($tempScript, $dockerUninstallScriptLF, [System.Text.UTF8Encoding]::new($false))
+
+# Converter caminho Windows para WSL
+$wslPath = wsl -d $selectedDistro -- wslpath -u ($tempScript -replace '\\', '/')
+
+# Executar script no WSL com output diferenciado
+Write-Host "🚀 Executando desinstalação no WSL..." -ForegroundColor Cyan
+Write-Host ""
+
+# Usar job para capturar stderr enquanto lemos stdout sincronamente
+$pinfo = New-Object System.Diagnostics.ProcessStartInfo
+$pinfo.FileName = "wsl.exe"
+$pinfo.Arguments = "-d $selectedDistro -- bash `"$wslPath`""
+$pinfo.UseShellExecute = $false
+$pinfo.RedirectStandardOutput = $true
+$pinfo.RedirectStandardError = $true
+$pinfo.CreateNoWindow = $true
+
+$process = New-Object System.Diagnostics.Process
+$process.StartInfo = $pinfo
+$process.Start() | Out-Null
+
+# Ler stdout e stderr alternadamente
+while (-not $process.HasExited) {
+    # Ler stdout
+    while (-not $process.StandardOutput.EndOfStream) {
+        $line = $process.StandardOutput.ReadLine()
+        if ($line) {
+            Write-Host "[WSL] " -ForegroundColor Magenta -NoNewline
+            Write-Host $line -ForegroundColor Gray
+        }
+        if ($process.HasExited) { break }
+    }
+    Start-Sleep -Milliseconds 50
+}
+
+# Ler qualquer output restante
+while (-not $process.StandardOutput.EndOfStream) {
+    $line = $process.StandardOutput.ReadLine()
+    if ($line) {
+        Write-Host "[WSL] " -ForegroundColor Magenta -NoNewline
+        Write-Host $line -ForegroundColor Gray
+    }
+}
+
+while (-not $process.StandardError.EndOfStream) {
+    $line = $process.StandardError.ReadLine()
+    if ($line) {
+        Write-Host "[WSL] " -ForegroundColor Magenta -NoNewline
+        Write-Host $line -ForegroundColor DarkYellow
+    }
+}
+
+$exitCode = $process.ExitCode
+$process.Dispose()
+
+Write-Host ""
+
+if ($exitCode -eq 0) {
+    Write-Host ""
+    Write-Host "✅ Docker Engine desinstalado com sucesso do WSL!" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "📋 O que foi removido:" -ForegroundColor Cyan
+    Write-Host "   • Docker Engine e todos os componentes" -ForegroundColor White
+    Write-Host "   • Todas as imagens, containers e volumes" -ForegroundColor White
+    Write-Host "   • Configurações e chaves GPG" -ForegroundColor White
+    Write-Host ""
+    Write-Host "💡 Para reinstalar, execute: .\install-docker.ps1" -ForegroundColor Yellow
+} else {
+    Write-Host "❌ Erro durante a desinstalação do Docker" -ForegroundColor Red
+    exit 1
+}
+
+# Limpar arquivo temporário
+Remove-Item -Path $tempScript -Force -ErrorAction SilentlyContinue
