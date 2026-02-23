@@ -2,3 +2,7 @@
 	path = .copilot-core
 	url = https://github.com/pdmartins/.copilot-core.git
 	branch = main
+[submodule ".copilot-project"]
+	path = .copilot-project
+	url = https://github.com/pdmartins/.copilot-project.git
+	branch = _pm/vscode_workspaces

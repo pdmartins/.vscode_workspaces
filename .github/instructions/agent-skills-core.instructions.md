@@ -1,0 +1,1 @@
+D:/Repos/_pm/.vscode_workspaces/.copilot-core/instructions/agent-skills-core.instructions.md

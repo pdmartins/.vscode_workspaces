@@ -1,0 +1,214 @@
+<#
+.SYNOPSIS
+    Replica o workspace Copilot Agent Skills numa nova máquina.
+
+.DESCRIPTION
+    Este script recria a estrutura completa do workspace:
+    - Clona .copilot-core (branch main)
+    - Clona .copilot-project (branch _pm/copilot-core)
+    - Cria todos os worktrees do .copilot-project
+    - Cria symlinks em .github/instructions/
+    - Cria a estrutura de pastas auxiliares
+
+.PARAMETER BasePath
+    Caminho base onde o workspace será criado.
+    Default: diretório atual.
+
+.EXAMPLE
+    .\setup-workspace.ps1
+    .\setup-workspace.ps1 -BasePath "D:\Repos\_pm\copilot"
+#>
+
+param(
+    [string]$BasePath = (Get-Location).Path
+)
+
+$ErrorActionPreference = "Stop"
+
+# --- Configuração ---
+$CoreRepo    = "https://github.com/pdmartins/.copilot-core.git"
+$ProjectRepo = "https://github.com/pdmartins/.copilot-project.git"
+$ProjectMainBranch = "_pm/copilot-core"
+
+# Worktrees a criar (caminho relativo a .copilot-project-worktrees/ -> branch)
+$Worktrees = @(
+    @{ Path = "main";                         Branch = "main" }
+    @{ Path = "_bw/bewiser.assistant.api";    Branch = "_bw/bewiser.assistant.api" }
+    @{ Path = "_hv/STT";                      Branch = "_hv/STT" }
+    @{ Path = "_pm/docker-framework";         Branch = "_pm/docker-framework" }
+    @{ Path = "_pm/everyday_queries";         Branch = "_pm/everyday_queries" }
+    @{ Path = "_pm/scripts";                  Branch = "_pm/scripts" }
+    @{ Path = "_pm/vscode_workspaces";        Branch = "_pm/vscode_workspaces" }
+    @{ Path = "_poc/stt_gcp";                 Branch = "_poc/stt_gcp" }
+    @{ Path = "_sk/shy.hubai";                Branch = "_sk/shy.hubai" }
+    @{ Path = "_test/llm-judge";              Branch = "_test/llm-judge" }
+)
+
+# --- Funções auxiliares ---
+function Write-Step { param([string]$Message) Write-Host "`n✅ $Message" -ForegroundColor Green }
+function Write-Info { param([string]$Message) Write-Host "   $Message" -ForegroundColor Cyan }
+function Write-Warn { param([string]$Message) Write-Host "   ⚠️  $Message" -ForegroundColor Yellow }
+
+# --- Pré-requisitos ---
+Write-Host "`n🔧 Copilot Agent Skills — Workspace Setup" -ForegroundColor Magenta
+Write-Host "   Base: $BasePath" -ForegroundColor Gray
+Write-Host ""
+
+# Verificar git
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    throw "Git não encontrado. Instale o Git e tente novamente."
+}
+
+# Criar diretório base se não existir
+if (-not (Test-Path $BasePath)) {
+    New-Item -Path $BasePath -ItemType Directory -Force | Out-Null
+    Write-Info "Diretório base criado: $BasePath"
+}
+
+Set-Location $BasePath
+
+# --- 1. Clonar .copilot-core ---
+if (Test-Path ".copilot-core") {
+    Write-Warn ".copilot-core já existe — pulando clone"
+} else {
+    Write-Step "Clonando .copilot-core (branch main)..."
+    git clone $CoreRepo .copilot-core
+}
+
+# --- 2. Clonar .copilot-project ---
+if (Test-Path ".copilot-project") {
+    Write-Warn ".copilot-project já existe — pulando clone"
+} else {
+    Write-Step "Clonando .copilot-project (branch $ProjectMainBranch)..."
+    git clone -b $ProjectMainBranch $ProjectRepo .copilot-project
+}
+
+# --- 3. Criar worktrees ---
+Write-Step "Criando worktrees do .copilot-project..."
+
+$worktreeBase = Join-Path $BasePath ".copilot-project-worktrees"
+if (-not (Test-Path $worktreeBase)) {
+    New-Item -Path $worktreeBase -ItemType Directory -Force | Out-Null
+}
+
+Push-Location ".copilot-project"
+
+# Fetch all remote branches
+Write-Info "Fetching todas as branches remotas..."
+git fetch --all
+
+foreach ($wt in $Worktrees) {
+    $wtPath = Join-Path $worktreeBase $wt.Path
+    $wtBranch = $wt.Branch
+
+    if (Test-Path $wtPath) {
+        Write-Warn "Worktree já existe: $($wt.Path) — pulando"
+        continue
+    }
+
+    # Criar diretório pai se necessário
+    $parentDir = Split-Path $wtPath -Parent
+    if (-not (Test-Path $parentDir)) {
+        New-Item -Path $parentDir -ItemType Directory -Force | Out-Null
+    }
+
+    Write-Info "Criando worktree: $($wt.Path) -> [$wtBranch]"
+
+    # Verificar se branch local existe; se não, criar tracking branch
+    $localExists = git branch --list $wtBranch
+    if (-not $localExists) {
+        # Criar branch local a partir da remota
+        git branch $wtBranch "origin/$wtBranch" 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warn "Branch remota origin/$wtBranch não encontrada — pulando"
+            continue
+        }
+    }
+
+    git worktree add $wtPath $wtBranch
+    if ($LASTEXITCODE -ne 0) {
+        Write-Warn "Falha ao criar worktree: $($wt.Path)"
+    }
+}
+
+Pop-Location
+
+# --- 4. Criar .github/instructions com symlinks ---
+Write-Step "Criando symlinks em .github/instructions/..."
+
+$instructionsDir = Join-Path $BasePath ".github\instructions"
+if (-not (Test-Path $instructionsDir)) {
+    New-Item -Path $instructionsDir -ItemType Directory -Force | Out-Null
+}
+
+$symlinks = @(
+    @{
+        Link   = Join-Path $instructionsDir "agent-skills-core.instructions.md"
+        Target = Join-Path $BasePath ".copilot-core\instructions\agent-skills-core.instructions.md"
+    }
+    @{
+        Link   = Join-Path $instructionsDir "agent-skills-project.instructions.md"
+        Target = Join-Path $BasePath ".copilot-project\instructions\agent-skills-project.instructions.md"
+    }
+)
+
+foreach ($sl in $symlinks) {
+    if (Test-Path $sl.Link) {
+        Write-Warn "Symlink já existe: $(Split-Path $sl.Link -Leaf) — pulando"
+        continue
+    }
+
+    Write-Info "Symlink: $(Split-Path $sl.Link -Leaf)"
+
+    # Criar symlink (requer permissão de admin ou Developer Mode ativado)
+    try {
+        New-Item -ItemType SymbolicLink -Path $sl.Link -Target $sl.Target -ErrorAction Stop | Out-Null
+    } catch {
+        Write-Warn "Falha ao criar symlink (precisa de Developer Mode ou Admin)."
+        Write-Warn "Alternativa: copie manualmente ou execute como Admin."
+        Write-Warn "  Target: $($sl.Target)"
+    }
+}
+
+# --- 5. Criar .github/workflows ---
+Write-Step "Criando .github/workflows/..."
+
+$workflowsDir = Join-Path $BasePath ".github\workflows"
+if (-not (Test-Path $workflowsDir)) {
+    New-Item -Path $workflowsDir -ItemType Directory -Force | Out-Null
+}
+
+$workflowSource = Join-Path $BasePath ".github\workflows\validate-skills.yml"
+if (-not (Test-Path $workflowSource)) {
+    Write-Info "validate-skills.yml será copiado do core se necessário"
+}
+
+# --- 6. Criar .vscode/ ---
+$vscodeDir = Join-Path $BasePath ".vscode"
+if (-not (Test-Path $vscodeDir)) {
+    New-Item -Path $vscodeDir -ItemType Directory -Force | Out-Null
+    Write-Info "Diretório .vscode/ criado"
+}
+
+# --- Resumo ---
+Write-Host "`n" -NoNewline
+Write-Host "=" * 60 -ForegroundColor Magenta
+Write-Host "   Setup completo!" -ForegroundColor Green
+Write-Host "=" * 60 -ForegroundColor Magenta
+Write-Host ""
+Write-Host "   Estrutura criada:" -ForegroundColor White
+Write-Host "   📂 .copilot-core/          (branch: main)" -ForegroundColor Gray
+Write-Host "   📂 .copilot-project/       (branch: $ProjectMainBranch)" -ForegroundColor Gray
+Write-Host "   📂 .copilot-project-worktrees/" -ForegroundColor Gray
+foreach ($wt in $Worktrees) {
+    Write-Host "      └─ $($wt.Path)  [$($wt.Branch)]" -ForegroundColor DarkGray
+}
+Write-Host "   📂 .github/instructions/   (symlinks)" -ForegroundColor Gray
+Write-Host "   📂 .vscode/" -ForegroundColor Gray
+Write-Host ""
+Write-Host "   ⚠️  Pré-requisitos na nova máquina:" -ForegroundColor Yellow
+Write-Host "      1. Git instalado" -ForegroundColor Yellow
+Write-Host "      2. Acesso ao GitHub (SSH key ou token configurado)" -ForegroundColor Yellow
+Write-Host "      3. Developer Mode ativado (para symlinks sem Admin)" -ForegroundColor Yellow
+Write-Host "         Settings > Update & Security > For Developers > Developer Mode" -ForegroundColor DarkYellow
+Write-Host ""
