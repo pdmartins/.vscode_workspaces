@@ -1,0 +1,78 @@
+# Project Scripts Instructions
+
+<project-loader critical="true">
+  <mandate>Este arquivo inicializa as regras ESPECÍFICAS deste projeto</mandate>
+  <mandate>Regras aqui são para projetos de scripts multi-plataforma</mandate>
+</project-loader>
+
+## Sobre Este Projeto
+
+Scripts utilitários de automação — idempotentes, bilíngues (PT na raiz, EN em `.english-version/`), multiplataforma.
+
+## Estrutura Esperada
+
+<expected-structure critical="true">
+Esta é a estrutura que DEVE existir neste submodule .github-project/:
+
+```
+.github-project/
+├── initial.md              # Este arquivo (loader do projeto)
+├── conventions.md          # Nomenclatura, emojis, cores
+├── cross-platform.md       # Regras .sh + .ps1
+├── english-version.md      # Regras de tradução EN
+├── project-structure.md    # Estrutura atual do projeto
+├── skills-catalog.md       # Catálogo de skills
+├── skills/                 # Skills específicos deste projeto
+│   ├── bash.md
+│   ├── powershell.md
+│   ├── readme.md
+│   ├── sync.md
+│   └── update-structure.md
+├── memory/                 # Lições e decisões (histórico)
+│   └── lessons-learned.md
+└── context/                # Estado atual do projeto
+    └── project.md
+```
+</expected-structure>
+
+## Project Files
+
+<project-files>
+  | Arquivo | Propósito |
+  |---------|-----------|
+  | `conventions.md` | Nomenclatura, emojis, cores |
+  | `cross-platform.md` | Regras .sh + .ps1 |
+  | `english-version.md` | Regras de tradução EN |
+  | `project-structure.md` | Estrutura atual do projeto |
+  | `skills-catalog.md` | Catálogo de skills do projeto |
+  | `skills/` | Skills específicos deste projeto |
+  | `memory/` | Lições e decisões históricas |
+  | `context/` | Estado atual do projeto |
+</project-files>
+
+## Load Order
+
+<load-sequence>
+  1. conventions.md (padrões de código)
+  2. cross-platform.md (regras multiplataforma)
+  3. english-version.md (regras de tradução)
+  4. Carregar skills sob demanda
+</load-sequence>
+
+## Skill Loading
+
+<skill-loading critical="true">
+  <mandate>Ao trabalhar com arquivos *.sh, carregar: project/skills/bash.md</mandate>
+  <mandate>Ao trabalhar com arquivos *.ps1, carregar: project/skills/powershell.md</mandate>
+  <mandate>Ao trabalhar com README.md, carregar: project/skills/readme.md</mandate>
+  <mandate>Após modificar scripts, carregar: project/skills/sync.md</mandate>
+</skill-loading>
+
+## Memory e Context
+
+<memory-context critical="true">
+  <mandate>Para consultar lições passadas: ler memory/lessons-learned.md</mandate>
+  <mandate>Para consultar estado atual: ler context/project.md</mandate>
+  <mandate>Para registrar nova lição: skill memory.md (do core)</mandate>
+  <mandate>Para atualizar contexto: skill context.md (do core)</mandate>
+</memory-context>

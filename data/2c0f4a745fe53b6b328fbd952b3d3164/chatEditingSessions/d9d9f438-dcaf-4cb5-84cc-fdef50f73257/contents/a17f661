@@ -1,0 +1,43 @@
+# Commit Message Instructions
+
+## Format
+
+Single line only, using Conventional Commits:
+
+```
+<type>(<scope>): <description>
+```
+
+## Types (required)
+
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation only
+- `style`: Formatting, missing semicolons, etc.
+- `refactor`: Code change that neither fixes a bug nor adds a feature
+- `perf`: Performance improvement
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks, dependencies, configs
+- `ci`: CI/CD changes
+- `build`: Build system or external dependencies
+
+## Rules
+
+1. Always include a type - it is mandatory
+2. Single line only - no body or footer
+3. Use imperative mood ("add" not "added")
+4. Don't capitalize the first letter of description
+5. No period at the end
+6. Keep under 72 characters total
+7. Scope is optional but recommended
+8. Write in English
+
+## Examples
+
+```
+feat(auth): add JWT token refresh endpoint
+fix(database): resolve connection timeout issue
+docs(readme): update installation instructions
+chore(deps): upgrade to .NET 9
+refactor(api): simplify error handling logic
+```

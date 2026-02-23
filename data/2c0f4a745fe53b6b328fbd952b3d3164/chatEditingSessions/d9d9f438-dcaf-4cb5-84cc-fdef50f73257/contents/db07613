@@ -1,0 +1,49 @@
+#!/bin/bash
+#
+# Setup script for the scripts project.
+# Initializes git submodules required for Copilot instructions.
+# Run this after cloning the repository.
+#
+# Usage: ./setup.sh
+
+set -e
+
+echo "🚀 Setting up scripts project..."
+
+# Check if git is available
+if ! command -v git &> /dev/null; then
+    echo "❌ Git is not installed or not in PATH"
+    exit 1
+fi
+
+# Initialize and update submodules
+echo "📦 Initializing git submodules..."
+
+if git submodule update --init --recursive; then
+    echo "✅ Submodules initialized successfully!"
+else
+    echo "⚠️ Some submodules may have failed. Check if you have access to the repositories."
+    echo "   The project will still work, but Copilot custom instructions won't be available."
+fi
+
+# Verify submodules
+submodules=(
+    ".github/.copilot-core"
+    ".github/.copilot-project"
+)
+
+echo ""
+echo "📋 Submodule status:"
+for submodule in "${submodules[@]}"; do
+    if [ -d "$submodule" ] && [ "$(ls -A "$submodule" 2>/dev/null)" ]; then
+        echo "   ✅ $submodule"
+    elif [ -d "$submodule" ]; then
+        echo "   ⚠️ $submodule (empty - check access)"
+    else
+        echo "   ❌ $submodule (not found)"
+    fi
+done
+
+echo ""
+echo "🎉 Setup complete!"
+echo "   Open the project in VS Code to use Copilot with custom instructions."

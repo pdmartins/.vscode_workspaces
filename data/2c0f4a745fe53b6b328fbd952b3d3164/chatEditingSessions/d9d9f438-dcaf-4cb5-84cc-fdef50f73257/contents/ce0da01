@@ -1,0 +1,12 @@
+<#
+.SYNOPSIS
+    Setup script for the scripts project.
+.DESCRIPTION
+    Initializes git submodules required for Copilot instructions.
+    Run this after cloning the repository.
+.EXAMPLE
+    .\setup.ps1
+#>
+
+[CmdletBinding()]
+param()

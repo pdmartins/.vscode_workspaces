@@ -1,0 +1,220 @@
+# Memory Skill
+
+<skill id="memory" context="gerenciar memória persistente do agente">
+
+## Propósito
+
+Gerenciar a **memória persistente** do Copilot para o workspace.
+Esta skill permite consultar e atualizar informações que persistem entre sessões.
+
+## Quando Usar
+
+<triggers>
+  - Consultar contexto do projeto antes de tarefa complexa
+  - Registrar decisão arquitetural importante
+  - Registrar lição aprendida (erro corrigido, padrão descoberto)
+  - Atualizar contexto quando projeto muda significativamente
+  - Usuário pede para "lembrar" algo
+  - Usuário pergunta sobre decisões passadas
+</triggers>
+
+## Estrutura da Memória
+
+<memory-structure>
+```
+{workspace}/.github/.copilot-project/memory/
+└── lessons-learned.md    # Lições e decisões importantes
+```
+
+**Nota**: Os dados ficam em `.github/.copilot-project/` (específico do projeto), 
+enquanto esta skill fica em `.github/.copilot-core/` (core reutilizável).
+
+**Contexto** (estado atual) fica separado em `.github/.copilot-project/context/` - ver skill `context.md`.
+</memory-structure>
+
+## Workflow: Consultar Memória
+
+<workflow id="consult-memory" trigger="início de tarefa complexa">
+  <step n="1" goal="Ler lições aprendidas">
+    <action>Ler: {workspace}/.github/.copilot-project/memory/lessons-learned.md</action>
+    <action>Identificar lições relacionadas à tarefa atual</action>
+    <action>Aplicar aprendizados para evitar erros passados</action>
+    
+    <output>
+      📚 **Lições relevantes encontradas**:
+      {lista de lições aplicáveis}
+    </output>
+  </step>
+
+  <step n="2" goal="Aplicar conhecimento">
+    <action>Usar informações da memória para guiar a tarefa</action>
+    <action>Evitar repetir erros documentados</action>
+    <action>Seguir padrões estabelecidos</action>
+  </step>
+</workflow>
+
+## Workflow: Registrar Lição
+
+<workflow id="register-lesson" trigger="após decisão importante ou correção de erro">
+  <step n="1" goal="Avaliar se deve registrar">
+    <criteria id="should-register">
+      REGISTRAR quando:
+      - Decisão arquitetural que impacta o projeto
+      - Erro corrigido com aprendizado útil
+      - Novo padrão estabelecido
+      - Descoberta importante sobre o projeto
+      
+      NÃO REGISTRAR quando:
+      - Mudança trivial de código
+      - Decisão temporária ou experimental
+      - Informação já documentada em README
+      - Detalhes de implementação específicos
+    </criteria>
+    
+    <check if="critério de registro atendido">
+      <action>Prosseguir com registro</action>
+    </check>
+    
+    <check if="não atende critério">
+      <action>Não registrar - evitar poluição da memória</action>
+      <halt reason="Não atende critério de registro"/>
+    </check>
+  </step>
+
+  <step n="2" goal="Formatar lição">
+    <template>
+```xml
+<lesson date="YYYY-MM-DD" category="categoria">
+  <context>Contexto do problema ou situação</context>
+  <decision>Decisão tomada e por quê</decision>
+  <outcome>Resultado e impacto</outcome>
+</lesson>
+```
+    </template>
+    
+    <categories>
+      | Categoria | Quando Usar |
+      |-----------|-------------|
+      | arquitetura | Estrutura do projeto, organização |
+      | padrões | Convenções de código, nomenclatura |
+      | tooling | Ferramentas, dependências, configs |
+      | workflow | Processos, automações |
+      | debug | Problemas resolvidos, armadilhas |
+      | performance | Otimizações, melhorias |
+      | segurança | Práticas de segurança |
+    </categories>
+  </step>
+
+  <step n="3" goal="Adicionar ao arquivo">
+    <action>Ler: {workspace}/.github/.copilot-project/memory/lessons-learned.md</action>
+    <action>Adicionar nova lesson na seção "## Registro"</action>
+    <action>Manter ordem cronológica (mais recente primeiro)</action>
+    
+    <output>📝 Lição registrada em lessons-learned.md</output>
+  </step>
+</workflow>
+
+## Workflow: Criar Memória (Novo Projeto)
+
+<workflow id="init-memory" trigger="projeto sem estrutura de memória">
+  <step n="1" goal="Verificar se memória existe">
+    <check if="pasta memory/ NÃO existe">
+      <action>Criar: {workspace}/.github/.copilot-project/memory/</action>
+    </check>
+  </step>
+
+  <step n="2" goal="Criar lessons-learned.md">
+    <check if="lessons-learned.md NÃO existe">
+      <action>Criar com template base</action>
+      
+      <template>
+```markdown
+# Lessons Learned
+
+Registro de aprendizados e decisões importantes do projeto.
+
+---
+
+## Estrutura
+
+<lesson date="YYYY-MM-DD" category="categoria">
+  <context>Contexto do problema</context>
+  <decision>Decisão tomada</decision>
+  <outcome>Resultado/impacto</outcome>
+</lesson>
+
+---
+
+## Registro
+
+<!-- Adicionar lições aqui, mais recente primeiro -->
+
+---
+
+## Categorias
+
+| Categoria | Descrição |
+|-----------|-----------|
+| arquitetura | Decisões estruturais |
+| padrões | Convenções de código |
+| tooling | Ferramentas e automação |
+| workflow | Processos |
+| debug | Correções importantes |
+```
+      </template>
+    </check>
+  </step>
+
+  <step n="3" goal="Confirmar">
+    <output>
+      🧠 **Memória inicializada**
+      - lessons-learned.md criado
+    </output>
+  </step>
+</workflow>
+
+## Comandos do Usuário
+
+<user-commands>
+  | Comando | Ação |
+  |---------|------|
+  | "lembrar {algo}" | Registrar como lição |
+  | "o que você sabe sobre {x}?" | Consultar memória |
+  | "quais decisões foram tomadas?" | Listar lições de arquitetura |
+  | "consultar memória" | Workflow consult-memory |
+  | "registrar lição" | Workflow register-lesson |
+</user-commands>
+
+## Integração com Outros Skills
+
+<integration>
+  <auto-trigger skill="memory" when="tarefa-complexa-iniciada">
+    Consultar memória antes de começar
+  </auto-trigger>
+  
+  <auto-trigger skill="memory" when="decisão-arquitetural">
+    Registrar decisão como lição
+  </auto-trigger>
+  
+  <auto-trigger skill="memory" when="erro-corrigido">
+    Avaliar se deve registrar lição
+  </auto-trigger>
+</integration>
+
+## Output Padrão
+
+<output-formats>
+  <format id="lesson-registered">
+    📝 **Lição registrada**
+    - Categoria: `{categoria}`
+    - Contexto: {resumo}
+  </format>
+  
+  <format id="memory-consulted">
+    📚 **Memória consultada**
+    - Lições relevantes: {n}
+  </format>
+</output-formats>
+
+</skill>
+

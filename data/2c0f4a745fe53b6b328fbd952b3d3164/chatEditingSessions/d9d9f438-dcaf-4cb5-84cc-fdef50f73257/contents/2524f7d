@@ -1,0 +1,62 @@
+<#
+.SYNOPSIS
+    Setup script for the scripts project.
+.DESCRIPTION
+    Initializes git submodules required for Copilot instructions.
+    Run this after cloning the repository.
+.EXAMPLE
+    .\setup.ps1
+#>
+
+[CmdletBinding()]
+param()
+
+$ErrorActionPreference = 'Stop'
+
+Write-Host "🚀 Setting up scripts project..." -ForegroundColor Cyan
+
+# Check if git is available
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    Write-Host "❌ Git is not installed or not in PATH" -ForegroundColor Red
+    exit 1
+}
+
+# Initialize and update submodules
+Write-Host "📦 Initializing git submodules..." -ForegroundColor Yellow
+
+try {
+    git submodule update --init --recursive
+    
+    if ($LASTEXITCODE -eq 0) {
+        Write-Host "✅ Submodules initialized successfully!" -ForegroundColor Green
+    } else {
+        Write-Host "⚠️ Some submodules may have failed. Check if you have access to the repositories." -ForegroundColor Yellow
+    }
+} catch {
+    Write-Host "⚠️ Could not initialize submodules. You may not have access to the private repositories." -ForegroundColor Yellow
+    Write-Host "   The project will still work, but Copilot custom instructions won't be available." -ForegroundColor Gray
+}
+
+# Verify submodules
+$submodules = @(
+    ".github/.copilot-core",
+    ".github/.copilot-project"
+)
+
+Write-Host "`n📋 Submodule status:" -ForegroundColor Cyan
+foreach ($submodule in $submodules) {
+    $path = Join-Path $PSScriptRoot $submodule
+    if (Test-Path $path) {
+        $files = Get-ChildItem $path -ErrorAction SilentlyContinue
+        if ($files.Count -gt 0) {
+            Write-Host "   ✅ $submodule" -ForegroundColor Green
+        } else {
+            Write-Host "   ⚠️ $submodule (empty - check access)" -ForegroundColor Yellow
+        }
+    } else {
+        Write-Host "   ❌ $submodule (not found)" -ForegroundColor Red
+    }
+}
+
+Write-Host "`n🎉 Setup complete!" -ForegroundColor Green
+Write-Host "   Open the project in VS Code to use Copilot with custom instructions." -ForegroundColor Gray

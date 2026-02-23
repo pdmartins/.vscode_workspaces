@@ -1,0 +1,172 @@
+# Project Setup Skill
+
+<skill id="project-setup" context="configurar submodules e estrutura de prompts">
+
+## Propósito
+
+Gerenciar a configuração de submodules do copilot e a estrutura de prompts em projetos.
+
+## Arquitetura de Repos
+
+<architecture>
+  | Repo | Estratégia | Descrição |
+  |------|------------|-----------|
+  | `.github/.copilot-core/` | Repo único, branch main | Core reutilizável (este repo) |
+  | `.github/.copilot-project/` | Repo único, **branch por projeto** | Prompts específicos organizados por branches |
+  
+  <branch-strategy>
+    - Cada projeto usa uma branch com nome do projeto (ex: `meu-projeto`, `api-backend`)
+    - Permite consolidar todos os prompts específicos em um único repositório
+    - Facilita manutenção e versionamento centralizado
+  </branch-strategy>
+</architecture>
+
+## Quando Usar
+
+<triggers>
+  - Inicializar submodules em novo projeto
+  - Atualizar submodules existentes
+  - Configurar estrutura de prompts
+  - Vincular branch específica do project
+</triggers>
+
+## Workflow: Inicializar Projeto
+
+<workflow id="init-project">
+  <step n="1" goal="Verificar pré-requisitos">
+    <action>Verificar se .github/.copilot-core/ existe</action>
+    <action>Verificar se git está inicializado</action>
+    
+    <check if=".github/.copilot-core/ e .github/.copilot-project/ já existem">
+      <output>⚠️ Estrutura já existe. Use workflow de atualização.</output>
+      <halt reason="Estrutura já configurada"/>
+    </check>
+  </step>
+
+  <step n="2" goal="Criar estrutura base">
+    <action>Criar pasta .github/.copilot-project/</action>
+    <action>Criar pasta .github/.copilot-project/memory/</action>
+    <action>Criar .github/.copilot-project/memory/lessons-learned.md</action>
+    <action>Criar .github/.copilot-project/memory/project-context.md</action>
+  </step>
+
+  <step n="3" goal="Clonar repositório core">
+    <command>
+      git clone {repo-core} .github/.copilot-core
+    </command>
+    <note>Core vai para .github/.copilot-core/ (contém instructions/)</note>
+    <output>📦 Core clonado</output>
+  </step>
+
+  <step n="4" goal="Clonar repositório project (branch específica)">
+    <action>Detectar nome do projeto atual (pasta do workspace)</action>
+    <ask>
+      Branch do .copilot-project para este projeto?
+      Sugestão: `{nome-do-projeto}` (baseado no nome da pasta)
+      [Enter para confirmar ou digite outro nome]
+    </ask>
+    
+    <check if="branch já existe no remote">
+      <command>
+        git clone -b {branch-projeto} {repo-project} .github/.copilot-project
+      </command>
+      <output>📦 Project clonado (branch: {branch-projeto})</output>
+    </check>
+    
+    <check if="branch NÃO existe (novo projeto)">
+      <command>
+        git clone {repo-project} .github/.copilot-project
+        cd .github/.copilot-project
+        git checkout -b {branch-projeto}
+      </command>
+      <action>Criar estrutura inicial na nova branch</action>
+      <action>Executar project-analyzer para configurar</action>
+      <output>📦 Nova branch criada: {branch-projeto}</output>
+    </check>
+  </step>
+
+  <step n="5" goal="Criar default.instructions.md">
+    <action>Criar .github/.copilot-core/instructions/default.instructions.md</action>
+    <action>Configurar para carregar core e project</action>
+    
+    <output>✅ Projeto inicializado com sucesso (branch: {branch-projeto})</output>
+  </step>
+</workflow>
+
+## Workflow: Atualizar Submodules
+
+<workflow id="update-repos">
+  <step n="1" goal="Atualizar core">
+    <command>
+      cd .github/.copilot-core && git pull origin main
+    </command>
+    <output>🔄 Core atualizado</output>
+  </step>
+
+  <step n="2" goal="Atualizar project (branch atual)">
+    <action>Verificar branch atual do .github/.copilot-project/</action>
+    <command>
+      cd .github/.copilot-project && git pull origin $(git branch --show-current)
+    </command>
+    <output>🔄 Project atualizado (branch: {branch-atual})</output>
+  </step>
+
+  <step n="3" goal="Verificar mudanças">
+    <note>.copilot-core/ e .copilot-project/ estão no .gitignore do repo principal</note>
+    <output>✅ Repos atualizados</output>
+  </step>
+</workflow>
+
+## Workflow: Trocar Branch do Project
+
+<workflow id="switch-project-branch">
+  <step n="1" goal="Verificar branch atual">
+    <command>
+      cd .github/.copilot-project && git branch --show-current
+    </command>
+    <output>Branch atual: {branch-atual}</output>
+  </step>
+
+  <step n="2" goal="Listar branches disponíveis">
+    <command>
+      cd .github/.copilot-project && git fetch && git branch -r
+    </command>
+    <ask>Qual branch deseja usar?</ask>
+  </step>
+
+  <step n="3" goal="Trocar branch">
+    <command>
+      cd .github/.copilot-project && git checkout {nova-branch}
+    </command>
+    <output>✅ Trocado para branch: {nova-branch}</output>
+  </step>
+</workflow>
+
+## Workflow: Criar Project Local
+
+<workflow id="create-local-project">
+  <step n="1" goal="Criar estrutura">
+    <action>Criar .github/.copilot-project/initial.md</action>
+    <action>Criar .github/.copilot-project/skills/</action>
+  </step>
+
+  <step n="2" goal="Executar analyzer">
+    <load>project-analyzer.md</load>
+    <action>Seguir workflow de análise</action>
+  </step>
+</workflow>
+
+## Commands Reference
+
+<commands>
+  | Comando | Propósito |
+  |---------|-----------|
+  | `git clone -b {branch} {url} {path}` | Clonar repo em branch específica |
+  | `git checkout -b {branch}` | Criar e trocar para nova branch |
+  | `git branch --show-current` | Ver branch atual |
+  | `git branch -r` | Listar branches remotas |
+  | `git submodule update --init --recursive` | Inicializar submodules após clone |
+  | `git submodule update --remote` | Atualizar para última versão |
+</commands>
+
+</skill>

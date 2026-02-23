@@ -1,0 +1,87 @@
+# Project Context
+
+Estado atual do projeto para referência do Copilot.
+
+---
+
+## Objetivo
+
+Scripts utilitários de automação para setup de ambiente de desenvolvimento.
+Foco em idempotência, portabilidade e bilinguismo (PT/EN).
+
+## Stack
+
+| Componente | Tecnologia |
+|------------|------------|
+| Scripts Linux | Bash |
+| Scripts Windows | PowerShell |
+| Versionamento | Git |
+| CI/CD | Planejado (não implementado) |
+
+## Restrições
+
+<constraints>
+  - **Idioma**: Chat em PT-BR, código em EN
+  - **Portabilidade**: Todo script deve ter versão Linux E Windows
+  - **Bilinguismo**: `.english-version/` espelha raiz
+  - **Segurança**: Sem senhas, tokens, paths absolutos
+  - **Idempotência**: Scripts devem verificar estado antes de alterar
+</constraints>
+
+## Integrações
+
+| Sistema | Propósito | Status |
+|---------|-----------|--------|
+| Oh My Posh | Customização de terminal | ✅ Implementado |
+| Docker | Containerização | ✅ Implementado |
+| Azure CLI | Recursos Azure | ✅ Parcial (só Windows) |
+| Azure DevOps | DevOps CLI | ✅ Implementado |
+| SSH | Geração de chaves | ✅ Implementado |
+
+## Estado Atual
+
+**Fase**: Desenvolvimento ativo
+**Status**: Refatorando arquitetura de prompts
+
+## Arquitetura de Prompts
+
+<prompt-architecture>
+```
+.github/
+├── .copilot-core/                  # Core reutilizável (git submodule)
+│   ├── instructions/
+│   │   └── default.instructions.md # Agregador
+│   ├── initial.md
+│   ├── workflow-engine.md
+│   ├── skills-system.md
+│   ├── todo-workflow.md
+│   └── skills/                     # Skills genéricos
+│       ├── memory.md
+│       ├── context.md
+│       ├── create-skill.md
+│       └── ...
+├── .copilot-project/               # Projeto específico (git submodule)
+│   ├── initial.md
+│   ├── conventions.md
+│   ├── cross-platform.md
+│   ├── english-version.md
+│   ├── project-structure.md
+│   ├── skills-catalog.md
+│   ├── skills/                     # Skills do projeto
+│   │   ├── bash.md
+│   │   ├── powershell.md
+│   │   └── ...
+│   ├── memory/                     # Lições e decisões
+│   │   └── lessons-learned.md
+│   └── context/                    # Estado atual
+│       └── project.md (este arquivo)
+└── .source-control/                # Configurações de commits
+```
+
+As pastas `.copilot-core/` e `.copilot-project/` estão no .gitignore do repo público.
+</prompt-architecture>
+
+## Última Atualização
+
+**Data**: 2026-02-02
+**Motivo**: Separação de contexto (estado) e memória (lições)

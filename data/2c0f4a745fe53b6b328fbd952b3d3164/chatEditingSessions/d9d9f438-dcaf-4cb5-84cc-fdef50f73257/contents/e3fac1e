@@ -1,0 +1,23 @@
+# Project Scripts Instructions
+
+<project-loader critical="true">
+  <mandate>Este arquivo é o INICIAL do projeto - use instructions.md como referência principal</mandate>
+  <mandate>Para regras específicas de skills, consulte: instructions.md</mandate>
+</project-loader>
+
+## Sobre Este Projeto
+
+Scripts utilitários de automação — idempotentes, bilíngues (PT na raiz, EN em `_english-version/`), multiplataforma.
+
+## Carregamento Principal
+
+<load-instruction critical="true">
+  <mandate>Para todas as regras específicas deste projeto:</mandate>
+  <action>Ler: {workspace}/.github/.copilot-project/instructions.md</action>
+</load-instruction>
+
+## Estrutura Esperada
+
+<expected-structure>
+Ver estrutura completa em: {workspace}/.github/.copilot-project/instructions.md
+</expected-structure>

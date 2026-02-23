@@ -1,0 +1,19 @@
+{
+	"chat.tools.terminal.autoApprove": {
+		"git update-index": true
+	},
+	"vsicons.associations.folders": [
+		{
+			"icon": "github",
+			"extensions": [
+				".github-project"
+			],
+			"format": "svg"
+		}
+	],
+	"github.copilot.chat.commitMessageGeneration.instructions": [
+		{
+			"file": ".github/.source-control/commit-prompt.md"
+		}
+	]
+}

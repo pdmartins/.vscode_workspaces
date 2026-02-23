@@ -1,0 +1,133 @@
+# Project Instructions
+
+<project-loader critical="true">
+  <mandate>Este arquivo define as regras ESPECÍFICAS deste projeto</mandate>
+  <mandate>O core (.copilot-core) é agnóstico e delega para cá</mandate>
+  <mandate>Aqui ficam os mapeamentos de extensões → skills</mandate>
+</project-loader>
+
+## Sobre Este Projeto
+
+Scripts utilitários de automação — idempotentes, bilíngues (PT na raiz, EN em `_english-version/`), multiplataforma.
+
+## Carregamento de Convenções
+
+<conventions-loading critical="true">
+  <mandate>Carregar SEMPRE no início da sessão:</mandate>
+  
+  <step n="1" goal="Carregar convenções base">
+    <action>Ler: {workspace}/.github/.copilot-project/conventions.md</action>
+    <note>Nomenclatura, emojis, cores</note>
+  </step>
+  
+  <step n="2" goal="Carregar regras multiplataforma">
+    <action>Ler: {workspace}/.github/.copilot-project/cross-platform.md</action>
+    <note>Regras para manter .sh e .ps1 sincronizados</note>
+  </step>
+  
+  <step n="3" goal="Carregar regras de tradução">
+    <action>Ler: {workspace}/.github/.copilot-project/english-version.md</action>
+    <note>Regras para manter _english-version/ sincronizado</note>
+  </step>
+</conventions-loading>
+
+## Mapeamento de Skills
+
+<skill-mapping critical="true">
+  <mandate>Quando detectar um tipo de arquivo, carregar o skill correspondente:</mandate>
+  
+  | Extensão | Skill | Arquivo |
+  |----------|-------|---------|
+  | `*.sh` | bash | `{workspace}/.github/.copilot-project/skills/bash.md` |
+  | `*.ps1` | powershell | `{workspace}/.github/.copilot-project/skills/powershell.md` |
+  | `README.md` | readme | `{workspace}/.github/.copilot-project/skills/readme.md` |
+  
+  <note>Skills de manutenção são carregados após ações específicas (ver seção abaixo)</note>
+</skill-mapping>
+
+## Ações Pós-Modificação
+
+<post-modification critical="true">
+  <mandate>Após modificar scripts, executar ações de sincronização:</mandate>
+  
+  <trigger type="script-modified">
+    <condition>Script .sh ou .ps1 foi criado ou modificado</condition>
+    <action>Ler: {workspace}/.github/.copilot-project/skills/sync.md</action>
+    <action>Executar workflow de sincronização</action>
+  </trigger>
+  
+  <trigger type="structure-changed">
+    <condition>Nova pasta criada OU novo tipo de arquivo</condition>
+    <action>Ler: {workspace}/.github/.copilot-project/skills/update-structure.md</action>
+    <action>Atualizar estrutura do projeto</action>
+  </trigger>
+</post-modification>
+
+## Skills Disponíveis
+
+<skills-catalog>
+  ### Linguagens
+  
+  | Skill | Arquivo | Quando Carregar |
+  |-------|---------|-----------------|
+  | bash | `skills/bash.md` | Criar/editar `*.sh` |
+  | powershell | `skills/powershell.md` | Criar/editar `*.ps1` |
+  
+  ### Documentação
+  
+  | Skill | Arquivo | Quando Carregar |
+  |-------|---------|-----------------|
+  | readme | `skills/readme.md` | Criar/editar `README.md` |
+  
+  ### Manutenção
+  
+  | Skill | Arquivo | Quando Carregar |
+  |-------|---------|-----------------|
+  | sync | `skills/sync.md` | Após modificar qualquer script |
+  | update-structure | `skills/update-structure.md` | Após criar nova pasta/tipo |
+  
+  ### Skills Pendentes (criar quando necessário)
+  
+  | Extensão | Skill | Status |
+  |----------|-------|--------|
+  | .bat | batch | ⏳ Criar quando necessário |
+  | .sql | sql | ⏳ Criar quando necessário |
+  | .py | python | ⏳ Criar quando necessário |
+</skills-catalog>
+
+## Memory e Context
+
+<memory-context critical="true">
+  <note>Os skills de memory e context ficam no CORE (.copilot-core)</note>
+  <note>Os DADOS ficam no PROJECT (memory/ e context/)</note>
+  
+  <mandate>Para consultar lições passadas: ler {workspace}/.github/.copilot-project/memory/lessons-learned.md</mandate>
+  <mandate>Para consultar estado atual: ler {workspace}/.github/.copilot-project/context/project.md</mandate>
+  <mandate>Para registrar nova lição: usar core skill memory.md</mandate>
+  <mandate>Para atualizar contexto: usar core skill context.md</mandate>
+</memory-context>
+
+## Estrutura Esperada deste Submodule
+
+<expected-structure>
+```
+.copilot-project/
+├── instructions.md         # Este arquivo (loader do projeto)
+├── initial.md              # Descrição inicial do projeto
+├── conventions.md          # Nomenclatura, emojis, cores
+├── cross-platform.md       # Regras .sh + .ps1
+├── english-version.md      # Regras de tradução EN
+├── project-structure.md    # Estrutura atual do projeto
+├── skills-catalog.md       # Catálogo de skills (legado)
+├── skills/                 # Skills específicos deste projeto
+│   ├── bash.md
+│   ├── powershell.md
+│   ├── readme.md
+│   ├── sync.md
+│   └── update-structure.md
+├── memory/                 # Lições e decisões (histórico)
+│   └── lessons-learned.md
+└── context/                # Estado atual do projeto
+    └── project.md
+```
+</expected-structure>

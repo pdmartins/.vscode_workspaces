@@ -1,0 +1,111 @@
+# Project Analyzer Skill
+
+<skill id="project-analyzer" context="analisar projeto e sugerir skills">
+
+## Propósito
+
+Analisar estrutura de um projeto e guiar o usuário na criação de skills personalizados.
+Este skill faz perguntas para entender o projeto antes de sugerir configurações.
+
+## Quando Usar
+
+<triggers>
+  - Novo projeto sendo configurado
+  - Usuário pede para "analisar projeto"
+  - Usuário pede para "configurar prompts"
+  - Primeiro uso do copilot-agent-core em um workspace
+</triggers>
+
+## Workflow
+
+<workflow id="project-analysis">
+  <step n="1" goal="Coletar informações do projeto">
+    <action>Listar estrutura de pastas do workspace</action>
+    <action>Identificar arquivos de configuração existentes</action>
+    <action>Identificar linguagens/frameworks usados</action>
+    
+    <output>
+      📊 **Análise inicial do projeto**
+      - Estrutura detectada: {estrutura}
+      - Linguagens: {linguagens}
+      - Frameworks: {frameworks}
+    </output>
+  </step>
+
+  <step n="2" goal="Fazer perguntas ao usuário">
+    <questions>
+      <q id="1">Qual é o objetivo principal deste projeto?</q>
+      <q id="2">Existem padrões de código que devem ser seguidos? (nomenclatura, estrutura, etc)</q>
+      <q id="3">O projeto precisa de suporte multi-plataforma? (Windows/Linux/Mac)</q>
+      <q id="4">Existe necessidade de versionamento multi-idioma?</q>
+      <q id="5">Quais são as regras de negócio mais importantes?</q>
+      <q id="6">Existem integrações externas? (APIs, serviços, etc)</q>
+    </questions>
+    
+    <action>Apresentar perguntas ao usuário</action>
+    <action>Aguardar respostas antes de prosseguir</action>
+  </step>
+
+  <step n="3" goal="Analisar respostas e sugerir skills">
+    <action>Mapear respostas para categorias de skills</action>
+    
+    <skill-categories>
+      | Categoria | Quando Sugerir |
+      |-----------|----------------|
+      | Linguagem | Arquivos da linguagem detectados |
+      | Framework | Framework específico em uso |
+      | Documentação | Projeto precisa de docs padronizados |
+      | Sincronização | Multi-plataforma ou multi-idioma |
+      | Validação | Regras de negócio específicas |
+      | Integração | APIs ou serviços externos |
+    </skill-categories>
+    
+    <output>
+      📋 **Skills recomendados para este projeto**
+      {lista de skills com justificativa}
+    </output>
+  </step>
+
+  <step n="4" goal="Criar estrutura inicial">
+    <check if="usuário aprova recomendações">
+      <action>Criar .github/.copilot-project/initial.md</action>
+      <action>Criar skills sugeridos em .github/.copilot-project/skills/</action>
+      <action>Atualizar default.instructions.md</action>
+    </check>
+    
+    <output>
+      ✅ **Projeto configurado**
+      - {n} skills criados
+      - Estrutura pronta em .github/.copilot-project/
+    </output>
+  </step>
+</workflow>
+
+## Output Template
+
+<template id="analysis-output">
+```markdown
+# Análise do Projeto: {nome}
+
+## Estrutura Detectada
+{árvore de pastas}
+
+## Linguagens/Frameworks
+| Tipo | Detectado |
+|------|-----------|
+| Linguagens | {lista} |
+| Frameworks | {lista} |
+| Build Tools | {lista} |
+
+## Skills Recomendados
+| Skill | Motivo | Prioridade |
+|-------|--------|------------|
+| {nome} | {justificativa} | Alta/Média/Baixa |
+
+## Próximos Passos
+1. {passo 1}
+2. {passo 2}
+```
+</template>
+
+</skill>

@@ -1,0 +1,106 @@
+# Memory Skill
+
+<skill id="memory" context="persistência de contexto entre sessões">
+
+## Propósito
+
+O `memory/` é a **memória persistente do Copilot** para este workspace.
+Diferente de README e docs (para humanos), estes arquivos são para o Copilot
+"lembrar" de decisões passadas, evitando repetir erros e mantendo consistência.
+
+## Quando Usar
+
+<triggers>
+  - Decisão arquitetural importante foi tomada
+  - Erro foi cometido e corrigido (lição aprendida)
+  - Contexto do projeto mudou significativamente
+  - Novo padrão foi estabelecido
+  - Usuário pede para "lembrar" algo
+</triggers>
+
+## Estrutura
+
+```
+.github-project/memory/
+├── lessons-learned.md    # Lições e decisões importantes
+└── project-context.md    # Contexto atual do projeto
+```
+
+## Workflow: Registrar Lição
+
+<workflow id="register-lesson">
+  <step n="1" goal="Identificar se é uma lição válida">
+    <check if="decisão arquitetural importante">
+      <action>Registrar em lessons-learned.md</action>
+    </check>
+    
+    <check if="erro corrigido com aprendizado">
+      <action>Registrar em lessons-learned.md</action>
+    </check>
+    
+    <check if="padrão novo estabelecido">
+      <action>Registrar em lessons-learned.md</action>
+    </check>
+    
+    <check if="mudança trivial ou temporária">
+      <action>NÃO registrar - evitar poluição</action>
+    </check>
+  </step>
+
+  <step n="2" goal="Formatar a lição">
+    <template>
+```xml
+<lesson date="YYYY-MM-DD" category="categoria">
+  <context>Contexto do problema ou situação</context>
+  <decision>Decisão tomada e por quê</decision>
+  <outcome>Resultado e impacto</outcome>
+</lesson>
+```
+    </template>
+    
+    <categories>
+      | Categoria | Quando Usar |
+      |-----------|-------------|
+      | arquitetura | Estrutura do projeto, organização |
+      | padrões | Convenções de código, nomenclatura |
+      | tooling | Ferramentas, dependências, configs |
+      | workflow | Processos, automações |
+      | debug | Problemas resolvidos, armadilhas |
+    </categories>
+  </step>
+
+  <step n="3" goal="Adicionar ao arquivo">
+    <action>Ler: memory/lessons-learned.md</action>
+    <action>Adicionar nova lesson após "## Registro"</action>
+    <action>Manter ordem cronológica (mais recente primeiro)</action>
+  </step>
+</workflow>
+
+## Workflow: Consultar Memória
+
+<workflow id="consult-memory" trigger="início de tarefa complexa">
+  <step n="1" goal="Verificar lições relevantes">
+    <action>Ler: memory/lessons-learned.md</action>
+    <action>Identificar lições relacionadas à tarefa atual</action>
+    <action>Aplicar aprendizados para evitar erros passados</action>
+  </step>
+
+  <step n="2" goal="Verificar contexto do projeto">
+    <check if="arquivo project-context.md existe">
+      <action>Ler: memory/project-context.md</action>
+      <action>Considerar contexto nas decisões</action>
+    </check>
+  </step>
+</workflow>
+
+## Quando NÃO Registrar
+
+<anti-patterns>
+  - Mudanças triviais de código
+  - Decisões temporárias ou experimentais
+  - Informações já documentadas em README
+  - Detalhes de implementação específicos
+  - Logs de atividade (não é changelog)
+</anti-patterns>
+
+</skill>

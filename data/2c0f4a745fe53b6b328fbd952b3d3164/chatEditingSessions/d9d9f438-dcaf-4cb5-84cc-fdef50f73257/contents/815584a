@@ -1,0 +1,211 @@
+---
+applyTo: '**'
+---
+# Copilot Instructions
+
+<loader critical="true">
+  <mandate>Este arquivo é o AGREGADOR que carrega core + project</mandate>
+  <mandate>Instruções são OBRIGATÓRIAS, não sugestões</mandate>
+  <mandate>O CORE é AGNÓSTICO - não conhece skills específicos do projeto</mandate>
+</loader>
+
+## Clarificação de Dúvidas
+
+<clarification critical="true">
+  <mandate>NUNCA assuma algo que não esteja EXPLÍCITO no pedido do usuário ou nos arquivos de instruções</mandate>
+  <mandate>Quando houver ambiguidade ou informação faltando, VOCÊ DEVE perguntar ANTES de executar</mandate>
+  
+  <when-to-ask>
+    - Pedido do usuário é vago ou ambíguo
+    - Múltiplas interpretações são possíveis
+    - Informação crítica está faltando (nome, caminho, formato, etc.)
+    - Decisão impacta significativamente o resultado
+    - Não há convenção estabelecida nos arquivos de instruções
+  </when-to-ask>
+  
+  <when-NOT-to-ask>
+    - Informação está explícita no pedido
+    - Convenção está documentada nos arquivos de instruções
+    - É uma decisão trivial sem impacto significativo
+    - Contexto do arquivo/projeto torna a resposta óbvia
+  </when-NOT-to-ask>
+  
+  <how-to-ask>
+    <action>Formular pergunta clara e específica</action>
+    <action>Oferecer opções quando aplicável</action>
+    <action>Explicar brevemente por que está perguntando</action>
+    <output>❓ **Preciso de clarificação**: {pergunta}</output>
+  </how-to-ask>
+</clarification>
+
+## Carregamento
+
+<load-order critical="true">
+  <step n="1" goal="Carregar Core">
+    <mandate>Ler e aplicar: {workspace}/.github/.copilot-core/initial.md</mandate>
+    <includes>
+      - workflow-engine.md (motor de execução)
+      - skills-system.md (sistema de skills genérico)
+      - todo-workflow.md (gestão de tarefas)
+    </includes>
+  </step>
+  
+  <step n="2" goal="Carregar Project Instructions">
+    <mandate>Ler e aplicar: {workspace}/.github/.copilot-project/instructions.md</mandate>
+    <note>Este arquivo contém TODAS as regras específicas do projeto</note>
+    <note>Inclui mapeamento de extensões → skills</note>
+    <note>O core NÃO sabe quais skills existem - o project define</note>
+  </step>
+</load-order>
+
+## Skills do Core
+
+<core-skills>
+  O core disponibiliza apenas skills GENÉRICOS reutilizáveis:
+  
+  | Skill | Arquivo | Propósito |
+  |-------|---------|-----------|
+  | memory | `{workspace}/.github/.copilot-core/skills/memory.md` | Gerenciar lições aprendidas |
+  | context | `{workspace}/.github/.copilot-core/skills/context.md` | Gerenciar estado atual do projeto |
+  | create-skill | `{workspace}/.github/.copilot-core/skills/create-skill.md` | Criar novos skills |
+  | project-analyzer | `{workspace}/.github/.copilot-core/skills/project-analyzer.md` | Analisar estrutura do projeto |
+  | project-setup | `{workspace}/.github/.copilot-core/skills/project-setup.md` | Configurar novo projeto |
+</core-skills>
+
+## Skill Loading
+
+<skill-announcement critical="true">
+  <mandate>Em TODA resposta, VOCÊ DEVE informar no início quais skills estão em uso:</mandate>
+  
+  <format-new>🔧 **Skill ativada**: `{nome}` (quando carregar nova skill)</format-new>
+  <format-context>🔧 **Skills em uso**: `{skill1}`, `{skill2}` (quando já no contexto)</format-context>
+  
+  <examples>
+    - Primeira vez: "🔧 **Skill ativada**: `bash`"
+    - Continuação: "🔧 **Skills em uso**: `bash`, `sync`"
+    - Sem skills: Não mostrar nada
+  </examples>
+</skill-announcement>
+
+<skill-deactivation>
+  <trigger>Usuário diz: "desativar skill {nome}" ou "ignorar skill {nome}"</trigger>
+  <action>Parar de aplicar regras dessa skill pelo resto da conversa</action>
+  <action>Remover da lista de "skills em uso"</action>
+  <output>⏹️ **Skill desativada**: `{nome}`</output>
+  <note>Skills desativadas ainda estão no histórico mas suas regras são IGNORADAS</note>
+</skill-deactivation>
+
+## Delegação para Project
+
+<project-delegation critical="true">
+  <mandate>O CORE não conhece skills específicos do projeto</mandate>
+  <mandate>Para saber qual skill carregar, VOCÊ DEVE consultar: {workspace}/.github/.copilot-project/instructions.md</mandate>
+  
+  <workflow id="skill-discovery">
+    <step n="1" goal="Identificar tipo de arquivo">
+      <action>Detectar extensão ou tipo do arquivo em contexto</action>
+    </step>
+    
+    <step n="2" goal="Consultar project">
+      <action>Ler: {workspace}/.github/.copilot-project/instructions.md</action>
+      <action>Seguir mapeamento extensão → skill definido lá</action>
+    </step>
+    
+    <step n="3" goal="Carregar skill">
+      <action>Carregar o skill indicado pelo project</action>
+      <check if="skill não existe">
+        <action>Usar core skill `create-skill`</action>
+      </check>
+    </step>
+  </workflow>
+</project-delegation>
+
+## Task Complexity Workflow
+
+<workflow id="task-analysis" trigger="on-user-request" priority="first">
+  <step n="1" goal="Avaliar complexidade da tarefa">
+    <criteria id="complex-task">
+      Uma tarefa é COMPLEXA quando:
+      - Envolve 4+ steps distintos
+      - Usuário pede múltiplas coisas (lista numerada, vírgulas)
+      - Envolve criar/modificar múltiplos arquivos
+      - Requer sincronização cross-platform + english-version
+      - Envolve criar nova pasta ou novo tipo de script
+    </criteria>
+    
+    <check if="tarefa é COMPLEXA conforme critérios acima">
+      <action>Criar TODO list com manage_todo_list</action>
+      <action>Listar TODOS os steps identificados</action>
+      <action>Marcar primeiro step como in-progress</action>
+      <output>📋 Lista de tarefas criada</output>
+    </check>
+    
+    <check if="tarefa é SIMPLES">
+      <action>NÃO criar TODO list (evitar overhead)</action>
+      <action>Executar diretamente</action>
+    </check>
+  </step>
+</workflow>
+
+<workflow id="task-completion" trigger="after-each-step">
+  <step n="1" goal="Atualizar progresso">
+    <check if="TODO list existe">
+      <action>Marcar step atual como completed</action>
+      <action>Marcar próximo step como in-progress (se houver)</action>
+    </check>
+  </step>
+  
+  <step n="2" goal="Revisar e ajustar" trigger="após-completar-step">
+    <check if="novo step descoberto durante execução">
+      <action>Adicionar novo step à lista</action>
+      <action>Reordenar se necessário</action>
+    </check>
+    
+    <check if="step atual revelou sub-tarefas">
+      <action>Dividir em steps menores</action>
+      <action>Atualizar lista</action>
+    </check>
+    
+    <check if="step não é mais necessário">
+      <action>Remover da lista</action>
+    </check>
+  </step>
+  
+  <step n="3" goal="Finalizar">
+    <check if="todos os steps completed">
+      <action>Verificar se TODO list está 100% concluída</action>
+      <output>✅ Todas as tarefas concluídas</output>
+    </check>
+  </step>
+</workflow>
+
+## File Detection Workflow
+
+<workflow id="file-detection" trigger="on-file-context">
+  <step n="1" goal="Detectar tipo de arquivo">
+    <action>Identificar extensão ou tipo do arquivo em contexto</action>
+  </step>
+  
+  <step n="2" goal="Consultar instruções do project">
+    <action>Ler: {workspace}/.github/.copilot-project/instructions.md</action>
+    <action>Localizar seção de mapeamento extensão → skill</action>
+    <action>Identificar qual skill carregar para o tipo de arquivo</action>
+  </step>
+
+  <step n="3" goal="Carregar skill apropriada">
+    <check if="skill encontrada no project">
+      <action>Ler COMPLETAMENTE o arquivo da skill indicada</action>
+      <action>Aplicar todos os padrões e templates do skill</action>
+    </check>
+    
+    <check if="skill NÃO encontrada">
+      <action>Usar core skill `create-skill` para criar nova skill</action>
+    </check>
+  </step>
+  
+  <step n="4" goal="Pós-modificação">
+    <action>Consultar project instructions para ações pós-modificação</action>
+    <action>Executar workflows indicados pelo project</action>
+  </step>
+</workflow>
+

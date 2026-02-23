@@ -1,0 +1,10 @@
+[submodule ".github/.copilot-core"]
+	path = .github/.copilot-core
+	url = https://github.com/pdmartins/.github.git
+	branch = main
+	ignore = all
+[submodule ".github/.copilot-project"]
+	path = .github/.copilot-project
+	url = https://github.com/pdmartins/.github-project.git
+	branch = scripts
+	ignore = all
