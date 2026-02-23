@@ -1,0 +1,15 @@
+{
+  message: "Use the JDK from 'java.jdt.ls.java.home' setting as the initial default project JDK.",
+  level: 'info',
+  timestamp: '2026-02-04 12:18:58.775'
+}
+{
+  message: "Use the JDK from 'java.jdt.ls.java.home' setting as the initial default project JDK.",
+  level: 'info',
+  timestamp: '2026-02-04 15:06:57.994'
+}
+{
+  message: "Use the JDK from 'java.jdt.ls.java.home' setting as the initial default project JDK.",
+  level: 'info',
+  timestamp: '2026-02-04 15:15:37.243'
+}
