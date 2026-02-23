@@ -1,0 +1,85 @@
+# 🐳 Docker Scripts
+
+Scripts for Docker Engine installation (not Docker Desktop).
+
+## 📋 Available Scripts
+
+### `install-docker.ps1` (Windows)
+
+Installs Docker Engine on Windows via WSL2.
+
+**Why WSL2?**
+Docker Engine depends on Linux kernel features. On Windows 10/11, the only way to run Docker Engine without Docker Desktop is through WSL2.
+
+**Features:**
+- ✅ Checks and installs WSL2 if needed
+- ✅ Checks and installs Ubuntu if no Linux distribution exists
+- ✅ Installs Docker Engine inside WSL
+- ✅ Configures user in docker group
+- ✅ Idempotent - can be run multiple times
+
+**Requirements:**
+- Windows 10 version 2004+ or Windows 11
+- Administrator privileges
+- Virtualization enabled in BIOS
+
+**Usage:**
+```powershell
+# Run as Administrator
+.\install-docker.ps1
+```
+
+**After installation:**
+```powershell
+# Access WSL
+wsl
+
+# Use docker normally
+docker --version
+docker run hello-world
+```
+
+---
+
+### `install-docker.sh` (Linux)
+
+Installs Docker Engine on Linux distributions.
+
+**Supported distributions:**
+- ✅ Ubuntu
+- ✅ Debian
+- ✅ Fedora
+- ✅ RHEL/CentOS
+
+**Features:**
+- ✅ Automatically detects the distribution
+- ✅ Removes old Docker versions
+- ✅ Installs Docker CE, CLI, containerd, buildx and compose
+- ✅ Configures to start on boot
+- ✅ Adds user to docker group
+- ✅ Idempotent - can be run multiple times
+
+**Usage:**
+```bash
+# Give execution permission
+chmod +x install-docker.sh
+
+# Run
+./install-docker.sh
+# or
+sudo ./install-docker.sh
+```
+
+**After installation:**
+```bash
+# Logout/login or run
+newgrp docker
+
+# Test
+docker --version
+docker run hello-world
+```
+
+## ⚠️ Important Note
+
+These scripts install **Docker Engine** (open source), not Docker Desktop. Docker Desktop has different licensing for commercial use.

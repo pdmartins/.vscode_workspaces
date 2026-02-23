@@ -1,0 +1,81 @@
+# 🎨 Oh My Posh Scripts
+
+Scripts for installing and configuring Oh My Posh with a custom theme.
+
+## 📋 Available Scripts
+
+### `install-omp-theme.ps1` (Windows)
+
+Installs Oh My Posh and configures the custom theme on Windows.
+
+**Features:**
+- ✅ Installs Oh My Posh via winget (if not installed)
+- ✅ Updates Oh My Posh (if already installed)
+- ✅ Downloads the custom theme
+- ✅ Automatically configures the PowerShell profile
+
+**Usage:**
+```powershell
+.\install-omp-theme.ps1
+```
+
+---
+
+### `install-omp-theme.sh` (Linux/Ubuntu)
+
+Installs Oh My Posh and configures the custom theme on Linux.
+
+**Features:**
+- ✅ Installs Oh My Posh via curl (if not installed)
+- ✅ Updates Oh My Posh (if already installed)
+- ✅ Downloads the custom theme
+- ✅ Detects shell (bash/zsh) and configures the correct profile
+
+**Usage:**
+```bash
+chmod +x install-omp-theme.sh
+./install-omp-theme.sh
+```
+
+---
+
+### `install-omp-theme-mac.sh` (macOS)
+
+Installs Oh My Posh and configures the custom theme on macOS.
+
+**Features:**
+- ✅ Checks if Homebrew is installed
+- ✅ Installs Oh My Posh via Homebrew (if not installed)
+- ✅ Updates Oh My Posh (if already installed)
+- ✅ Downloads the custom theme
+- ✅ Detects shell (bash/zsh) and configures the correct profile
+
+**Requirements:**
+- Homebrew installed
+
+**Usage:**
+```bash
+chmod +x install-omp-theme-mac.sh
+./install-omp-theme-mac.sh
+```
+
+---
+
+### `blocks.emoji.omp.json`
+
+Custom Oh My Posh theme configuration file.
+
+**Theme features:**
+- 🎯 Block layout
+- 😀 Uses only Unicode emojis (no Nerd Fonts required!)
+- 📂 Shows current directory
+- 🔀 Git information
+- ⏱️ Command execution time
+- 🐳 Docker and Kubernetes context
+- 💻 Node, Python and .NET versions
+
+## 💡 Note about Fonts
+
+This theme was created to work **without Nerd Fonts**! It uses only standard Unicode emojis, which are supported by most modern terminals.
+
+If emojis don't display correctly, check if your terminal supports Unicode/UTF-8.

@@ -1,0 +1,120 @@
+# Script para instalar tema Oh My Posh personalizado
+# Autor: GitHub Copilot
+# Data: 2026-01-15
+
+Write-Host "🎨 Instalando tema Oh My Posh personalizado..." -ForegroundColor Cyan
+
+# Verificar se Oh My Posh está instalado
+Write-Host "🔍 Verificando instalação do Oh My Posh..." -ForegroundColor Yellow
+$ohMyPoshInstalled = Get-Command oh-my-posh -ErrorAction SilentlyContinue
+
+if (-not $ohMyPoshInstalled) {
+    Write-Host "❌ Oh My Posh não está instalado!" -ForegroundColor Red
+    Write-Host "📦 Instalando Oh My Posh via winget..." -ForegroundColor Yellow
+    
+    try {
+        winget install JanDeDobbeleer.OhMyPosh -s winget --accept-package-agreements --accept-source-agreements
+        
+        # Atualizar PATH para a sessão atual
+        $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+        
+        Write-Host "✅ Oh My Posh instalado com sucesso!" -ForegroundColor Green
+        Write-Host "💡 Você pode precisar reiniciar o terminal para usar o Oh My Posh" -ForegroundColor Cyan
+    } catch {
+        Write-Host "❌ Erro ao instalar Oh My Posh: $_" -ForegroundColor Red
+        Write-Host "💡 Tente instalar manualmente: winget install JanDeDobbeleer.OhMyPosh" -ForegroundColor Yellow
+        exit 1
+    }
+} else {
+    Write-Host "✅ Oh My Posh já está instalado" -ForegroundColor Green
+    Write-Host "🔄 Atualizando Oh My Posh..." -ForegroundColor Yellow
+    
+    try {
+        oh-my-posh upgrade --force
+        Write-Host "✅ Oh My Posh atualizado com sucesso!" -ForegroundColor Green
+    } catch {
+        Write-Host "⚠️  Não foi possível atualizar, mas continuando com a versão atual" -ForegroundColor Yellow
+    }
+}
+
+# Diretório do script (onde está o tema local)
+$scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$localThemeFile = Join-Path $scriptDir "blocks.emoji.omp.json"
+
+# Diretório de temas do Oh My Posh
+$themesPath = "$env:POSH_THEMES_PATH"
+if (-not $themesPath) {
+    $themesPath = "$env:LOCALAPPDATA\Programs\oh-my-posh\themes"
+}
+
+# Nome do arquivo do tema
+$themeName = "blocks.emoji.omp.json"
+$themeFilePath = Join-Path $themesPath $themeName
+
+Write-Host "📁 Diretório de temas: $themesPath" -ForegroundColor Yellow
+
+# Criar diretório se não existir
+if (-not (Test-Path $themesPath)) {
+    Write-Host "📂 Criando diretório de temas..." -ForegroundColor Yellow
+    New-Item -ItemType Directory -Path $themesPath -Force | Out-Null
+}
+
+# Copiar o tema local
+if (Test-Path $localThemeFile) {
+    Write-Host "📋 Copiando tema local..." -ForegroundColor Yellow
+    try {
+        Copy-Item -Path $localThemeFile -Destination $themeFilePath -Force
+        Write-Host "✅ Tema copiado com sucesso: $themeFilePath" -ForegroundColor Green
+    } catch {
+        Write-Host "❌ Erro ao copiar o tema: $_" -ForegroundColor Red
+        exit 1
+    }
+} else {
+    Write-Host "❌ Arquivo de tema não encontrado: $localThemeFile" -ForegroundColor Red
+    Write-Host "💡 Certifique-se de executar o script a partir do diretório correto" -ForegroundColor Yellow
+    exit 1
+}
+
+# Verificar se o profile existe
+if (-not (Test-Path $PROFILE)) {
+    Write-Host "📝 Criando arquivo de profile..." -ForegroundColor Yellow
+    New-Item -Path $PROFILE -Type File -Force | Out-Null
+    $profileContent = ""
+} else {
+    # Ler o conteúdo atual do profile
+    $profileContent = Get-Content $PROFILE -Raw -ErrorAction SilentlyContinue
+    if (-not $profileContent) {
+        $profileContent = ""
+    }
+}
+
+# Verificar se já existe alguma linha oh-my-posh init no profile
+$ohMyPoshPattern = "oh-my-posh\s+init"
+$newInitLine = "oh-my-posh init pwsh --config '$themeFilePath' | Invoke-Expression"
+
+if ($profileContent -match $ohMyPoshPattern) {
+    Write-Host "🔄 Atualizando configuração existente do Oh My Posh no profile..." -ForegroundColor Yellow
+    
+    # Substituir qualquer linha que contenha "oh-my-posh init"
+    $profileContent = $profileContent -replace ".*oh-my-posh\s+init[^\r\n]*", $newInitLine
+    
+    Set-Content $PROFILE -Value $profileContent -Encoding UTF8
+    Write-Host "✅ Configuração do Oh My Posh atualizada no profile" -ForegroundColor Green
+} else {
+    Write-Host "➕ Adicionando Oh My Posh ao profile..." -ForegroundColor Yellow
+    
+    # Adicionar no início do profile se não estiver vazio, senão criar
+    if ($profileContent.Trim()) {
+        $profileContent = $newInitLine + "`r`n`r`n" + $profileContent
+    } else {
+        $profileContent = $newInitLine + "`r`n"
+    }
+    
+    Set-Content $PROFILE -Value $profileContent -Encoding UTF8
+    Write-Host "✅ Oh My Posh adicionado ao profile" -ForegroundColor Green
+}
+
+Write-Host "`n✨ Instalação concluída!" -ForegroundColor Green
+Write-Host "📋 Para aplicar as mudanças, execute:" -ForegroundColor Cyan
+Write-Host "   . `$PROFILE" -ForegroundColor White
+Write-Host "`n💡 Ou feche e reabra o PowerShell" -ForegroundColor Cyan

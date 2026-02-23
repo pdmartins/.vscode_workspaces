@@ -1,0 +1,70 @@
+# 🛠️ Scripts Collection
+
+Collection of scripts for development task automation and environment configuration.
+
+[🇧🇷 Versão em Português](../)
+
+## 📁 Structure
+
+| Folder | Description |
+|--------|-------------|
+| [azure/](azure/) | Scripts for Azure resource management |
+| [docker/](docker/) | Scripts for Docker Engine installation |
+| [oh-my-posh/](oh-my-posh/) | Scripts for Oh My Posh installation and configuration |
+| [ssh/](ssh/) | Scripts for SSH key generation |
+
+## 🚀 Quick Start
+
+### Clone the repository
+```bash
+git clone https://github.com/pdmartins/scripts.git
+cd scripts/.english-version
+```
+
+### Run scripts on Windows (PowerShell)
+```powershell
+# May need to allow script execution
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser
+
+# Run a script
+.\folder\script.ps1
+```
+
+### Run scripts on Linux/macOS (Bash)
+```bash
+# Give execution permission
+chmod +x folder/script.sh
+
+# Run
+./folder/script.sh
+```
+
+## 📋 Available Scripts
+
+### ☁️ Azure
+- `export-azure-resources.ps1` - Exports Resource Groups as ARM Templates
+
+### 🐳 Docker
+- `install-docker.ps1` - Installs Docker Engine via WSL2 (Windows)
+- `install-docker.sh` - Installs Docker Engine (Linux)
+
+### 🎨 Oh My Posh
+- `install-omp-theme.ps1` - Installs custom theme (Windows)
+- `install-omp-theme.sh` - Installs custom theme (Linux)
+- `install-omp-theme-mac.sh` - Installs custom theme (macOS)
+
+### 🔐 SSH
+- `generate-ssh-key.ps1` - Generates Ed25519 SSH keys (Windows)
+- `generate-ssh-key.sh` - Generates Ed25519 SSH keys (Linux/macOS)
+
+## ✨ Features
+
+- ✅ **Idempotent** - Can be run multiple times without side effects
+- ✅ **Interactive** - Prompts for data when not provided via parameter
+- ✅ **Colorful** - Output with colors and emojis for better readability
+- ✅ **Documented** - Each folder contains a detailed README
+- ✅ **Bilingual** - Available in Portuguese and English
+
+## 📄 License
+
+This project is under the MIT license. See the [LICENSE](../LICENSE) file for more details.

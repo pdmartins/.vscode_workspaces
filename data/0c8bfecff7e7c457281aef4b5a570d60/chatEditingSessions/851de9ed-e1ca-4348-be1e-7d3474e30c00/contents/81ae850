@@ -1,0 +1,52 @@
+# ☁️ Azure Scripts
+
+Scripts para automação e gerenciamento de recursos no Microsoft Azure.
+
+## 📋 Scripts Disponíveis
+
+### `export-azure-resources.ps1`
+
+Exporta um Azure Resource Group como ARM Template para backup ou migração.
+
+**Funcionalidades:**
+- 🔐 Conecta em um tenant Azure
+- 📦 Exporta todos os recursos de um Resource Group
+- 💾 Salva como ARM Template localmente
+- ✅ Verifica Execution Policy automaticamente
+
+**Parâmetros:**
+| Parâmetro | Obrigatório | Descrição |
+|-----------|-------------|-----------|
+| `-TenantId` | Não* | ID do tenant Azure |
+| `-SubscriptionId` | Não* | ID da subscription Azure |
+| `-ResourceGroupName` | Não* | Nome do Resource Group a exportar |
+| `-ExportPath` | Não | Caminho para salvar (padrão: `.\azure-migration`) |
+| `-SkipLogin` | Não | Pula login se já autenticado |
+
+*Se não fornecido, será solicitado interativamente.
+
+**Exemplo de uso:**
+```powershell
+# Com parâmetros
+.\export-azure-resources.ps1 -TenantId "xxx" -SubscriptionId "yyy" -ResourceGroupName "my-rg"
+
+# Interativo (será solicitado os dados)
+.\export-azure-resources.ps1
+```
+
+**Requisitos:**
+- Azure CLI instalado
+- PowerShell 5.1+ ou PowerShell Core
+
+---
+
+### `run-execution-policy.bat`
+
+Script auxiliar para configurar a Execution Policy do PowerShell.
+
+**Uso:**
+```batch
+run-execution-policy.bat
+```
+
+Configura a política de execução para `RemoteSigned` no escopo do usuário atual.

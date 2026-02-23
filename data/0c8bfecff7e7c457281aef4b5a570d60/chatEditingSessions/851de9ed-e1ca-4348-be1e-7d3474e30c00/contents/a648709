@@ -1,0 +1,349 @@
+<#
+.SYNOPSIS
+    Exporta um Azure Resource Group como ARM Template.
+
+.DESCRIPTION
+    Este script conecta em um tenant Azure, exporta todos os recursos de um Resource Group
+    como ARM Template e salva localmente para posterior migração ou backup.
+
+.PARAMETER TenantId
+    ID do tenant Azure onde está o Resource Group.
+
+.PARAMETER SubscriptionId
+    ID da subscription onde está o Resource Group.
+
+.PARAMETER ResourceGroupName
+    Nome do Resource Group a ser exportado.
+
+.PARAMETER ExportPath
+    Caminho local onde os arquivos serão salvos. Padrão: .\azure-migration
+
+.PARAMETER SkipLogin
+    Se especificado, pula o login (útil se já estiver autenticado).
+
+.EXAMPLE
+    .\Export-AzureResourceGroup.ps1 -TenantId "xxx" -SubscriptionId "yyy" -ResourceGroupName "my-rg"
+
+.EXAMPLE
+    .\Export-AzureResourceGroup.ps1 -TenantId "xxx" -SubscriptionId "yyy" -ResourceGroupName "my-rg" -ExportPath "D:\Backup" -SkipLogin
+
+.NOTES
+    Author: Pedro
+    Requires: Azure CLI installed
+#>
+
+[CmdletBinding()]
+param (
+    [Parameter(Mandatory = $false, HelpMessage = "ID do tenant Azure")]
+    [string]$TenantId,
+
+    [Parameter(Mandatory = $false, HelpMessage = "ID da subscription Azure")]
+    [string]$SubscriptionId,
+
+    [Parameter(Mandatory = $false, HelpMessage = "Nome do Resource Group a exportar")]
+    [string]$ResourceGroupName,
+
+    [Parameter(Mandatory = $false, HelpMessage = "Caminho para salvar os arquivos")]
+    [string]$ExportPath,
+
+    [Parameter(Mandatory = $false, HelpMessage = "Pular login se já autenticado")]
+    [switch]$SkipLogin
+)
+
+# === VERIFICAR EXECUTION POLICY ===
+$currentPolicy = Get-ExecutionPolicy -Scope CurrentUser
+$effectivePolicy = Get-ExecutionPolicy
+
+if ($effectivePolicy -eq "Restricted") {
+    Write-Host ""
+    Write-Host "════════════════════════════════════════════════════════════════" -ForegroundColor Red
+    Write-Host "⚠️  EXECUTION POLICY BLOQUEADA" -ForegroundColor Red
+    Write-Host "════════════════════════════════════════════════════════════════" -ForegroundColor Red
+    Write-Host ""
+    Write-Host "A política de execução atual não permite rodar scripts." -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "💡 Opções para resolver:" -ForegroundColor Cyan
+    Write-Host ""
+    Write-Host "   Opção 1 - Executar apenas este script (recomendado):" -ForegroundColor White
+    Write-Host "   powershell -ExecutionPolicy Bypass -File .\Export-AzureResourceGroup.ps1" -ForegroundColor Gray
+    Write-Host ""
+    Write-Host "   Opção 2 - Alterar política para o usuário atual:" -ForegroundColor White
+    Write-Host "   Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope CurrentUser" -ForegroundColor Gray
+    Write-Host ""
+    exit 1
+}
+
+# === CABEÇALHO ===
+Write-Host ""
+Write-Host "════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "☁️  AZURE RESOURCE GROUP EXPORTER" -ForegroundColor Cyan
+Write-Host "════════════════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host ""
+
+# === SOLICITAR PARÂMETROS FALTANTES ===
+if ([string]::IsNullOrWhiteSpace($TenantId)) {
+    Write-Host "🔑 Tenant ID:" -ForegroundColor Yellow -NoNewline
+    Write-Host " (encontre em: Azure Portal > Azure Active Directory > Overview)" -ForegroundColor DarkGray
+    $TenantId = Read-Host "   Digite o Tenant ID"
+    
+    if ([string]::IsNullOrWhiteSpace($TenantId)) {
+        Write-Host "❌ Tenant ID é obrigatório." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host ""
+}
+
+if ([string]::IsNullOrWhiteSpace($SubscriptionId)) {
+    Write-Host "🎫 Subscription ID:" -ForegroundColor Yellow -NoNewline
+    Write-Host " (encontre em: Azure Portal > Subscriptions)" -ForegroundColor DarkGray
+    $SubscriptionId = Read-Host "   Digite o Subscription ID"
+    
+    if ([string]::IsNullOrWhiteSpace($SubscriptionId)) {
+        Write-Host "❌ Subscription ID é obrigatório." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host ""
+}
+
+if ([string]::IsNullOrWhiteSpace($ResourceGroupName)) {
+    Write-Host "📦 Resource Group Name:" -ForegroundColor Yellow -NoNewline
+    Write-Host " (nome do Resource Group a ser exportado)" -ForegroundColor DarkGray
+    $ResourceGroupName = Read-Host "   Digite o nome do Resource Group"
+    
+    if ([string]::IsNullOrWhiteSpace($ResourceGroupName)) {
+        Write-Host "❌ Resource Group Name é obrigatório." -ForegroundColor Red
+        exit 1
+    }
+    Write-Host ""
+}
+
+if ([string]::IsNullOrWhiteSpace($ExportPath)) {
+    Write-Host "📁 Caminho de exportação:" -ForegroundColor Yellow -NoNewline
+    Write-Host " (onde os arquivos serão salvos)" -ForegroundColor DarkGray
+    Write-Host "   Pressione Enter para usar o padrão: .\azure-migration" -ForegroundColor DarkGray
+    $inputPath = Read-Host "   Digite o caminho"
+    
+    if ([string]::IsNullOrWhiteSpace($inputPath)) {
+        $ExportPath = ".\azure-migration"
+    } else {
+        $ExportPath = $inputPath
+    }
+    Write-Host ""
+}
+
+# === EXIBIR CONFIGURAÇÃO ===
+Write-Host "📋 Configuração:" -ForegroundColor Cyan
+Write-Host "   Tenant ID:      $TenantId" -ForegroundColor White
+Write-Host "   Subscription:   $SubscriptionId" -ForegroundColor White
+Write-Host "   Resource Group: $ResourceGroupName" -ForegroundColor White
+Write-Host "   Export Path:    $ExportPath" -ForegroundColor White
+Write-Host "   Skip Login:     $SkipLogin" -ForegroundColor White
+Write-Host ""
+
+# === VALIDAR AZURE CLI ===
+Write-Host "🔍 Verificando Azure CLI..." -ForegroundColor Cyan
+
+$azVersion = az version 2>$null | ConvertFrom-Json
+if (-not $azVersion) {
+    Write-Host "❌ Azure CLI não está instalado ou não está no PATH." -ForegroundColor Red
+    Write-Host "💡 Instale via: winget install Microsoft.AzureCLI" -ForegroundColor Yellow
+    exit 1
+} else {
+    Write-Host "✅ Azure CLI versão: $($azVersion.'azure-cli')" -ForegroundColor Green
+}
+
+# === CRIAR PASTA DE EXPORTAÇÃO ===
+if (!(Test-Path $ExportPath)) {
+    Write-Host "📁 Criando pasta de exportação: $ExportPath" -ForegroundColor Yellow
+    
+    try {
+        New-Item -ItemType Directory -Path $ExportPath -Force | Out-Null
+        Write-Host "✅ Pasta criada com sucesso!" -ForegroundColor Green
+    } catch {
+        Write-Host "❌ Erro ao criar pasta: $_" -ForegroundColor Red
+        exit 1
+    }
+} else {
+    Write-Host "✅ Pasta de exportação já existe: $ExportPath" -ForegroundColor Green
+}
+
+# === LOGIN NO TENANT ===
+if (-not $SkipLogin) {
+    Write-Host "🔐 Fazendo login no tenant: $TenantId" -ForegroundColor Cyan
+    
+    try {
+        az login --tenant $TenantId
+        
+        if ($LASTEXITCODE -ne 0) {
+            throw "Falha no login"
+        }
+        
+        Write-Host "✅ Login realizado com sucesso!" -ForegroundColor Green
+    } catch {
+        Write-Host "❌ Erro ao fazer login: $_" -ForegroundColor Red
+        Write-Host "💡 Verifique se o Tenant ID está correto" -ForegroundColor Yellow
+        exit 1
+    }
+} else {
+    Write-Host "⏭️  Pulando login (usando sessão existente)" -ForegroundColor Yellow
+}
+
+# === SELECIONAR SUBSCRIPTION ===
+Write-Host "🎯 Selecionando subscription: $SubscriptionId" -ForegroundColor Cyan
+
+try {
+    az account set --subscription $SubscriptionId
+    
+    if ($LASTEXITCODE -ne 0) {
+        throw "Falha ao selecionar subscription"
+    }
+    
+    Write-Host "✅ Subscription selecionada com sucesso!" -ForegroundColor Green
+} catch {
+    Write-Host "❌ Erro ao selecionar subscription: $_" -ForegroundColor Red
+    Write-Host "💡 Verifique se o Subscription ID está correto e se você tem acesso" -ForegroundColor Yellow
+    exit 1
+}
+
+# === VERIFICAR SE RESOURCE GROUP EXISTE ===
+Write-Host "🔍 Verificando Resource Group: $ResourceGroupName" -ForegroundColor Cyan
+
+$rgExists = az group exists --name $ResourceGroupName
+if ($rgExists -ne "true") {
+    Write-Host "❌ Resource Group '$ResourceGroupName' não encontrado." -ForegroundColor Red
+    Write-Host "💡 Verifique o nome do Resource Group e tente novamente" -ForegroundColor Yellow
+    exit 1
+} else {
+    Write-Host "✅ Resource Group encontrado!" -ForegroundColor Green
+}
+
+# === LISTAR RECURSOS DO RESOURCE GROUP ===
+Write-Host ""
+Write-Host "📋 Recursos no Resource Group:" -ForegroundColor Yellow
+Write-Host "────────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+
+$resourceList = az resource list --resource-group $ResourceGroupName --output json | ConvertFrom-Json
+az resource list --resource-group $ResourceGroupName --output table
+
+Write-Host "────────────────────────────────────────────────────────────────" -ForegroundColor DarkGray
+Write-Host ""
+
+# === DEFINIR NOMES DOS ARQUIVOS ===
+$templateFile = Join-Path $ExportPath "resource_template.json"
+$backupFile = Join-Path $ExportPath "resource_template_backup.json"
+$documentationFile = Join-Path $ExportPath "resource_documentation.md"
+
+# === EXPORTAR ARM TEMPLATE ===
+Write-Host "📦 Exportando ARM Template..." -ForegroundColor Cyan
+
+try {
+    az group export `
+        --name $ResourceGroupName `
+        --include-parameter-default-value `
+        --output json > $templateFile
+    
+    if ($LASTEXITCODE -ne 0) {
+        throw "Falha ao exportar template"
+    }
+    
+    Write-Host "✅ Template exportado com sucesso!" -ForegroundColor Green
+} catch {
+    Write-Host "❌ Erro ao exportar template: $_" -ForegroundColor Red
+    Write-Host "💡 Alguns recursos podem não suportar exportação" -ForegroundColor Yellow
+    exit 1
+}
+
+# === CRIAR BACKUP ===
+Write-Host "💾 Criando backup do template..." -ForegroundColor Cyan
+
+try {
+    Copy-Item $templateFile $backupFile
+    Write-Host "✅ Backup criado com sucesso!" -ForegroundColor Green
+} catch {
+    Write-Host "⚠️  Não foi possível criar backup, mas continuando com o arquivo principal" -ForegroundColor Yellow
+}
+
+# === GERAR DOCUMENTAÇÃO EM MARKDOWN ===
+Write-Host "📝 Gerando documentação dos recursos..." -ForegroundColor Cyan
+
+try {
+    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    
+    $markdown = @"
+# Azure Resource Group Export
+
+## Informações da Exportação
+
+| Campo | Valor |
+|-------|-------|
+| **Data/Hora** | $timestamp |
+| **Tenant ID** | $TenantId |
+| **Subscription ID** | $SubscriptionId |
+| **Resource Group** | $ResourceGroupName |
+
+## Recursos Exportados
+
+| Nome | Tipo | Localização |
+|------|------|-------------|
+"@
+
+    foreach ($resource in $resourceList) {
+        $name = $resource.name
+        $type = $resource.type
+        $location = $resource.location
+        $markdown += "`n| $name | $type | $location |"
+    }
+
+    $markdown += @"
+
+
+## Arquivos Gerados
+
+| Arquivo | Descrição |
+|---------|-----------|
+| ``resource_template.json`` | Template ARM para importação no novo tenant |
+| ``resource_template_backup.json`` | Backup do template |
+| ``resource_documentation.md`` | Este arquivo de documentação |
+
+## Próximos Passos
+
+1. Execute o script de importação no novo tenant
+2. Informe o novo nome do Resource Group
+3. Verifique se todos os recursos foram criados corretamente
+
+## Observações
+
+- Alguns sub-recursos (extensions, certificates, siteextensions) não são exportados automaticamente
+- Configurações de HTTPS customizado precisam ser reconfiguradas manualmente
+- Managed Identities podem precisar de novas permissões no novo tenant
+"@
+
+    $markdown | Out-File -FilePath $documentationFile -Encoding UTF8
+    Write-Host "✅ Documentação gerada com sucesso!" -ForegroundColor Green
+} catch {
+    Write-Host "⚠️  Não foi possível gerar documentação: $_" -ForegroundColor Yellow
+}
+
+# === RESUMO ===
+Write-Host ""
+Write-Host "════════════════════════════════════════════════════════════════" -ForegroundColor Green
+Write-Host "✅ EXPORTAÇÃO CONCLUÍDA COM SUCESSO!" -ForegroundColor Green
+Write-Host "════════════════════════════════════════════════════════════════" -ForegroundColor Green
+Write-Host ""
+Write-Host "📄 Template:      $templateFile" -ForegroundColor White
+Write-Host "💾 Backup:        $backupFile" -ForegroundColor White
+Write-Host "📝 Documentação:  $documentationFile" -ForegroundColor White
+Write-Host ""
+Write-Host "💡 Próximo passo: Execute o script de importação no novo tenant" -ForegroundColor Cyan
+Write-Host ""
+
+# === RETORNAR INFO ===
+$result = @{
+    TemplatePath       = $templateFile
+    BackupPath         = $backupFile
+    DocumentationPath  = $documentationFile
+    ResourceGroupName  = $ResourceGroupName
+    ResourceCount      = $resourceList.Count
+}
+
+return $result
