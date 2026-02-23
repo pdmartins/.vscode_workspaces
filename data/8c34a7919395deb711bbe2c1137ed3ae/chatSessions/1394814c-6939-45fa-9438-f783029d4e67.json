@@ -1,0 +1,1001 @@
+{
+  "version": 3,
+  "responderUsername": "GitHub Copilot",
+  "responderAvatarIconUri": {
+    "id": "copilot"
+  },
+  "initialLocation": "panel",
+  "requests": [
+    {
+      "requestId": "request_053efe8f-5c0b-4448-9acc-5a9607f327a5",
+      "message": {
+        "parts": [
+          {
+            "range": {
+              "start": 0,
+              "endExclusive": 766
+            },
+            "editorRange": {
+              "startLineNumber": 1,
+              "startColumn": 1,
+              "endLineNumber": 17,
+              "endColumn": 22
+            },
+            "text": "From https://github.com/pdmartins/scripts\n * branch            main       -> FETCH_HEAD\nhint: You have divergent branches and need to specify how to reconcile them.\nhint: You can do so by running one of the following commands sometime before\nhint: your next pull:\nhint: \nhint:   git config pull.rebase false  # merge\nhint:   git config pull.rebase true   # rebase\nhint:   git config pull.ff only       # fast-forward only\nhint: \nhint: You can replace \"git config\" with \"git config --global\" to set a default\nhint: preference for all repositories. You can also pass --rebase, --no-rebase,\nhint: or --ff-only on the command line to override the configured default per\nhint: invocation.\nfatal: Need to specify how to reconcile divergent branches.\n\nnão posso perder nada",
+            "kind": "text"
+          }
+        ],
+        "text": "From https://github.com/pdmartins/scripts\n * branch            main       -> FETCH_HEAD\nhint: You have divergent branches and need to specify how to reconcile them.\nhint: You can do so by running one of the following commands sometime before\nhint: your next pull:\nhint: \nhint:   git config pull.rebase false  # merge\nhint:   git config pull.rebase true   # rebase\nhint:   git config pull.ff only       # fast-forward only\nhint: \nhint: You can replace \"git config\" with \"git config --global\" to set a default\nhint: preference for all repositories. You can also pass --rebase, --no-rebase,\nhint: or --ff-only on the command line to override the configured default per\nhint: invocation.\nfatal: Need to specify how to reconcile divergent branches.\n\nnão posso perder nada"
+      },
+      "variableData": {
+        "variables": [
+          {
+            "id": "vscode.prompt.instructions.root__vscode-remote://wsl%2Bubuntu-24.04/home/pmartins/scripts/.github/instructions/default.instructions.md",
+            "name": "prompt:default.instructions.md",
+            "value": {
+              "$mid": 1,
+              "fsPath": "\\home\\pmartins\\scripts\\.github\\instructions\\default.instructions.md",
+              "_sep": 1,
+              "external": "vscode-remote://wsl%2Bubuntu-24.04/home/pmartins/scripts/.github/instructions/default.instructions.md",
+              "path": "/home/pmartins/scripts/.github/instructions/default.instructions.md",
+              "scheme": "vscode-remote",
+              "authority": "wsl+Ubuntu-24.04"
+            },
+            "kind": "promptFile",
+            "modelDescription": "Prompt instructions file",
+            "isRoot": true,
+            "originLabel": "Automatically attached as pattern is **",
+            "automaticallyAdded": true
+          },
+          {
+            "id": "vscode.prompt.instructions.text",
+            "name": "prompt:instructionsList",
+            "value": "<instructions>\nHere is a list of instruction files that contain rules for modifying or creating new code.\nThese files are important for ensuring that the code is modified or created correctly.\nPlease make sure to follow the rules specified in these files when working with the codebase.\nIf the file is not already available as attachment, use the #tool:readFile tool to acquire it.\nMake sure to acquire the instructions before making any changes to the code.\n<instruction>\n<file>\\home\\pmartins\\scripts\\.github\\instructions\\default.instructions.md</file>\n<applyTo>**</applyTo>\n</instruction>\n</instructions>\n\n",
+            "kind": "promptText",
+            "modelDescription": "Prompt instructions list",
+            "automaticallyAdded": true,
+            "toolReferences": [
+              {
+                "kind": "tool",
+                "id": "copilot_readFile",
+                "name": "Read File",
+                "range": {
+                  "start": 347,
+                  "endExclusive": 361
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "response": [
+        {
+          "kind": "mcpServersStarting",
+          "didStartServerIds": []
+        },
+        {
+          "kind": "thinking",
+          "value": "O usuário está com um problema de branches divergentes no git. Ele fez um pull e o git está dizendo que as branches local e remota divergiram. Ele não quer perder nada.\n\nA melhor abordagem aqui é:\n1. Primeiro, verificar o status atual\n2. Fazer backup das mudanças locais se necessário\n3. Usar rebase ou merge para reconciliar\n\nVou verificar o estado atual do repositório.",
+          "id": "1769988817986",
+          "generatedTitle": "Checked repository status"
+        },
+        {
+          "kind": "thinking",
+          "value": "",
+          "id": "",
+          "metadata": {
+            "vscodeReasoningDone": true,
+            "stopReason": "other"
+          }
+        },
+        {
+          "value": "Vou verificar o estado atual do seu repositório para entender a situação e garantir que não perca nada. ",
+          "supportThemeIcons": false,
+          "supportHtml": false,
+          "baseUri": {
+            "$mid": 1,
+            "path": "/home/pmartins/scripts/",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        },
+        {
+          "kind": "prepareToolInvocation",
+          "toolName": "run_in_terminal"
+        },
+        {
+          "kind": "toolInvocationSerialized",
+          "invocationMessage": "Using \"Run in Terminal\"",
+          "isConfirmed": {
+            "type": 1
+          },
+          "isComplete": true,
+          "source": {
+            "type": "internal",
+            "label": "Built-In"
+          },
+          "toolSpecificData": {
+            "kind": "terminal",
+            "terminalCommandId": "tool-163aa128-deed-438a-b4c8-9e87fae68dfa",
+            "commandLine": {
+              "original": "cd /home/pmartins/scripts && git status",
+              "toolEdited": " cd /home/pmartins/scripts && git status"
+            },
+            "language": "sh",
+            "autoApproveInfo": {
+              "value": "Auto approved by rules [`cd (user)`](command:workbench.action.terminal.chat.openTerminalSettingsLink?%255B3%255D \"View rule in settings\"), [`/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+status\\b/ (default)`](command:workbench.action.terminal.chat.openTerminalSettingsLink?%255B7%255D \"View rule in settings\")",
+              "isTrusted": {
+                "enabledCommands": [
+                  "workbench.action.terminal.chat.openTerminalSettingsLink"
+                ]
+              },
+              "supportThemeIcons": false,
+              "supportHtml": false,
+              "supportAlertSyntax": false
+            },
+            "terminalCommandState": {
+              "exitCode": 0,
+              "timestamp": 1769988822166,
+              "duration": 2
+            },
+            "terminalCommandOutput": {
+              "text": "On branch main\r\nYour branch and 'origin/main' have diverged,\r\nand have 1 and 2 different commits each, respectively.\r\n  (use \"git pull\" if you want to integrate the remote branch with yours)\r\n\r\nnothing to commit, working tree clean",
+              "lineCount": 6
+            },
+            "terminalTheme": {
+              "background": "#181818",
+              "foreground": "#cccccc"
+            }
+          },
+          "toolCallId": "4e91a87e-b188-46c3-af80-f75374c990f7",
+          "toolId": "run_in_terminal"
+        },
+        {
+          "kind": "prepareToolInvocation",
+          "toolName": "run_in_terminal"
+        },
+        {
+          "kind": "toolInvocationSerialized",
+          "invocationMessage": "Using \"Run in Terminal\"",
+          "isConfirmed": {
+            "type": 1
+          },
+          "isComplete": true,
+          "source": {
+            "type": "internal",
+            "label": "Built-In"
+          },
+          "toolSpecificData": {
+            "kind": "terminal",
+            "terminalCommandId": "tool-9a7af04b-6542-4c8f-8857-c9393a2b1ec7",
+            "commandLine": {
+              "original": "cd /home/pmartins/scripts && git log --oneline -5",
+              "toolEdited": " cd /home/pmartins/scripts && git log --oneline -5"
+            },
+            "language": "sh",
+            "autoApproveInfo": {
+              "value": "Auto approved by rules [`cd (user)`](command:workbench.action.terminal.chat.openTerminalSettingsLink?%255B3%255D \"View rule in settings\"), [`/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b/ (default)`](command:workbench.action.terminal.chat.openTerminalSettingsLink?%255B7%255D \"View rule in settings\")",
+              "isTrusted": {
+                "enabledCommands": [
+                  "workbench.action.terminal.chat.openTerminalSettingsLink"
+                ]
+              },
+              "supportThemeIcons": false,
+              "supportHtml": false,
+              "supportAlertSyntax": false
+            },
+            "terminalCommandState": {
+              "exitCode": 0,
+              "timestamp": 1769988825767,
+              "duration": 21
+            },
+            "terminalCommandOutput": {
+              "text": "\u001b[33mc657352 (\u001b[36;1mHEAD\u001b[33;22m -> \u001b[32;1mmain\u001b[33;22m)\u001b[0m Refactor project structure and skills system\r\n\u001b[33me8b7b63\u001b[0m Add project structure and guidelines for cross-platform scripting\r\n\u001b[33md9f78f7\u001b[0m Refactor repository cloning scripts to include progress tracking and estimated finish time\r\n\u001b[33ma8ef197\u001b[0m feat: add cancellation handling and improved error reporting in clone scripts\r\n\u001b[33m41b8e33\u001b[0m Enhance export-git-repos scripts with improved error handling, user feedback, and repository tracking",
+              "lineCount": 5
+            },
+            "terminalTheme": {
+              "background": "#181818",
+              "foreground": "#cccccc"
+            }
+          },
+          "toolCallId": "1eb28eb2-ae80-4f3d-bcff-0326fc9e2938",
+          "toolId": "run_in_terminal"
+        },
+        {
+          "kind": "prepareToolInvocation",
+          "toolName": "run_in_terminal"
+        },
+        {
+          "kind": "toolInvocationSerialized",
+          "invocationMessage": "Using \"Run in Terminal\"",
+          "isConfirmed": {
+            "type": 1
+          },
+          "isComplete": true,
+          "source": {
+            "type": "internal",
+            "label": "Built-In"
+          },
+          "toolSpecificData": {
+            "kind": "terminal",
+            "terminalCommandId": "tool-80df7c38-0ad6-4c52-a3fa-21cea5e3dc6e",
+            "commandLine": {
+              "original": "cd /home/pmartins/scripts && git log --oneline origin/main -5",
+              "toolEdited": " cd /home/pmartins/scripts && git log --oneline origin/main -5"
+            },
+            "language": "sh",
+            "autoApproveInfo": {
+              "value": "Auto approved by rules [`cd (user)`](command:workbench.action.terminal.chat.openTerminalSettingsLink?%255B3%255D \"View rule in settings\"), [`/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b/ (default)`](command:workbench.action.terminal.chat.openTerminalSettingsLink?%255B7%255D \"View rule in settings\")",
+              "isTrusted": {
+                "enabledCommands": [
+                  "workbench.action.terminal.chat.openTerminalSettingsLink"
+                ]
+              },
+              "supportThemeIcons": false,
+              "supportHtml": false,
+              "supportAlertSyntax": false
+            },
+            "terminalCommandState": {
+              "exitCode": 0,
+              "timestamp": 1769988828467,
+              "duration": 4
+            },
+            "terminalCommandOutput": {
+              "text": "\u001b[33m06fb4f5 (\u001b[31;1morigin/main\u001b[33;22m, \u001b[31;1morigin/HEAD\u001b[33;22m)\u001b[0m feat: add copilot submodules\r\n\u001b[33m7cd43a5\u001b[0m temp\r\n\u001b[33me8b7b63\u001b[0m Add project structure and guidelines for cross-platform scripting\r\n\u001b[33md9f78f7\u001b[0m Refactor repository cloning scripts to include progress tracking and estimated finish time\r\n\u001b[33ma8ef197\u001b[0m feat: add cancellation handling and improved error reporting in clone scripts",
+              "lineCount": 5
+            },
+            "terminalTheme": {
+              "background": "#181818",
+              "foreground": "#cccccc"
+            }
+          },
+          "toolCallId": "70c03354-c528-4cdd-9cab-8f0d59fbe7b4",
+          "toolId": "run_in_terminal"
+        },
+        {
+          "value": "Agora entendo a situação:\n\n| Branch | Commits |\n|--------|---------|\n| **Local** | `c657352` - Refactor project structure and skills system |\n| **Remoto** | `06fb4f5` - feat: add copilot submodules<br>`7cd43a5` - temp |\n\nAmbos divergiram a partir do commit `e8b7b63`. Para **não perder nada**, vou fazer um **merge** que preserva ambos os históricos: ",
+          "supportThemeIcons": false,
+          "supportHtml": false,
+          "baseUri": {
+            "$mid": 1,
+            "path": "/home/pmartins/scripts/",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        },
+        {
+          "kind": "prepareToolInvocation",
+          "toolName": "run_in_terminal"
+        },
+        {
+          "kind": "toolInvocationSerialized",
+          "invocationMessage": "Using \"Run in Terminal\"",
+          "isConfirmed": {
+            "type": 4
+          },
+          "isComplete": true,
+          "source": {
+            "type": "internal",
+            "label": "Built-In"
+          },
+          "toolSpecificData": {
+            "kind": "terminal",
+            "terminalCommandId": "tool-19c8c2b5-5c72-4d0e-a676-ebb4690b7344",
+            "commandLine": {
+              "original": "cd /home/pmartins/scripts && git pull --no-rebase",
+              "toolEdited": " cd /home/pmartins/scripts && git pull --no-rebase"
+            },
+            "language": "sh",
+            "terminalCommandState": {
+              "exitCode": 1,
+              "timestamp": 1769988838446,
+              "duration": 369
+            },
+            "terminalCommandOutput": {
+              "text": "CONFLICT (rename/delete): .github/.copilot/core/initial.md renamed to .github/initial.md in HEAD, but deleted in 06fb4f58808c81c2af280faefb3702627639b9cf.\r\nCONFLICT (rename/delete): .github/.copilot/core/skills-system.md renamed to .github/skills-system.md in HEAD, but deleted in 06fb4f58808c81c2af280faefb3702627639b9cf.\r\nCONFLICT (rename/delete): .github/.copilot/core/skills/create-skill.md renamed to .github/skills/create-skill.md in HEAD, but deleted in 06fb4f58808c81c2af280faefb3702627639b9cf.\r\nCONFLICT (modify/delete): .github/skills/create-skill.md deleted in 06fb4f58808c81c2af280faefb3702627639b9cf and modified in HEAD.  Version HEAD of .github/skills/create-skill.md left in tree.\r\nCONFLICT (rename/delete): .github/.copilot/core/skills/project-analyzer.md renamed to .github/skills/project-analyzer.md in HEAD, but deleted in 06fb4f58808c81c2af280faefb3702627639b9cf.\r\nCONFLICT (modify/delete): .github/skills/project-analyzer.md deleted in 06fb4f58808c81c2af280faefb3702627639b9cf and modified in HEAD.  Version HEAD of .github/skills/project-analyzer.md left in tree.\r\nCONFLICT (rename/delete): .github/.copilot/core/skills/project-setup.md renamed to .github/skills/project-setup.md in HEAD, but deleted in 06fb4f58808c81c2af280faefb3702627639b9cf.\r\nCONFLICT (modify/delete): .github/skills/project-setup.md deleted in 06fb4f58808c81c2af280faefb3702627639b9cf and modified in HEAD.  Version HEAD of .github/skills/project-setup.md left in tree.\r\nCONFLICT (rename/delete): .github/.copilot/core/todo-workflow.md renamed to .github/todo-workflow.md in HEAD, but deleted in 06fb4f58808c81c2af280faefb3702627639b9cf.\r\nCONFLICT (rename/delete): .github/.copilot/core/workflow-engine.md renamed to .github/workflow-engine.md in HEAD, but deleted in 06fb4f58808c81c2af280faefb3702627639b9cf.\r\nAutomatic merge failed; fix conflicts and then commit the result.",
+              "lineCount": 12
+            },
+            "terminalTheme": {
+              "background": "#181818",
+              "foreground": "#cccccc"
+            }
+          },
+          "toolCallId": "1e7eb20e-82f9-468e-be9c-a6a83aa8424b",
+          "toolId": "run_in_terminal"
+        },
+        {
+          "value": "Há conflitos, mas **nada foi perdido**. Vou verificar o estado e resolver: ",
+          "supportThemeIcons": false,
+          "supportHtml": false,
+          "baseUri": {
+            "$mid": 1,
+            "path": "/home/pmartins/scripts/",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        },
+        {
+          "kind": "prepareToolInvocation",
+          "toolName": "run_in_terminal"
+        },
+        {
+          "kind": "toolInvocationSerialized",
+          "invocationMessage": "Using \"Run in Terminal\"",
+          "isConfirmed": {
+            "type": 1
+          },
+          "isComplete": true,
+          "source": {
+            "type": "internal",
+            "label": "Built-In"
+          },
+          "toolSpecificData": {
+            "kind": "terminal",
+            "terminalCommandId": "tool-7b7ecf3c-fd76-4478-92f0-7dbb53c06ec7",
+            "commandLine": {
+              "original": "cd /home/pmartins/scripts && git status",
+              "toolEdited": " cd /home/pmartins/scripts && git status"
+            },
+            "language": "sh",
+            "autoApproveInfo": {
+              "value": "Auto approved by rules [`cd (user)`](command:workbench.action.terminal.chat.openTerminalSettingsLink?%255B3%255D \"View rule in settings\"), [`/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+status\\b/ (default)`](command:workbench.action.terminal.chat.openTerminalSettingsLink?%255B7%255D \"View rule in settings\")",
+              "isTrusted": {
+                "enabledCommands": [
+                  "workbench.action.terminal.chat.openTerminalSettingsLink"
+                ]
+              },
+              "supportThemeIcons": false,
+              "supportHtml": false,
+              "supportAlertSyntax": false
+            },
+            "terminalCommandState": {
+              "exitCode": 0,
+              "timestamp": 1769988842329,
+              "duration": 2
+            },
+            "terminalCommandOutput": {
+              "text": "On branch main\r\nYour branch and 'origin/main' have diverged,\r\nand have 1 and 2 different commits each, respectively.\r\n  (use \"git pull\" if you want to integrate the remote branch with yours)\r\n\r\nYou have unmerged paths.\r\n  (fix conflicts and run \"git commit\")\r\n  (use \"git merge --abort\" to abort the merge)\r\n\r\nChanges to be committed:\r\n\u001b[8C\u001b[32mnew file:   .github/.copilot/core\r\n\u001b[8Cnew file:   .github/.copilot/project\r\n\u001b[8Cnew file:   .gitmodules\r\n\r\n\u001b[0mUnmerged paths:\r\n  (use \"git add/rm <file>...\" as appropriate to mark resolution)\r\n\u001b[8C\u001b[31mdeleted by them: .github/initial.md\r\n\u001b[8Cdeleted by them: .github/skills-system.md\r\n\u001b[8Cdeleted by them: .github/skills/create-skill.md\r\n\u001b[8Cdeleted by them: .github/skills/project-analyzer.md\r\n\u001b[8Cdeleted by them: .github/skills/project-setup.md\r\n\u001b[8Cdeleted by them: .github/todo-workflow.md\r\n\u001b[8Cdeleted by them: .github/workflow-engine.md\r\n\u001b[0m",
+              "lineCount": 24
+            },
+            "terminalTheme": {
+              "background": "#181818",
+              "foreground": "#cccccc"
+            }
+          },
+          "toolCallId": "0bbdff3a-6817-4c06-aaa0-cb9ae8781c27",
+          "toolId": "run_in_terminal"
+        },
+        {
+          "value": "Entendi! O remoto transformou esses arquivos em **submodules** enquanto localmente você os renomeou/modificou. \n\nPara **manter suas versões locais** (não perder nada): ",
+          "supportThemeIcons": false,
+          "supportHtml": false,
+          "baseUri": {
+            "$mid": 1,
+            "path": "/home/pmartins/scripts/",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        },
+        {
+          "kind": "prepareToolInvocation",
+          "toolName": "run_in_terminal"
+        },
+        {
+          "kind": "toolInvocationSerialized",
+          "invocationMessage": "Using \"Run in Terminal\"",
+          "isConfirmed": {
+            "type": 4
+          },
+          "isComplete": true,
+          "source": {
+            "type": "internal",
+            "label": "Built-In"
+          },
+          "toolSpecificData": {
+            "kind": "terminal",
+            "terminalCommandId": "tool-3dedb24c-ca7f-49be-88a2-8b65f5ff875e",
+            "commandLine": {
+              "original": "cd /home/pmartins/scripts && git add .github/initial.md .github/skills-system.md .github/skills/create-skill.md .github/skills/project-analyzer.md .github/skills/project-setup.md .github/todo-workflow.md .github/workflow-engine.md",
+              "toolEdited": " cd /home/pmartins/scripts && git add .github/initial.md .github/skills-system.md .github/skills/create-skill.md .github/skills/project-analyzer.md .github/skills/project-setup.md .github/todo-workflow.md .github/workflow-engine.md"
+            },
+            "language": "sh",
+            "terminalCommandState": {
+              "exitCode": 0,
+              "timestamp": 1769988858754,
+              "duration": 1
+            },
+            "terminalTheme": {
+              "background": "#181818",
+              "foreground": "#cccccc"
+            }
+          },
+          "toolCallId": "2e8b7c4a-b04c-406a-9e7e-fddf5319c952",
+          "toolId": "run_in_terminal"
+        },
+        {
+          "kind": "prepareToolInvocation",
+          "toolName": "run_in_terminal"
+        },
+        {
+          "kind": "toolInvocationSerialized",
+          "invocationMessage": "Using \"Run in Terminal\"",
+          "isConfirmed": {
+            "type": 1
+          },
+          "isComplete": true,
+          "source": {
+            "type": "internal",
+            "label": "Built-In"
+          },
+          "toolSpecificData": {
+            "kind": "terminal",
+            "terminalCommandId": "tool-06dea859-60a6-4e77-912d-766e9a8731e4",
+            "commandLine": {
+              "original": "cd /home/pmartins/scripts && git status",
+              "toolEdited": " cd /home/pmartins/scripts && git status"
+            },
+            "language": "sh",
+            "autoApproveInfo": {
+              "value": "Auto approved by rules [`cd (user)`](command:workbench.action.terminal.chat.openTerminalSettingsLink?%255B3%255D \"View rule in settings\"), [`/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+status\\b/ (default)`](command:workbench.action.terminal.chat.openTerminalSettingsLink?%255B7%255D \"View rule in settings\")",
+              "isTrusted": {
+                "enabledCommands": [
+                  "workbench.action.terminal.chat.openTerminalSettingsLink"
+                ]
+              },
+              "supportThemeIcons": false,
+              "supportHtml": false,
+              "supportAlertSyntax": false
+            },
+            "terminalCommandState": {
+              "exitCode": 0,
+              "timestamp": 1769988862624,
+              "duration": 18
+            },
+            "terminalCommandOutput": {
+              "text": "On branch main\r\nYour branch and 'origin/main' have diverged,\r\nand have 1 and 2 different commits each, respectively.\r\n  (use \"git pull\" if you want to integrate the remote branch with yours)\r\n\r\nAll conflicts fixed but you are still merging.\r\n  (use \"git commit\" to conclude merge)\r\n\r\nChanges to be committed:\r\n\u001b[8C\u001b[32mnew file:   .github/.copilot/core\r\n\u001b[8Cnew file:   .github/.copilot/project\r\n\u001b[8Cnew file:   .gitmodules\u001b[0m",
+              "lineCount": 13
+            },
+            "terminalTheme": {
+              "background": "#181818",
+              "foreground": "#cccccc"
+            }
+          },
+          "toolCallId": "2a80fa77-5da5-45ce-8ccb-4a6d988ee3d1",
+          "toolId": "run_in_terminal"
+        },
+        {
+          "value": "Conflitos resolvidos. Agora vou finalizar o merge: ",
+          "supportThemeIcons": false,
+          "supportHtml": false,
+          "baseUri": {
+            "$mid": 1,
+            "path": "/home/pmartins/scripts/",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        },
+        {
+          "kind": "prepareToolInvocation",
+          "toolName": "run_in_terminal"
+        },
+        {
+          "kind": "toolInvocationSerialized",
+          "invocationMessage": "Using \"Run in Terminal\"",
+          "isConfirmed": {
+            "type": 4
+          },
+          "isComplete": true,
+          "source": {
+            "type": "internal",
+            "label": "Built-In"
+          },
+          "toolSpecificData": {
+            "kind": "terminal",
+            "terminalCommandId": "tool-eed623e1-b934-4c47-8a83-73f81d79d1f0",
+            "commandLine": {
+              "original": "cd /home/pmartins/scripts && git commit -m \"Merge remote changes, keeping local structure\"",
+              "toolEdited": " cd /home/pmartins/scripts && git commit -m \"Merge remote changes, keeping local structure\""
+            },
+            "language": "sh",
+            "terminalCommandState": {
+              "exitCode": 0,
+              "timestamp": 1769988886744,
+              "duration": 31
+            },
+            "terminalCommandOutput": {
+              "text": "[main b97e886] Merge remote changes, keeping local structure",
+              "lineCount": 1
+            },
+            "terminalTheme": {
+              "background": "#181818",
+              "foreground": "#cccccc"
+            }
+          },
+          "toolCallId": "27e9b89e-d7dd-488c-a681-66e9f5f20a9f",
+          "toolId": "run_in_terminal"
+        },
+        {
+          "kind": "prepareToolInvocation",
+          "toolName": "run_in_terminal"
+        },
+        {
+          "kind": "toolInvocationSerialized",
+          "invocationMessage": "Using \"Run in Terminal\"",
+          "isConfirmed": {
+            "type": 1
+          },
+          "isComplete": true,
+          "source": {
+            "type": "internal",
+            "label": "Built-In"
+          },
+          "toolSpecificData": {
+            "kind": "terminal",
+            "terminalCommandId": "tool-ce2116b8-709f-4fb2-8387-0582f76cc4b2",
+            "commandLine": {
+              "original": "cd /home/pmartins/scripts && git log --oneline -5",
+              "toolEdited": " cd /home/pmartins/scripts && git log --oneline -5"
+            },
+            "language": "sh",
+            "autoApproveInfo": {
+              "value": "Auto approved by rules [`cd (user)`](command:workbench.action.terminal.chat.openTerminalSettingsLink?%255B3%255D \"View rule in settings\"), [`/^git(\\s+(-C\\s+\\S+|--no-pager))*\\s+log\\b/ (default)`](command:workbench.action.terminal.chat.openTerminalSettingsLink?%255B7%255D \"View rule in settings\")",
+              "isTrusted": {
+                "enabledCommands": [
+                  "workbench.action.terminal.chat.openTerminalSettingsLink"
+                ]
+              },
+              "supportThemeIcons": false,
+              "supportHtml": false,
+              "supportAlertSyntax": false
+            },
+            "terminalCommandState": {
+              "exitCode": 0,
+              "timestamp": 1769988889836,
+              "duration": 23
+            },
+            "terminalCommandOutput": {
+              "text": "\u001b[33mb97e886 (\u001b[36;1mHEAD\u001b[33;22m -> \u001b[32;1mmain\u001b[33;22m)\u001b[0m Merge remote changes, keeping local structure\r\n\u001b[33mc657352\u001b[0m Refactor project structure and skills system\r\n\u001b[33m06fb4f5 (\u001b[31;1morigin/main\u001b[33;22m, \u001b[31;1morigin/HEAD\u001b[33;22m)\u001b[0m feat: add copilot submodules\r\n\u001b[33m7cd43a5\u001b[0m temp\r\n\u001b[33me8b7b63\u001b[0m Add project structure and guidelines for cross-platform scripting",
+              "lineCount": 5
+            },
+            "terminalTheme": {
+              "background": "#181818",
+              "foreground": "#cccccc"
+            }
+          },
+          "toolCallId": "d86112dc-c48e-4f0d-a768-dc1c27a89dfc",
+          "toolId": "run_in_terminal"
+        },
+        {
+          "value": "✅ **Pronto! Nada foi perdido.**\n\nO merge foi concluído com sucesso:\n- Seus commits locais estão preservados\n- Os commits remotos foram integrados\n- Os submodules do remoto (",
+          "supportThemeIcons": false,
+          "supportHtml": false,
+          "baseUri": {
+            "$mid": 1,
+            "path": "/home/pmartins/scripts/",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        },
+        {
+          "kind": "inlineReference",
+          "inlineReference": {
+            "$mid": 1,
+            "external": "vscode-remote://wsl%2Bubuntu-24.04/home/pmartins/scripts/.github/.copilot/core",
+            "path": "/home/pmartins/scripts/.github/.copilot/core",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        },
+        {
+          "value": " e ",
+          "supportThemeIcons": false,
+          "supportHtml": false,
+          "supportAlertSyntax": false,
+          "baseUri": {
+            "$mid": 1,
+            "path": "/home/pmartins/scripts/",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          },
+          "uris": {}
+        },
+        {
+          "kind": "inlineReference",
+          "inlineReference": {
+            "$mid": 1,
+            "external": "vscode-remote://wsl%2Bubuntu-24.04/home/pmartins/scripts/.github/.copilot/project",
+            "path": "/home/pmartins/scripts/.github/.copilot/project",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        },
+        {
+          "value": ") foram adicionados\n- Seus arquivos locais em ",
+          "supportThemeIcons": false,
+          "supportHtml": false,
+          "baseUri": {
+            "$mid": 1,
+            "path": "/home/pmartins/scripts/",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        },
+        {
+          "kind": "inlineReference",
+          "inlineReference": {
+            "$mid": 1,
+            "external": "vscode-remote://wsl%2Bubuntu-24.04/home/pmartins/scripts/.github/",
+            "path": "/home/pmartins/scripts/.github/",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        },
+        {
+          "value": " foram mantidos\n\nAgora pode fazer `git push` quando quiser enviar para o remoto.",
+          "supportThemeIcons": false,
+          "supportHtml": false,
+          "baseUri": {
+            "$mid": 1,
+            "path": "/home/pmartins/scripts/",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        }
+      ],
+      "agent": {
+        "extensionId": {
+          "value": "GitHub.copilot-chat",
+          "_lower": "github.copilot-chat"
+        },
+        "extensionVersion": "0.36.2",
+        "publisherDisplayName": "GitHub",
+        "extensionPublisherId": "GitHub",
+        "extensionDisplayName": "GitHub Copilot Chat",
+        "id": "github.copilot.editsAgent",
+        "description": "Edit files in your workspace in agent mode",
+        "when": "config.chat.agent.enabled",
+        "metadata": {
+          "themeIcon": {
+            "id": "tools"
+          },
+          "hasFollowups": false,
+          "supportIssueReporting": false
+        },
+        "name": "agent",
+        "fullName": "GitHub Copilot",
+        "isDefault": true,
+        "locations": [
+          "panel"
+        ],
+        "modes": [
+          "agent"
+        ],
+        "slashCommands": [],
+        "disambiguation": []
+      },
+      "timestamp": 1769988815723,
+      "modelId": "copilot/claude-opus-4.5",
+      "responseId": "response_9462b483-3768-4e0e-b4d8-c8e3919eda1a",
+      "result": {
+        "timings": {
+          "firstProgress": 4243,
+          "totalElapsed": 78057
+        },
+        "metadata": {
+          "codeBlocks": [],
+          "renderedUserMessage": [
+            {
+              "type": 1,
+              "text": "<context>\nThe current date is February 1, 2026.\nTerminals:\nTerminal: bash\nTerminal: bash\nLast Command: ls\nCwd: /home/pmartins/scripts\nExit Code: 0\n\n</context>\n<editorContext>\nThe user's current file is /home/pmartins/scripts/.gitignore. \n</editorContext>\n<reminderInstructions>\nWhen using the replace_string_in_file tool, include 3-5 lines of unchanged code before and after the string you want to replace, to make it unambiguous which part of the file should be edited.\nFor maximum efficiency, whenever you plan to perform multiple independent edit operations, invoke them simultaneously using multi_replace_string_in_file tool rather than sequentially. This will greatly improve user's cost and time efficiency leading to a better user experience. Do not announce which tool you're using (for example, avoid saying \"I'll implement all the changes using multi_replace_string_in_file\").\nDo NOT create a new markdown file to document each change or summarize your work unless specifically requested by the user.\n\n</reminderInstructions>\n<userRequest>\nFrom https://github.com/pdmartins/scripts\n * branch            main       -> FETCH_HEAD\nhint: You have divergent branches and need to specify how to reconcile them.\nhint: You can do so by running one of the following commands sometime before\nhint: your next pull:\nhint: \nhint:   git config pull.rebase false  # merge\nhint:   git config pull.rebase true   # rebase\nhint:   git config pull.ff only       # fast-forward only\nhint: \nhint: You can replace \"git config\" with \"git config --global\" to set a default\nhint: preference for all repositories. You can also pass --rebase, --no-rebase,\nhint: or --ff-only on the command line to override the configured default per\nhint: invocation.\nfatal: Need to specify how to reconcile divergent branches.\n\nnão posso perder nada\n</userRequest>\n"
+            },
+            {
+              "type": 3,
+              "cacheType": "ephemeral"
+            }
+          ],
+          "renderedGlobalContext": [
+            {
+              "type": 1,
+              "text": "<environment_info>\nThe user's current OS is: Linux\n</environment_info>\n<workspace_info>\nI am working in a workspace with the following folders:\n- /home/pmartins/scripts \nI am working in a workspace that has the following structure:\n```\nLICENSE\nREADME.md\nazure/\n\texport-azure-resources.ps1\n\tREADME.md\n\trun-execution-policy.bat\nazure-devops/\n\tclone-devops-repos.ps1\n\tclone-devops-repos.sh\n\tconfig.example.json\n\tREADME.md\ndocker/\n\tinstall-docker.ps1\n\tinstall-docker.sh\n\tREADME.md\n\tuninstall-docker.ps1\n\tuninstall-docker.sh\ngit/\n\texport-git-repos.ps1\n\texport-git-repos.sh\n\tREADME.md\noh-my-posh/\n\tblocks.emoji.omp.json\n\tinstall-omp-theme-mac.sh\n\tinstall-omp-theme.ps1\n\tinstall-omp-theme.sh\n\tREADME.md\nssh/\n\tgenerate-ssh-key.ps1\n\tgenerate-ssh-key.sh\n\tREADME.md\n```\nThis is the state of the context at this point in the conversation. The view of the workspace structure may be truncated. You can use tools to collect more context if needed.\n</workspace_info>\n"
+            },
+            {
+              "type": 3,
+              "cacheType": "ephemeral"
+            }
+          ],
+          "cacheKey": "file:///home/pmartins/scripts",
+          "toolCallRounds": [
+            {
+              "response": "Vou verificar o estado atual do seu repositório para entender a situação e garantir que não perca nada. ",
+              "toolCalls": [
+                {
+                  "name": "run_in_terminal",
+                  "arguments": "{\"command\": \"cd /home/pmartins/scripts && git status\", \"explanation\": \"Verificar o estado atual do repositório git\", \"isBackground\": false}",
+                  "id": "toolu_vrtx_01SgS2efCJgVAyhPjRtjjMHH__vscode-1769958905461"
+                }
+              ],
+              "toolInputRetry": 0,
+              "id": "5165f292-4d14-4f30-953f-aa445b58e931",
+              "thinking": {
+                "id": "QtMUKJcOrZt6d2amN38GbFgHl2F9AneYhJa6qHlZ+8riDchra5X4iQpDqnxLJ/OZOBaT6WLc74mRso683DD6+nYKXcqV2ECQi+T1eKhNxDw0cy6xHW4AfdhIPp8K7cMFqShOa5dtbSCzwlw2ATA3PSmxQn7EtYfrC/veCQLvXG+otk7G6ZVmox7r/M91+zBOGWUujg+QKX5ydR7B++ktMCZGXgEFbouFNmPChp50WktsUVAUUDbzIo07tc4UIB/+l+OXpFgvNBG6yufQxh5WAn8BtJq/4QyyOzgZOOfxDHU4vNoDccp3EX1JUNGqKF56phmTc/yjEjkwFgQdx0M21N8MPYzHuQsVetU5k8Rk4xRpa41q9P7u1/Id51XDufVavD61s7eC+YlJ///BzNwOjPaAOCkBb83EiXom5JrMTIscyJmA4jZAsWcm7GaggHoaVvAR9o03RzzDDxM0SdIoPgE4w9VBHfy37ShHsCTQJF2M2JGMqyHuVGXW8xvLFW6Trzhgn2Kn7AOkLsRq3D2kOD8nVF02g1I83h1a1QMxqQziyd5EpZJZPhOFVmJhAxQA4o4K49y7F/UBspVlqJWYYkgg1uYJ0534KIEIT386vbImNzBVLTH90vo5s3o24oTjwT1D4sU9khfM+QJa+4RWKIrhqru2rxvxb7P/tsjJ44MdWILyqFVv6MMD9vJQzeWsp12y59Ij1mFNW9xW+UiIFn13+/2WjE0YzArowzK5xMT8qlVg7z0NBABjLttj/vb3gx04RPZxQ8viTkKsBkPRIqatLwx5LiOsw5sYVE0r81LWcmJ99Br/WOJgvh62s2rOOkJ5an5S05b4OLIDSHQZUg8xr2bOMpV/60jCNi1ko6x+/ToTPVNDzxAG+V9srnsZiAQ9Pyy1Py39CJ04s1rDooNnIzcVHwiVfmBSlA7iKfdn30WILt606T9A0xbENch+ak5eIV5pxg/puDmApU/Dey58wlDnViiEcvlMR4bAWGjf1MzBGV24qT9YjXKkkDM1CHZienqAYR++npAt2zp/wKrHRDJD1/+WoCSFdXtXIdYh3J4S8iqWYAEts0HSe/bcOtCfGGSe7UGR4v4dZQOWNeky0C6ErNAOc5ZYoP0naLSMYyaf40aCS92HrE1SqWYMap8psKRWUkT+seUaGeJ7TZaW6ED2njBvzT+Qy8Nc4IvYfUbNEZy0t7sHGtyHik4LS4KX0MMAHiYpdvOgTn7o5P+xEDAlVoVNhmAK+mc/xTxoUCRI93WCMuG7eNiOjusfAwKg+CfLdURuJqWIJGrZetrYsyla8T+rAubWeS282RHrJQdb6wMNQq1cAOGm",
+                "text": "O usuário está com um problema de branches divergentes no git. Ele fez um pull e o git está dizendo que as branches local e remota divergiram. Ele não quer perder nada.\n\nA melhor abordagem aqui é:\n1. Primeiro, verificar o status atual\n2. Fazer backup das mudanças locais se necessário\n3. Usar rebase ou merge para reconciliar\n\nVou verificar o estado atual do repositório.",
+                "encrypted": "QtMUKJcOrZt6d2amN38GbFgHl2F9AneYhJa6qHlZ+8riDchra5X4iQpDqnxLJ/OZOBaT6WLc74mRso683DD6+nYKXcqV2ECQi+T1eKhNxDw0cy6xHW4AfdhIPp8K7cMFqShOa5dtbSCzwlw2ATA3PSmxQn7EtYfrC/veCQLvXG+otk7G6ZVmox7r/M91+zBOGWUujg+QKX5ydR7B++ktMCZGXgEFbouFNmPChp50WktsUVAUUDbzIo07tc4UIB/+l+OXpFgvNBG6yufQxh5WAn8BtJq/4QyyOzgZOOfxDHU4vNoDccp3EX1JUNGqKF56phmTc/yjEjkwFgQdx0M21N8MPYzHuQsVetU5k8Rk4xRpa41q9P7u1/Id51XDufVavD61s7eC+YlJ///BzNwOjPaAOCkBb83EiXom5JrMTIscyJmA4jZAsWcm7GaggHoaVvAR9o03RzzDDxM0SdIoPgE4w9VBHfy37ShHsCTQJF2M2JGMqyHuVGXW8xvLFW6Trzhgn2Kn7AOkLsRq3D2kOD8nVF02g1I83h1a1QMxqQziyd5EpZJZPhOFVmJhAxQA4o4K49y7F/UBspVlqJWYYkgg1uYJ0534KIEIT386vbImNzBVLTH90vo5s3o24oTjwT1D4sU9khfM+QJa+4RWKIrhqru2rxvxb7P/tsjJ44MdWILyqFVv6MMD9vJQzeWsp12y59Ij1mFNW9xW+UiIFn13+/2WjE0YzArowzK5xMT8qlVg7z0NBABjLttj/vb3gx04RPZxQ8viTkKsBkPRIqatLwx5LiOsw5sYVE0r81LWcmJ99Br/WOJgvh62s2rOOkJ5an5S05b4OLIDSHQZUg8xr2bOMpV/60jCNi1ko6x+/ToTPVNDzxAG+V9srnsZiAQ9Pyy1Py39CJ04s1rDooNnIzcVHwiVfmBSlA7iKfdn30WILt606T9A0xbENch+ak5eIV5pxg/puDmApU/Dey58wlDnViiEcvlMR4bAWGjf1MzBGV24qT9YjXKkkDM1CHZienqAYR++npAt2zp/wKrHRDJD1/+WoCSFdXtXIdYh3J4S8iqWYAEts0HSe/bcOtCfGGSe7UGR4v4dZQOWNeky0C6ErNAOc5ZYoP0naLSMYyaf40aCS92HrE1SqWYMap8psKRWUkT+seUaGeJ7TZaW6ED2njBvzT+Qy8Nc4IvYfUbNEZy0t7sHGtyHik4LS4KX0MMAHiYpdvOgTn7o5P+xEDAlVoVNhmAK+mc/xTxoUCRI93WCMuG7eNiOjusfAwKg+CfLdURuJqWIJGrZetrYsyla8T+rAubWeS282RHrJQdb6wMNQq1cAOGm"
+              }
+            },
+            {
+              "response": "",
+              "toolCalls": [
+                {
+                  "name": "run_in_terminal",
+                  "arguments": "{\"command\": \"cd /home/pmartins/scripts && git log --oneline -5\", \"explanation\": \"Ver os commits locais recentes\", \"isBackground\": false}",
+                  "id": "toolu_vrtx_01YWTdGtnhZ8e3JyVPXbirEN__vscode-1769958905462"
+                }
+              ],
+              "toolInputRetry": 0,
+              "id": "7d90ccc5-c56a-4e47-8c51-7385aadddb88"
+            },
+            {
+              "response": "",
+              "toolCalls": [
+                {
+                  "name": "run_in_terminal",
+                  "arguments": "{\"command\": \"cd /home/pmartins/scripts && git log --oneline origin/main -5\", \"explanation\": \"Ver os commits remotos para comparar\", \"isBackground\": false}",
+                  "id": "toolu_vrtx_01Kmo7DkZjzfy5e4B1ujcsMh__vscode-1769958905463"
+                }
+              ],
+              "toolInputRetry": 0,
+              "id": "1defc622-b806-4045-baf9-255f00ad5dd3"
+            },
+            {
+              "response": "Agora entendo a situação:\n\n| Branch | Commits |\n|--------|---------|\n| **Local** | `c657352` - Refactor project structure and skills system |\n| **Remoto** | `06fb4f5` - feat: add copilot submodules<br>`7cd43a5` - temp |\n\nAmbos divergiram a partir do commit `e8b7b63`. Para **não perder nada**, vou fazer um **merge** que preserva ambos os históricos: ",
+              "toolCalls": [
+                {
+                  "name": "run_in_terminal",
+                  "arguments": "{\"command\": \"cd /home/pmartins/scripts && git pull --no-rebase\", \"explanation\": \"Fazer merge das branches preservando todos os commits locais e remotos\", \"isBackground\": false}",
+                  "id": "toolu_vrtx_01Ex4XjENg8DwzJQbCwvyT24__vscode-1769958905464"
+                }
+              ],
+              "toolInputRetry": 0,
+              "id": "143fcc7d-2971-4455-ab0c-a7db0959ec51"
+            },
+            {
+              "response": "Há conflitos, mas **nada foi perdido**. Vou verificar o estado e resolver: ",
+              "toolCalls": [
+                {
+                  "name": "run_in_terminal",
+                  "arguments": "{\"command\": \"cd /home/pmartins/scripts && git status\", \"explanation\": \"Ver o estado atual dos conflitos\", \"isBackground\": false}",
+                  "id": "toolu_vrtx_01M922MxAJGvKZXq4TEyWgZT__vscode-1769958905465"
+                }
+              ],
+              "toolInputRetry": 0,
+              "id": "62a52c55-4757-4aff-81bf-3b2477dc16d2"
+            },
+            {
+              "response": "Entendi! O remoto transformou esses arquivos em **submodules** enquanto localmente você os renomeou/modificou. \n\nPara **manter suas versões locais** (não perder nada): ",
+              "toolCalls": [
+                {
+                  "name": "run_in_terminal",
+                  "arguments": "{\"command\": \"cd /home/pmartins/scripts && git add .github/initial.md .github/skills-system.md .github/skills/create-skill.md .github/skills/project-analyzer.md .github/skills/project-setup.md .github/todo-workflow.md .github/workflow-engine.md\", \"explanation\": \"Manter as versões locais dos arquivos em conflito\", \"isBackground\": false}",
+                  "id": "toolu_vrtx_01UZpvrBjqr6XFVJHVyeGicF__vscode-1769958905466"
+                }
+              ],
+              "toolInputRetry": 0,
+              "id": "51202f54-1557-4f3c-91e0-2d88d3beab3d"
+            },
+            {
+              "response": "",
+              "toolCalls": [
+                {
+                  "name": "run_in_terminal",
+                  "arguments": "{\"command\": \"cd /home/pmartins/scripts && git status\", \"explanation\": \"Verificar se os conflitos foram resolvidos\", \"isBackground\": false}",
+                  "id": "toolu_vrtx_01VhDFSxKDqotCpaq2bhq7ey__vscode-1769958905467"
+                }
+              ],
+              "toolInputRetry": 0,
+              "id": "84480e1d-a69e-4ed5-9423-34970a90a061"
+            },
+            {
+              "response": "Conflitos resolvidos. Agora vou finalizar o merge: ",
+              "toolCalls": [
+                {
+                  "name": "run_in_terminal",
+                  "arguments": "{\"command\": \"cd /home/pmartins/scripts && git commit -m \\\"Merge remote changes, keeping local structure\\\"\", \"explanation\": \"Finalizar o merge com commit\", \"isBackground\": false}",
+                  "id": "toolu_vrtx_01ABZMTzTDvVKCv4ty9Bi9jx__vscode-1769958905468"
+                }
+              ],
+              "toolInputRetry": 0,
+              "id": "97ec69ef-3887-4677-901d-434f25af258c"
+            },
+            {
+              "response": "",
+              "toolCalls": [
+                {
+                  "name": "run_in_terminal",
+                  "arguments": "{\"command\": \"cd /home/pmartins/scripts && git log --oneline -5\", \"explanation\": \"Verificar o resultado do merge\", \"isBackground\": false}",
+                  "id": "toolu_vrtx_01EryrJ9qUqDqk5M456WohvR__vscode-1769958905469"
+                }
+              ],
+              "toolInputRetry": 0,
+              "id": "80a38d87-f5e0-494c-9f90-f26976854748"
+            },
+            {
+              "response": "✅ **Pronto! Nada foi perdido.**\n\nO merge foi concluído com sucesso:\n- Seus commits locais estão preservados\n- Os commits remotos foram integrados\n- Os submodules do remoto (`.github/.copilot/core` e `.github/.copilot/project`) foram adicionados\n- Seus arquivos locais em `.github/` foram mantidos\n\nAgora pode fazer `git push` quando quiser enviar para o remoto.",
+              "toolCalls": [],
+              "toolInputRetry": 0,
+              "id": "4a1cdb47-228d-4a4f-98a9-04457e942c08"
+            }
+          ],
+          "toolCallResults": {
+            "toolu_vrtx_01SgS2efCJgVAyhPjRtjjMHH__vscode-1769958905461": {
+              "$mid": 20,
+              "content": [
+                {
+                  "$mid": 21,
+                  "value": "Note: The tool simplified the command to ` cd /home/pmartins/scripts && git status`, and this is the output of running that command instead:\nOn branch main\nYour branch and 'origin/main' have diverged,\nand have 1 and 2 different commits each, respectively.\n  (use \"git pull\" if you want to integrate the remote branch with yours)\n\nnothing to commit, working tree clean\n"
+                }
+              ]
+            },
+            "toolu_vrtx_01YWTdGtnhZ8e3JyVPXbirEN__vscode-1769958905462": {
+              "$mid": 20,
+              "content": [
+                {
+                  "$mid": 21,
+                  "value": "Note: The tool simplified the command to ` cd /home/pmartins/scripts && git log --oneline -5`, and this is the output of running that command instead:\nc657352 (HEAD -> main) Refactor project structure and skills system\ne8b7b63 Add project structure and guidelines for cross-platform scripting\nd9f78f7 Refactor repository cloning scripts to include progress tracking and estimated finish time\na8ef197 feat: add cancellation handling and improved error reporting in clone scripts\n41b8e33 Enhance export-git-repos scripts with improved error handling, user feedback, and repository tracking\n"
+                }
+              ]
+            },
+            "toolu_vrtx_01Kmo7DkZjzfy5e4B1ujcsMh__vscode-1769958905463": {
+              "$mid": 20,
+              "content": [
+                {
+                  "$mid": 21,
+                  "value": "Note: The tool simplified the command to ` cd /home/pmartins/scripts && git log --oneline origin/main -5`, and this is the output of running that command instead:\n06fb4f5 (origin/main, origin/HEAD) feat: add copilot submodules\n7cd43a5 temp\ne8b7b63 Add project structure and guidelines for cross-platform scripting\nd9f78f7 Refactor repository cloning scripts to include progress tracking and estimated finish time\na8ef197 feat: add cancellation handling and improved error reporting in clone scripts\n"
+                }
+              ]
+            },
+            "toolu_vrtx_01Ex4XjENg8DwzJQbCwvyT24__vscode-1769958905464": {
+              "$mid": 20,
+              "content": [
+                {
+                  "$mid": 21,
+                  "value": "Note: The tool simplified the command to ` cd /home/pmartins/scripts && git pull --no-rebase`, and this is the output of running that command instead:\nCONFLICT (rename/delete): .github/.copilot/core/initial.md renamed to .github/initial.md in HEAD, but deleted in 06fb4f58808c81c2af280faefb3702627639b9cf.\nCONFLICT (rename/delete): .github/.copilot/core/skills-system.md renamed to .github/skills-system.md in HEAD, but deleted in 06fb4f58808c81c2af280faefb3702627639b9cf.\nCONFLICT (rename/delete): .github/.copilot/core/skills/create-skill.md renamed to .github/skills/create-skill.md in HEAD, but deleted in 06fb4f58808c81c2af280faefb3702627639b9cf.\nCONFLICT (modify/delete): .github/skills/create-skill.md deleted in 06fb4f58808c81c2af280faefb3702627639b9cf and modified in HEAD.  Version HEAD of .github/skills/create-skill.md left in tree.\nCONFLICT (rename/delete): .github/.copilot/core/skills/project-analyzer.md renamed to .github/skills/project-analyzer.md in HEAD, but deleted in 06fb4f58808c81c2af280faefb3702627639b9cf.\nCONFLICT (modify/delete): .github/skills/project-analyzer.md deleted in 06fb4f58808c81c2af280faefb3702627639b9cf and modified in HEAD.  Version HEAD of .github/skills/project-analyzer.md left in t\nree.                                                                                                                                                                                                CONFLICT (rename/delete): .github/.copilot/core/skills/project-setup.md renamed to .github/skills/project-setup.md in HEAD, but deleted in 06fb4f58808c81c2af280faefb3702627639b9cf.\nCONFLICT (modify/delete): .github/skills/project-setup.md deleted in 06fb4f58808c81c2af280faefb3702627639b9cf and modified in HEAD.  Version HEAD of .github/skills/project-setup.md left in tree.\nCONFLICT (rename/delete): .github/.copilot/core/todo-workflow.md renamed to .github/todo-workflow.md in HEAD, but deleted in 06fb4f58808c81c2af280faefb3702627639b9cf.\nCONFLICT (rename/delete): .github/.copilot/core/workflow-engine.md renamed to .github/workflow-engine.md in HEAD, but deleted in 06fb4f58808c81c2af280faefb3702627639b9cf.\nAutomatic merge failed; fix conflicts and then commit the result.\n\n\nCommand exited with code 1"
+                }
+              ]
+            },
+            "toolu_vrtx_01M922MxAJGvKZXq4TEyWgZT__vscode-1769958905465": {
+              "$mid": 20,
+              "content": [
+                {
+                  "$mid": 21,
+                  "value": "Note: The tool simplified the command to ` cd /home/pmartins/scripts && git status`, and this is the output of running that command instead:\nOn branch main\nYour branch and 'origin/main' have diverged,\nand have 1 and 2 different commits each, respectively.\n  (use \"git pull\" if you want to integrate the remote branch with yours)\n\nYou have unmerged paths.\n  (fix conflicts and run \"git commit\")\n  (use \"git merge --abort\" to abort the merge)\n\nChanges to be committed:\n        new file:   .github/.copilot/core\n        new file:   .github/.copilot/project\n        new file:   .gitmodules\n\nUnmerged paths:\n  (use \"git add/rm <file>...\" as appropriate to mark resolution)\n        deleted by them: .github/initial.md\n        deleted by them: .github/skills-system.md\n        deleted by them: .github/skills/create-skill.md\n        deleted by them: .github/skills/project-analyzer.md\n        deleted by them: .github/skills/project-setup.md\n        deleted by them: .github/todo-workflow.md\n        deleted by them: .github/workflow-engine.md\n\n"
+                }
+              ]
+            },
+            "toolu_vrtx_01UZpvrBjqr6XFVJHVyeGicF__vscode-1769958905466": {
+              "$mid": 20,
+              "content": [
+                {
+                  "$mid": 21,
+                  "value": "Note: The tool simplified the command to ` cd /home/pmartins/scripts && git add .github/initial.md .github/skills-system.md .github/skills/create-skill.md .github/skills/project-analyzer.md .github/skills/project-setup.md .github/todo-workflow.md .github/workflow-engine.md`, and this is the output of running that command instead:\n>   cd /home/pmartins/scripts && git add .github/initial.md .github/skills-system.md .github/skills/create-skill.md .github/skills/project-analyzer.md .github/skills/project-setup.md .github/todo-\nworkflow.md .github/workflow-engine.md\n"
+                }
+              ]
+            },
+            "toolu_vrtx_01VhDFSxKDqotCpaq2bhq7ey__vscode-1769958905467": {
+              "$mid": 20,
+              "content": [
+                {
+                  "$mid": 21,
+                  "value": "Note: The tool simplified the command to ` cd /home/pmartins/scripts && git status`, and this is the output of running that command instead:\nOn branch main\nYour branch and 'origin/main' have diverged,\nand have 1 and 2 different commits each, respectively.\n  (use \"git pull\" if you want to integrate the remote branch with yours)\n\nAll conflicts fixed but you are still merging.\n  (use \"git commit\" to conclude merge)\n\nChanges to be committed:\n        new file:   .github/.copilot/core\n        new file:   .github/.copilot/project\n        new file:   .gitmodules\n\n"
+                }
+              ]
+            },
+            "toolu_vrtx_01ABZMTzTDvVKCv4ty9Bi9jx__vscode-1769958905468": {
+              "$mid": 20,
+              "content": [
+                {
+                  "$mid": 21,
+                  "value": "Note: The tool simplified the command to ` cd /home/pmartins/scripts && git commit -m \"Merge remote changes, keeping local structure\"`, and this is the output of running that command instead:\n[main b97e886] Merge remote changes, keeping local structure\n"
+                }
+              ]
+            },
+            "toolu_vrtx_01EryrJ9qUqDqk5M456WohvR__vscode-1769958905469": {
+              "$mid": 20,
+              "content": [
+                {
+                  "$mid": 21,
+                  "value": "Note: The tool simplified the command to ` cd /home/pmartins/scripts && git log --oneline -5`, and this is the output of running that command instead:\nb97e886 (HEAD -> main) Merge remote changes, keeping local structure\nc657352 Refactor project structure and skills system\n06fb4f5 (origin/main, origin/HEAD) feat: add copilot submodules\n7cd43a5 temp\ne8b7b63 Add project structure and guidelines for cross-platform scripting\n"
+                }
+              ]
+            }
+          },
+          "modelMessageId": "4c278d33-c9e0-4d7a-829b-44d941c5fc1e",
+          "responseId": "d9ab2ae8-7c41-4f9d-9a79-4098cc27a1a5",
+          "sessionId": "1d255acb-e6bb-4023-825e-aab462262926",
+          "agentId": "github.copilot.editsAgent"
+        },
+        "details": "Claude Opus 4.5 • 3x"
+      },
+      "responseMarkdownInfo": [],
+      "followups": [],
+      "modelState": {
+        "value": 1,
+        "completedAt": 1769988894138
+      },
+      "contentReferences": [
+        {
+          "kind": "reference",
+          "reference": {
+            "$mid": 1,
+            "external": "vscode-remote://wsl%2Bubuntu-24.04/home/pmartins/scripts/.github/instructions/default.instructions.md",
+            "path": "/home/pmartins/scripts/.github/instructions/default.instructions.md",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        }
+      ],
+      "codeCitations": [],
+      "timeSpentWaiting": 36635
+    }
+  ],
+  "sessionId": "1394814c-6939-45fa-9438-f783029d4e67",
+  "creationDate": 1769976769490,
+  "lastMessageDate": 1769988815723,
+  "customTitle": "Resolving divergent branches in Git",
+  "hasPendingEdits": false,
+  "inputState": {
+    "contrib": {
+      "chatDynamicVariableModel": []
+    },
+    "attachments": [],
+    "mode": {
+      "id": "agent",
+      "kind": "agent"
+    },
+    "selectedModel": {
+      "identifier": "copilot/claude-opus-4.5",
+      "metadata": {
+        "extension": {
+          "value": "GitHub.copilot-chat",
+          "_lower": "github.copilot-chat"
+        },
+        "id": "claude-opus-4.5",
+        "vendor": "copilot",
+        "name": "Claude Opus 4.5",
+        "family": "claude-opus-4.5",
+        "detail": "3x",
+        "tooltip": "Claude Opus 4.5 (claude-opus-4.5) is counted at a 3x rate.",
+        "version": "claude-opus-4.5",
+        "maxInputTokens": 127805,
+        "maxOutputTokens": 16000,
+        "auth": {
+          "providerLabel": "GitHub Copilot Chat",
+          "accountLabel": "pdmartins"
+        },
+        "isDefault": false,
+        "isUserSelectable": true,
+        "modelPickerCategory": {
+          "label": "Premium Models",
+          "order": 1
+        },
+        "capabilities": {
+          "vision": true,
+          "toolCalling": true,
+          "agentMode": true
+        }
+      }
+    },
+    "inputText": "",
+    "selections": [
+      {
+        "startLineNumber": 1,
+        "startColumn": 1,
+        "endLineNumber": 1,
+        "endColumn": 1,
+        "selectionStartLineNumber": 1,
+        "selectionStartColumn": 1,
+        "positionLineNumber": 1,
+        "positionColumn": 1
+      }
+    ]
+  }
+}

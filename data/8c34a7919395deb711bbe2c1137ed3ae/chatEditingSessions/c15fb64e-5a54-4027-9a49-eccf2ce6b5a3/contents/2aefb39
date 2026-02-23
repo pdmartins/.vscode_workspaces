@@ -1,0 +1,496 @@
+# ============================================================================
+# Script: configure-chrome.ps1
+# Description: Configura segurança, privacidade e extensões do Google Chrome
+# ============================================================================
+
+param(
+    [switch]$SkipExtensions,
+    [switch]$SkipSettings,
+    [switch]$SkipPurviewBlock,
+    [switch]$Force
+)
+
+$ErrorActionPreference = "Stop"
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+function Test-Administrator {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = [Security.Principal.WindowsPrincipal]$identity
+    $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Write-Step {
+    param([string]$Message)
+    Write-Host "`n🚀 $Message" -ForegroundColor White
+}
+
+function Write-Info {
+    param([string]$Message)
+    Write-Host "🔍 $Message" -ForegroundColor Cyan
+}
+
+function Write-Success {
+    param([string]$Message)
+    Write-Host "✅ $Message" -ForegroundColor Green
+}
+
+function Write-Warning {
+    param([string]$Message)
+    Write-Host "⚠️ $Message" -ForegroundColor Yellow
+}
+
+function Write-Error {
+    param([string]$Message)
+    Write-Host "❌ $Message" -ForegroundColor Red
+}
+
+# ============================================================================
+# Configuration
+# ============================================================================
+
+# Extension IDs from Chrome Web Store
+$Extensions = @{
+    "uBlock Origin"       = "cjpalhdlnbpafiamejdnhcphjbkeiagm"
+    "ClearURLs"           = "lckanjgmijmafbedllaakclkaicjfmnk"
+    "Privacy Badger"      = "pkehgijcmpdhfbdbbnkijodmdjhbjlgp"
+    "Decentraleyes"       = "ldpochfccmkkmhdbclfhpagapcfdljkj"
+    "HTTPS Everywhere"    = "gcbommkclmclpchllfjekcdonpmejbdp"
+    "Bitwarden"           = "nngceckbapebfimnlniiiahkandclblb"
+    "Dark Reader"         = "eimadpbcbfnmbkopoojfekhnkhdbieeh"
+    "Simple Translate"    = "ibplnjkanclpjokhdolnendpplpjiace"
+    "Cookie AutoDelete"   = "fhcgjolkccmbidfldomjliifgaodjagh"
+    "Raindrop.io"         = "ldgfbffkinooeadadnedjhcfbqqcpifp"
+    "TamperMonkey"        = "dhdgffkkebhmkfjojejmpbldmpobfkfo"
+    "Wappalyzer"          = "gppongmhjkpfnbhagpmjfkondmcpkbnj"
+    "EditThisCookie"      = "fngmhnnpilhplaeedifhccceomclgfbg"
+    "Requestly"           = "mdnleldcmiljblolnjhpnblkcekpdkpa"
+}
+
+# Microsoft Purview Extension (to be blocked)
+$PurviewExtensionId = "echcggldkblhodogklpincgchnpgcdco"
+
+# Chrome paths
+$ChromeLocalAppData = "$env:LOCALAPPDATA\Google\Chrome\User Data"
+$DownloadPath = "D:\.temp"
+
+# ============================================================================
+# Functions
+# ============================================================================
+
+function Get-ChromeProfiles {
+    Write-Info "Detecting Chrome profiles..."
+    
+    if (-not (Test-Path $ChromeLocalAppData)) {
+        Write-Error "Chrome User Data folder not found: $ChromeLocalAppData"
+        return @()
+    }
+    
+    $profiles = @()
+    
+    # Default profile
+    $defaultProfile = Join-Path $ChromeLocalAppData "Default"
+    if (Test-Path $defaultProfile) {
+        $profiles += @{
+            Name = "Default"
+            Path = $defaultProfile
+        }
+    }
+    
+    # Profile N folders
+    $profileFolders = Get-ChildItem -Path $ChromeLocalAppData -Directory | 
+        Where-Object { $_.Name -match "^Profile \d+$" }
+    
+    foreach ($folder in $profileFolders) {
+        $prefsFile = Join-Path $folder.FullName "Preferences"
+        $profileName = $folder.Name
+        
+        # Try to get profile name from Preferences
+        if (Test-Path $prefsFile) {
+            try {
+                $prefs = Get-Content $prefsFile -Raw | ConvertFrom-Json
+                if ($prefs.profile.name) {
+                    $profileName = "$($folder.Name) ($($prefs.profile.name))"
+                }
+            } catch {
+                # Use folder name if can't read preferences
+            }
+        }
+        
+        $profiles += @{
+            Name = $profileName
+            Path = $folder.FullName
+        }
+    }
+    
+    Write-Success "Found $($profiles.Count) profile(s)"
+    foreach ($profile in $profiles) {
+        Write-Host "   📁 $($profile.Name)" -ForegroundColor Gray
+    }
+    
+    return $profiles
+}
+
+function Set-ChromePreferences {
+    param(
+        [string]$ProfilePath,
+        [string]$ProfileName
+    )
+    
+    Write-Step "Configuring preferences for: $ProfileName"
+    
+    $prefsFile = Join-Path $ProfilePath "Preferences"
+    
+    if (-not (Test-Path $prefsFile)) {
+        Write-Warning "Preferences file not found, creating new..."
+        $prefs = @{}
+    } else {
+        try {
+            $prefs = Get-Content $prefsFile -Raw | ConvertFrom-Json -AsHashtable
+        } catch {
+            Write-Warning "Could not parse Preferences, creating backup and new file..."
+            Copy-Item $prefsFile "$prefsFile.backup.$(Get-Date -Format 'yyyyMMdd-HHmmss')"
+            $prefs = @{}
+        }
+    }
+    
+    # Ensure nested structures exist
+    if (-not $prefs.ContainsKey("profile")) { $prefs["profile"] = @{} }
+    if (-not $prefs.ContainsKey("download")) { $prefs["download"] = @{} }
+    if (-not $prefs.ContainsKey("savefile")) { $prefs["savefile"] = @{} }
+    if (-not $prefs.ContainsKey("autofill")) { $prefs["autofill"] = @{} }
+    if (-not $prefs.ContainsKey("credentials_enable_service")) { $prefs["credentials_enable_service"] = $false }
+    if (-not $prefs.ContainsKey("payments")) { $prefs["payments"] = @{} }
+    if (-not $prefs.ContainsKey("search")) { $prefs["search"] = @{} }
+    if (-not $prefs.ContainsKey("net")) { $prefs["net"] = @{} }
+    if (-not $prefs.ContainsKey("safebrowsing")) { $prefs["safebrowsing"] = @{} }
+    if (-not $prefs.ContainsKey("privacy_sandbox")) { $prefs["privacy_sandbox"] = @{} }
+    if (-not $prefs.ContainsKey("session")) { $prefs["session"] = @{} }
+    if (-not $prefs.ContainsKey("intl")) { $prefs["intl"] = @{} }
+    if (-not $prefs.ContainsKey("spellcheck")) { $prefs["spellcheck"] = @{} }
+    if (-not $prefs.ContainsKey("browser")) { $prefs["browser"] = @{} }
+    if (-not $prefs.ContainsKey("performance_tuning")) { $prefs["performance_tuning"] = @{} }
+    if (-not $prefs.ContainsKey("hardware_acceleration_mode")) { $prefs["hardware_acceleration_mode"] = @{} }
+    if (-not $prefs.ContainsKey("background_mode")) { $prefs["background_mode"] = @{} }
+    
+    # ========================================================================
+    # Cookies e Tracking
+    # ========================================================================
+    Write-Info "Configuring cookies and tracking..."
+    
+    # Block third-party cookies
+    $prefs["profile"]["default_content_setting_values"] = @{
+        "cookies" = 1  # Allow first-party
+    }
+    $prefs["profile"]["block_third_party_cookies"] = $true
+    $prefs["profile"]["cookie_controls_mode"] = 1  # Block third-party
+    
+    # Do Not Track
+    $prefs["enable_do_not_track"] = $true
+    
+    # Disable telemetry/metrics
+    $prefs["safebrowsing"]["metrics_enabled"] = $false
+    $prefs["safebrowsing"]["scout_reporting_enabled"] = $false
+    
+    # Safe Browsing: Standard mode (1 = standard, 2 = enhanced, 0 = disabled)
+    $prefs["safebrowsing"]["enabled"] = $true
+    $prefs["safebrowsing"]["enhanced"] = $false
+    
+    # Disable Privacy Sandbox APIs (Topics, Ad Measurement, etc.)
+    $prefs["privacy_sandbox"]["m1"] = @{
+        "topics_enabled" = $false
+        "fledge_enabled" = $false
+        "ad_measurement_enabled" = $false
+    }
+    $prefs["privacy_sandbox"]["apis_enabled"] = $false
+    $prefs["privacy_sandbox"]["apis_enabled_v2"] = $false
+    
+    # ========================================================================
+    # Autofill - Disable everything
+    # ========================================================================
+    Write-Info "Disabling autofill..."
+    
+    # Addresses
+    $prefs["autofill"]["profile_enabled"] = $false
+    $prefs["autofill"]["credit_card_enabled"] = $false
+    
+    # Passwords
+    $prefs["credentials_enable_service"] = $false
+    $prefs["profile"]["password_manager_enabled"] = $false
+    
+    # Payment methods
+    $prefs["payments"]["can_make_payment_enabled"] = $false
+    
+    # ========================================================================
+    # Other settings
+    # ========================================================================
+    Write-Info "Configuring other settings..."
+    
+    # Disable search suggestions based on history
+    $prefs["search"]["suggest_enabled"] = $false
+    
+    # Disable page preloading
+    $prefs["net"]["network_prediction_options"] = 2  # 0=always, 1=wifi, 2=never
+    
+    # Disable URL reporting to Google
+    $prefs["safebrowsing"]["scout_reporting_enabled"] = $false
+    $prefs["alternate_error_pages"] = @{ "enabled" = $false }
+    
+    # On Startup: Open new tab (5 = new tab, 1 = last session, 4 = URLs)
+    $prefs["session"]["restore_on_startup"] = 5
+    
+    # Downloads: Always ask where to save
+    $prefs["download"]["prompt_for_download"] = $true
+    $prefs["savefile"]["default_directory"] = $DownloadPath
+    $prefs["download"]["default_directory"] = $DownloadPath
+    
+    # Create download directory if it doesn't exist
+    if (-not (Test-Path $DownloadPath)) {
+        try {
+            New-Item -Path $DownloadPath -ItemType Directory -Force | Out-Null
+            Write-Success "Created download folder: $DownloadPath"
+        } catch {
+            Write-Warning "Could not create download folder: $DownloadPath"
+        }
+    }
+    
+    # ========================================================================
+    # Languages
+    # ========================================================================
+    Write-Info "Configuring languages..."
+    
+    # Interface in English
+    $prefs["intl"]["accept_languages"] = "en-US,en,pt-BR,pt"
+    $prefs["intl"]["selected_languages"] = "en-US,en,pt-BR,pt"
+    
+    # Spellcheck in Portuguese and English
+    $prefs["spellcheck"]["dictionaries"] = @("pt-BR", "en-US")
+    $prefs["spellcheck"]["use_spelling_service"] = $false
+    
+    # ========================================================================
+    # Performance
+    # ========================================================================
+    Write-Info "Configuring performance..."
+    
+    # Memory Saver
+    if (-not $prefs["performance_tuning"].ContainsKey("high_efficiency_mode")) {
+        $prefs["performance_tuning"]["high_efficiency_mode"] = @{}
+    }
+    $prefs["performance_tuning"]["high_efficiency_mode"]["state"] = 2  # Enabled
+    
+    # Energy Saver (on battery)
+    if (-not $prefs["performance_tuning"].ContainsKey("battery_saver_mode")) {
+        $prefs["performance_tuning"]["battery_saver_mode"] = @{}
+    }
+    $prefs["performance_tuning"]["battery_saver_mode"]["state"] = 1  # On battery
+    
+    # Hardware acceleration (enabled via flag, not here)
+    $prefs["hardware_acceleration_mode"]["enabled"] = $true
+    
+    # Disable background apps
+    $prefs["background_mode"]["enabled"] = $false
+    $prefs["browser"]["background_mode_enabled"] = $false
+    
+    # ========================================================================
+    # Save preferences
+    # ========================================================================
+    try {
+        # Close Chrome warning
+        $chromeProcesses = Get-Process -Name "chrome" -ErrorAction SilentlyContinue
+        if ($chromeProcesses) {
+            Write-Warning "Chrome is running. Please close Chrome to apply settings."
+        }
+        
+        $prefs | ConvertTo-Json -Depth 20 | Set-Content $prefsFile -Encoding UTF8
+        Write-Success "Preferences saved for $ProfileName"
+    } catch {
+        Write-Error "Failed to save preferences: $_"
+    }
+}
+
+function Open-ExtensionInstallPages {
+    Write-Step "Opening extension installation pages..."
+    
+    Write-Info "Extensions will be opened in Chrome for installation."
+    Write-Warning "Please click 'Add to Chrome' for each extension."
+    Write-Host ""
+    
+    $count = 0
+    foreach ($ext in $Extensions.GetEnumerator()) {
+        $extName = $ext.Key
+        $extId = $ext.Value
+        $url = "https://chrome.google.com/webstore/detail/$extId"
+        
+        Write-Host "   📦 [$($count + 1)/$($Extensions.Count)] $extName" -ForegroundColor Cyan
+        
+        # Open in Chrome
+        Start-Process "chrome" -ArgumentList $url
+        
+        # Wait between opening tabs to avoid overwhelming
+        Start-Sleep -Milliseconds 1500
+        
+        $count++
+    }
+    
+    Write-Host ""
+    Write-Success "Opened all $count extension pages in Chrome"
+    Write-Info "Install each extension by clicking 'Add to Chrome'"
+}
+
+function Block-PurviewExtension {
+    param(
+        [string]$ProfilePath,
+        [string]$ProfileName
+    )
+    
+    Write-Step "Checking Microsoft Purview Extension for: $ProfileName"
+    
+    $extensionPath = Join-Path $ProfilePath "Extensions\$PurviewExtensionId"
+    
+    if (-not (Test-Path $extensionPath)) {
+        Write-Info "Purview extension not found in this profile"
+        return
+    }
+    
+    Write-Warning "Purview extension found! Blocking..."
+    
+    try {
+        # Remove content from folder
+        Get-ChildItem -Path $extensionPath -Recurse | Remove-Item -Force -Recurse -ErrorAction SilentlyContinue
+        Write-Info "Removed extension content"
+        
+        # Set Deny ALL permissions for Everyone
+        $acl = Get-Acl $extensionPath
+        
+        # Remove inheritance
+        $acl.SetAccessRuleProtection($true, $false)
+        
+        # Add Deny rule for Everyone
+        $everyone = New-Object System.Security.Principal.SecurityIdentifier("S-1-1-0")  # Everyone SID
+        $denyRule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+            $everyone,
+            [System.Security.AccessControl.FileSystemRights]::FullControl,
+            [System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [System.Security.AccessControl.InheritanceFlags]::ObjectInherit,
+            [System.Security.AccessControl.PropagationFlags]::None,
+            [System.Security.AccessControl.AccessControlType]::Deny
+        )
+        
+        $acl.AddAccessRule($denyRule)
+        Set-Acl -Path $extensionPath -AclObject $acl
+        
+        Write-Success "Blocked Purview extension folder with Deny ALL for Everyone"
+    } catch {
+        Write-Error "Failed to block Purview extension: $_"
+    }
+}
+
+function Show-Summary {
+    Write-Step "Configuration Summary"
+    
+    Write-Host ""
+    Write-Host "📋 Settings Applied:" -ForegroundColor White
+    Write-Host "   ├─ Block third-party cookies: Yes" -ForegroundColor Gray
+    Write-Host "   ├─ Do Not Track: Enabled" -ForegroundColor Gray
+    Write-Host "   ├─ Telemetry/Metrics: Disabled" -ForegroundColor Gray
+    Write-Host "   ├─ Safe Browsing: Standard mode" -ForegroundColor Gray
+    Write-Host "   ├─ Privacy Sandbox APIs: Disabled" -ForegroundColor Gray
+    Write-Host "   ├─ Autofill (addresses, cards, passwords): Disabled" -ForegroundColor Gray
+    Write-Host "   ├─ Search suggestions: Disabled" -ForegroundColor Gray
+    Write-Host "   ├─ Page preloading: Disabled" -ForegroundColor Gray
+    Write-Host "   ├─ URL reporting: Disabled" -ForegroundColor Gray
+    Write-Host "   ├─ On startup: New tab" -ForegroundColor Gray
+    Write-Host "   ├─ Downloads: Always ask, default $DownloadPath" -ForegroundColor Gray
+    Write-Host "   ├─ Languages: EN-US interface, spellcheck PT-BR + EN-US" -ForegroundColor Gray
+    Write-Host "   ├─ Memory Saver: Enabled" -ForegroundColor Gray
+    Write-Host "   ├─ Energy Saver: On battery" -ForegroundColor Gray
+    Write-Host "   ├─ Hardware acceleration: Enabled" -ForegroundColor Gray
+    Write-Host "   └─ Background apps: Disabled" -ForegroundColor Gray
+    Write-Host ""
+    
+    if (-not $SkipExtensions) {
+        Write-Host "📦 Extensions to install:" -ForegroundColor White
+        foreach ($ext in $Extensions.Keys) {
+            Write-Host "   ├─ $ext" -ForegroundColor Gray
+        }
+        Write-Host ""
+    }
+}
+
+# ============================================================================
+# Main
+# ============================================================================
+
+function Main {
+    Write-Host ""
+    Write-Host "╔══════════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
+    Write-Host "║     🔒 Chrome Security & Privacy Configuration Tool          ║" -ForegroundColor Cyan
+    Write-Host "╚══════════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+    Write-Host ""
+    
+    # Check for admin rights (needed for Purview blocking)
+    if (-not $SkipPurviewBlock -and -not (Test-Administrator)) {
+        Write-Warning "Running without admin privileges."
+        Write-Warning "Purview extension blocking may fail. Run as admin for full functionality."
+        Write-Host ""
+    }
+    
+    # Check if Chrome is running
+    $chromeProcesses = Get-Process -Name "chrome" -ErrorAction SilentlyContinue
+    if ($chromeProcesses -and -not $Force) {
+        Write-Warning "Chrome is currently running!"
+        Write-Host ""
+        $response = Read-Host "Close Chrome to continue? (y/n)"
+        if ($response -eq "y" -or $response -eq "Y") {
+            Write-Info "Closing Chrome..."
+            Stop-Process -Name "chrome" -Force -ErrorAction SilentlyContinue
+            Start-Sleep -Seconds 2
+        } else {
+            Write-Warning "Some settings may not be applied while Chrome is running."
+        }
+    }
+    
+    # Get profiles
+    $profiles = Get-ChromeProfiles
+    
+    if ($profiles.Count -eq 0) {
+        Write-Error "No Chrome profiles found!"
+        exit 1
+    }
+    
+    # Apply settings to each profile
+    if (-not $SkipSettings) {
+        foreach ($profile in $profiles) {
+            Set-ChromePreferences -ProfilePath $profile.Path -ProfileName $profile.Name
+        }
+    }
+    
+    # Block Purview extension
+    if (-not $SkipPurviewBlock) {
+        foreach ($profile in $profiles) {
+            Block-PurviewExtension -ProfilePath $profile.Path -ProfileName $profile.Name
+        }
+    }
+    
+    # Show summary
+    Show-Summary
+    
+    # Open extension installation pages
+    if (-not $SkipExtensions) {
+        Write-Host ""
+        $response = Read-Host "Open extension installation pages now? (y/n)"
+        if ($response -eq "y" -or $response -eq "Y") {
+            Open-ExtensionInstallPages
+        } else {
+            Write-Info "You can install extensions later by running with -SkipSettings"
+        }
+    }
+    
+    Write-Host ""
+    Write-Success "Configuration complete!"
+    Write-Host ""
+    Write-Info "💡 Tip: Restart Chrome to apply all settings"
+}
+
+Main

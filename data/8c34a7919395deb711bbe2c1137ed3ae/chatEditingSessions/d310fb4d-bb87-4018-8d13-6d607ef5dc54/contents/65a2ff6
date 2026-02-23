@@ -1,0 +1,178 @@
+---
+applyTo: '**'
+---
+# Copilot Instructions
+
+<loader critical="true">
+  <mandate>Este arquivo é o AGREGADOR que carrega core + project</mandate>
+  <mandate>Instruções são OBRIGATÓRIAS, não sugestões</mandate>
+</loader>
+
+## Carregamento
+
+<load-order critical="true">
+  <step n="1" goal="Carregar Core">
+    <mandate>Ler e aplicar: {workspace}/.github/initial.md</mandate>
+    <includes>
+      - workflow-engine.md (motor de execução)
+      - skills-system.md (sistema de skills)
+      - todo-workflow.md (gestão de tarefas)
+    </includes>
+  </step>
+  
+  <step n="2" goal="Carregar Project">
+    <mandate>Ler e aplicar: {workspace}/.github-project/initial.md</mandate>
+    <includes>
+      - conventions.md (padrões de código)
+      - cross-platform.md (regras multiplataforma)
+      - english-version.md (regras de tradução)
+    </includes>
+  </step>
+</load-order>
+
+## Skill Loading
+
+<skill-announcement critical="true">
+  <mandate>Em TODA resposta, VOCÊ DEVE informar no início quais skills estão em uso:</mandate>
+  
+  <format-new>🔧 **Skill ativada**: `{nome}` (quando carregar nova skill)</format-new>
+  <format-context>🔧 **Skills em uso**: `{skill1}`, `{skill2}` (quando já no contexto)</format-context>
+  
+  <examples>
+    - Primeira vez: "🔧 **Skill ativada**: `bash`"
+    - Continuação: "🔧 **Skills em uso**: `bash`, `sync`"
+    - Sem skills: Não mostrar nada
+  </examples>
+</skill-announcement>
+
+<skill-deactivation>
+  <trigger>Usuário diz: "desativar skill {nome}" ou "ignorar skill {nome}"</trigger>
+  <action>Parar de aplicar regras dessa skill pelo resto da conversa</action>
+  <action>Remover da lista de "skills em uso"</action>
+  <output>⏹️ **Skill desativada**: `{nome}`</output>
+  <note>Skills desativadas ainda estão no histórico mas suas regras são IGNORADAS</note>
+</skill-deactivation>
+
+<skill-loading critical="true">
+  <mandate>Ao trabalhar com arquivos *.sh, VOCÊ DEVE ler e aplicar: {workspace}/.github-project/skills/bash.md</mandate>
+  <mandate>Ao trabalhar com arquivos *.ps1, VOCÊ DEVE ler e aplicar: {workspace}/.github-project/skills/powershell.md</mandate>
+  <mandate>Ao trabalhar com README.md, VOCÊ DEVE ler e aplicar: {workspace}/.github-project/skills/readme.md</mandate>
+  <mandate>Após modificar scripts, VOCÊ DEVE ler e aplicar: {workspace}/.github-project/skills/sync.md</mandate>
+  <mandate>Ao tomar decisão arquitetural importante, VOCÊ DEVE ler e aplicar: {workspace}/.github-project/skills/memory.md</mandate>
+</skill-loading>
+
+<skill-discovery critical="true">
+  <mandate>Se a extensão do arquivo NÃO está listada acima:</mandate>
+  <action>Ler: {workspace}/.github-project/skills-catalog.md</action>
+  <action>Verificar se existe skill para a extensão</action>
+  <check if="skill existe">
+    <action>Carregar o skill indicado</action>
+  </check>
+  <check if="skill NÃO existe">
+    <action>Ler: {workspace}/.github/skills/create-skill.md</action>
+    <action>Criar skill para o novo tipo de arquivo</action>
+  </check>
+</skill-discovery>
+
+<structure-update critical="true">
+  <mandate>Após criar NOVA PASTA ou NOVO TIPO de script:</mandate>
+  <action>Ler: {workspace}/.github-project/skills/update-structure.md</action>
+  <action>Executar workflow de atualização de estrutura</action>
+</structure-update>
+
+## Task Complexity Workflow
+
+<workflow id="task-analysis" trigger="on-user-request" priority="first">
+  <step n="1" goal="Avaliar complexidade da tarefa">
+    <criteria id="complex-task">
+      Uma tarefa é COMPLEXA quando:
+      - Envolve 4+ steps distintos
+      - Usuário pede múltiplas coisas (lista numerada, vírgulas)
+      - Envolve criar/modificar múltiplos arquivos
+      - Requer sincronização cross-platform + english-version
+      - Envolve criar nova pasta ou novo tipo de script
+    </criteria>
+    
+    <check if="tarefa é COMPLEXA conforme critérios acima">
+      <action>Criar TODO list com manage_todo_list</action>
+      <action>Listar TODOS os steps identificados</action>
+      <action>Marcar primeiro step como in-progress</action>
+      <output>📋 Lista de tarefas criada</output>
+    </check>
+    
+    <check if="tarefa é SIMPLES">
+      <action>NÃO criar TODO list (evitar overhead)</action>
+      <action>Executar diretamente</action>
+    </check>
+  </step>
+</workflow>
+
+<workflow id="task-completion" trigger="after-each-step">
+  <step n="1" goal="Atualizar progresso">
+    <check if="TODO list existe">
+      <action>Marcar step atual como completed</action>
+      <action>Marcar próximo step como in-progress (se houver)</action>
+    </check>
+  </step>
+  
+  <step n="2" goal="Revisar e ajustar" trigger="após-completar-step">
+    <check if="novo step descoberto durante execução">
+      <action>Adicionar novo step à lista</action>
+      <action>Reordenar se necessário</action>
+    </check>
+    
+    <check if="step atual revelou sub-tarefas">
+      <action>Dividir em steps menores</action>
+      <action>Atualizar lista</action>
+    </check>
+    
+    <check if="step não é mais necessário">
+      <action>Remover da lista</action>
+    </check>
+  </step>
+  
+  <step n="3" goal="Finalizar">
+    <check if="todos os steps completed">
+      <action>Verificar se TODO list está 100% concluída</action>
+      <output>✅ Todas as tarefas concluídas</output>
+    </check>
+  </step>
+</workflow>
+
+## File Detection Workflow
+
+<workflow id="file-detection" trigger="on-file-context">
+  <step n="1" goal="Detectar tipo e carregar skill apropriada">
+    <check if="contexto envolve arquivo *.sh OU pedido para criar script bash">
+      <action>Ler COMPLETAMENTE: {workspace}/.github-project/skills/bash.md</action>
+      <action>Aplicar todos os padrões e templates do skill</action>
+    </check>
+    
+    <check if="contexto envolve arquivo *.ps1 OU pedido para criar script PowerShell">
+      <action>Ler COMPLETAMENTE: {workspace}/.github-project/skills/powershell.md</action>
+      <action>Aplicar todos os padrões e templates do skill</action>
+    </check>
+    
+    <check if="contexto envolve README.md">
+      <action>Ler COMPLETAMENTE: {workspace}/.github-project/skills/readme.md</action>
+      <action>Aplicar estrutura obrigatória</action>
+    </check>
+    
+    <check if="extensão NÃO reconhecida acima">
+      <action>Consultar: {workspace}/.github-project/skills-catalog.md</action>
+      <action>Seguir mapeamento extensão→skill</action>
+    </check>
+  </step>
+
+  <step n="2" goal="Pós-modificação">
+    <check if="script foi criado ou modificado">
+      <action>Ler: {workspace}/.github-project/skills/sync.md</action>
+      <action>Executar workflow de sincronização</action>
+    </check>
+    
+    <check if="nova pasta foi criada OU novo tipo de arquivo">
+      <action>Ler: {workspace}/.github-project/skills/update-structure.md</action>
+      <action>Atualizar estrutura do projeto</action>
+    </check>
+  </step>
+</workflow>

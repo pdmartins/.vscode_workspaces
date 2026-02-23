@@ -1,0 +1,89 @@
+# Update Structure Skill
+
+<skill id="update-structure" context="após criar nova pasta ou novo tipo de arquivo">
+
+## Quando Usar
+
+<triggers>
+  - Nova pasta de scripts criada
+  - Novo tipo de arquivo/extensão adicionado
+  - Nova exceção de sincronização identificada
+  - Estrutura do projeto alterada
+</triggers>
+
+## Workflow
+
+<workflow id="update-structure-workflow">
+  <step n="1" goal="Identificar mudança">
+    <action>Determinar o que foi alterado na estrutura</action>
+    
+    <check if="nova pasta criada">
+      <action>Anotar: nome, descrição, plataforma, tipos de script</action>
+    </check>
+    
+    <check if="novo tipo de script">
+      <action>Anotar: extensão, descrição, skill associado</action>
+    </check>
+    
+    <check if="nova exceção de sync">
+      <action>Anotar: pasta, motivo, estratégia</action>
+    </check>
+  </step>
+
+  <step n="2" goal="Atualizar project-structure.md">
+    <action>Ler: project/project-structure.md</action>
+    
+    <check if="nova pasta">
+      <action>Adicionar na tabela "Pastas de Scripts"</action>
+      <action>Atualizar árvore de estrutura</action>
+    </check>
+    
+    <check if="novo tipo de script">
+      <action>Adicionar na tabela de tipos suportados</action>
+    </check>
+    
+    <check if="nova exceção">
+      <action>Adicionar na tabela de exceções</action>
+    </check>
+  </step>
+
+  <step n="3" goal="Atualizar skills-catalog.md">
+    <check if="novo tipo COM skill existente">
+      <action>Adicionar mapeamento extensão→skill</action>
+    </check>
+    
+    <check if="novo tipo SEM skill">
+      <action>Adicionar à lista de skills pendentes</action>
+      <output>⚠️ Skill para .{ext} não existe. Criar com create-skill.</output>
+    </check>
+  </step>
+
+  <step n="4" goal="Versão inglês">
+    <check if="nova pasta criada">
+      <action>Criar pasta em .english-version/</action>
+      <action>Criar README.md em inglês</action>
+    </check>
+  </step>
+
+  <step n="5" goal="Confirmar">
+    <output>
+      📋 **Estrutura Atualizada**
+      | Arquivo | Status |
+      |---------|--------|
+      | project-structure.md | {status} |
+      | skills-catalog.md | {status} |
+      | .english-version/ | {status} |
+    </output>
+  </step>
+</workflow>
+
+## Checklist
+
+<checklist>
+  - [ ] project-structure.md atualizado
+  - [ ] skills-catalog.md atualizado (se aplicável)
+  - [ ] Pasta em .english-version/ criada (se nova pasta)
+  - [ ] README criado
+</checklist>
+
+</skill>

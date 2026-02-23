@@ -1,0 +1,7 @@
+{
+  "organization_url": "https://dev.azure.com/your-organization",
+  "project": "project-name",
+  "username": "your-email@example.com",
+  "pat": "your-personal-access-token",
+  "clone_path": "./repos"
+}

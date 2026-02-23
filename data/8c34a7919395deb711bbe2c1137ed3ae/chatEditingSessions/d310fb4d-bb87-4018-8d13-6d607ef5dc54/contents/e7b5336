@@ -1,0 +1,219 @@
+---
+applyTo: '**/*.sh'
+---
+# Bash Script Instructions
+
+<workflow id="bash-script-workflow" extends="workflow-engine">
+  <require>core/workflow-engine.md</require>
+  
+  <step n="1" goal="Validar estrutura do script">
+    <check if="arquivo novo">
+      <action>Aplicar template base completo</action>
+    </check>
+    
+    <check if="arquivo existente">
+      <action>Preservar estrutura e estilo existente</action>
+      <action>Identificar padrões já utilizados</action>
+    </check>
+  </step>
+
+  <step n="2" goal="Garantir shebang e opções de segurança">
+    <validate condition="primeira linha é #!/bin/bash">
+      <action if="false">Adicionar shebang correto</action>
+    </validate>
+    
+    <validate condition="set -euo pipefail presente">
+      <action if="false">Adicionar após shebang</action>
+    </validate>
+  </step>
+
+  <step n="3" goal="Verificar helpers de cor">
+    <check if="script usa output colorido">
+      <validate condition="variáveis de cor definidas">
+        <action if="false">Adicionar bloco de cores padrão</action>
+      </validate>
+      
+      <validate condition="funções print_* definidas">
+        <action if="false">Adicionar funções helper</action>
+      </validate>
+    </check>
+  </step>
+
+  <step n="4" goal="Aplicar padrões de idempotência">
+    <action>Antes de instalar/criar, verificar se já existe</action>
+    <action>Usar command -v para verificar comandos</action>
+    <action>Usar [[ -f ]] ou [[ -d ]] para verificar paths</action>
+  </step>
+
+  <step n="5" goal="Configurar permissão de execução">
+    <action>Após criar/editar, executar: git update-index --chmod=+x {arquivo}</action>
+    <output>⚙️ Lembre-se: execute `git update-index --chmod=+x {arquivo}` para permissão de execução</output>
+  </step>
+</workflow>
+
+## Template Base
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# ============================================================================
+# Script: {nome-do-script}.sh
+# Description: {descrição breve}
+# ============================================================================
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+NC='\033[0m'
+
+# Helpers
+print_info()    { echo -e "${CYAN}🔍 $1${NC}"; }
+print_success() { echo -e "${GREEN}✅ $1${NC}"; }
+print_warning() { echo -e "${YELLOW}⚠️ $1${NC}"; }
+print_error()   { echo -e "${RED}❌ $1${NC}"; }
+print_step()    { echo -e "${WHITE}🚀 $1${NC}"; }
+
+# Script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Error handling
+trap 'print_error "Error on line $LINENO"; exit 1' ERR
+
+# ============================================================================
+# Functions
+# ============================================================================
+
+check_prerequisites() {
+    print_info "Checking prerequisites..."
+    
+    # Example: check if command exists
+    # if ! command -v docker &>/dev/null; then
+    #     print_error "Docker not found"
+    #     exit 1
+    # fi
+    
+    print_success "Prerequisites OK"
+}
+
+# ============================================================================
+# Main
+# ============================================================================
+
+main() {
+    print_step "Starting {nome-do-script}..."
+    
+    check_prerequisites
+    
+    # Add main logic here
+    
+    print_success "Done!"
+}
+
+main "$@"
+```
+
+## Padrões de Código
+
+<patterns>
+  <pattern name="idempotency-command">
+    ```bash
+    if ! command -v tool &>/dev/null; then
+        print_info "Installing tool..."
+        # install
+    else
+        print_success "Tool already installed"
+    fi
+    ```
+  </pattern>
+
+  <pattern name="idempotency-file">
+    ```bash
+    if [[ ! -f "$path" ]]; then
+        print_info "Creating file..."
+        # create
+    else
+        print_success "File already exists"
+    fi
+    ```
+  </pattern>
+
+  <pattern name="idempotency-directory">
+    ```bash
+    if [[ ! -d "$path" ]]; then
+        print_info "Creating directory..."
+        mkdir -p "$path"
+    fi
+    ```
+  </pattern>
+
+  <pattern name="interactive-param">
+    ```bash
+    param="${1:-}"
+    
+    if [[ -z "$param" ]]; then
+        read -p "📝 Enter value: " param
+    fi
+    
+    if [[ -z "$param" ]]; then
+        print_error "Parameter required"
+        exit 1
+    fi
+    ```
+  </pattern>
+
+  <pattern name="os-detection">
+    ```bash
+    detect_os() {
+        case "$(uname -s)" in
+            Linux*)  echo "linux" ;;
+            Darwin*) echo "macos" ;;
+            MINGW*|CYGWIN*|MSYS*) echo "windows" ;;
+            *)       echo "unknown" ;;
+        esac
+    }
+    ```
+  </pattern>
+
+  <pattern name="error-handling">
+    ```bash
+    # With trap (recommended)
+    trap 'print_error "Error on line $LINENO"; exit 1' ERR
+    
+    # Or manual
+    if ! some_command; then
+        print_error "Failed to execute command"
+        exit 1
+    fi
+    ```
+  </pattern>
+</patterns>
+
+## Convenções
+
+<conventions>
+  <naming>
+    <rule>Nomes de arquivo: `verbo-substantivo.sh` (kebab-case)</rule>
+    <rule>Funções: `snake_case`</rule>
+    <rule>Variáveis locais: `snake_case`</rule>
+    <rule>Constantes/cores: `UPPER_CASE`</rule>
+  </naming>
+  
+  <structure>
+    <rule>Shebang na primeira linha</rule>
+    <rule>set -euo pipefail logo após shebang</rule>
+    <rule>Cores e helpers no topo</rule>
+    <rule>Funções antes do main</rule>
+    <rule>main "$@" no final</rule>
+  </structure>
+  
+  <best-practices>
+    <rule>Sempre use [[ ]] ao invés de [ ]</rule>
+    <rule>Quote todas as variáveis: "$var"</rule>
+    <rule>Use $() ao invés de backticks</rule>
+    <rule>Prefira printf sobre echo para portabilidade</rule>
+  </best-practices>
+</conventions>

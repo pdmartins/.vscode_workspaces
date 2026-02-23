@@ -1,0 +1,116 @@
+# Create Skill
+
+<skill id="create-skill" context="criar novos skills">
+
+## Propósito
+
+Guiar a criação de novos skills para o projeto, garantindo estrutura consistente.
+
+## Quando Usar
+
+<triggers>
+  - Novo tipo de arquivo precisa de regras
+  - Novo padrão de código a ser enforçado
+  - Nova integração requer workflow específico
+  - Extensão sem skill mapeado
+</triggers>
+
+## Workflow
+
+<workflow id="create-skill-workflow">
+  <step n="1" goal="Coletar informações do novo skill">
+    <questions>
+      <q>Qual é o nome do skill? (ex: python, sql, docker)</q>
+      <q>Qual contexto ativa este skill? (ex: arquivos *.py, Dockerfile)</q>
+      <q>Quais padrões devem ser enforçados?</q>
+      <q>Existem templates obrigatórios?</q>
+      <q>Quais validações são necessárias?</q>
+    </questions>
+  </step>
+
+  <step n="2" goal="Determinar localização">
+    <check if="skill é genérico (reutilizável entre projetos)">
+      <action>Criar em .github/.copilot/core/skills/</action>
+    </check>
+    
+    <check if="skill é específico deste projeto">
+      <action>Criar em .github/.copilot/project/skills/</action>
+    </check>
+  </step>
+
+  <step n="3" goal="Criar arquivo do skill">
+    <action>Usar template padrão</action>
+    <action>Preencher com informações coletadas</action>
+  </step>
+
+  <step n="4" goal="Registrar skill">
+    <check if="skill no core">
+      <action>Atualizar core/skills-system.md</action>
+    </check>
+    
+    <check if="skill no project">
+      <action>Atualizar project/skills-catalog.md</action>
+    </check>
+  </step>
+
+  <step n="5" goal="Testar skill">
+    <action>Criar arquivo de teste com a extensão/contexto</action>
+    <action>Verificar se skill é carregado</action>
+    <action>Verificar se regras são aplicadas</action>
+  </step>
+</workflow>
+
+## Template de Skill
+
+<template>
+```markdown
+# {Nome} Skill
+
+<skill id="{id}" context="{contexto}">
+
+## Quando Usar Este Skill
+
+<triggers>
+  - {trigger 1}
+  - {trigger 2}
+</triggers>
+
+## Workflow
+
+<workflow id="{id}-workflow">
+  <step n="1" goal="{objetivo}">
+    <action>{ação 1}</action>
+    <action>{ação 2}</action>
+  </step>
+
+  <step n="2" goal="Validar">
+    <validate condition="{condição}">
+      <halt if="false" reason="{motivo}"/>
+    </validate>
+  </step>
+</workflow>
+
+## Padrões
+
+<patterns>
+  {padrões específicos}
+</patterns>
+
+## Template
+
+\`\`\`{extensão}
+{template base}
+\`\`\`
+
+## Checklist
+
+<checklist>
+  - [ ] {item 1}
+  - [ ] {item 2}
+</checklist>
+
+</skill>
+```
+</template>
+
+</skill>

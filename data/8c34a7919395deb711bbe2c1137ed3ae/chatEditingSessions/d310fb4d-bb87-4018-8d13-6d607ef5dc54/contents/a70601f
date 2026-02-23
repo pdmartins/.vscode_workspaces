@@ -1,0 +1,216 @@
+# Context Skill
+
+<skill id="context" context="gerenciar contexto atual do projeto">
+
+## Propósito
+
+Gerenciar o **contexto atual** do projeto - estado, stack, restrições e configurações ativas.
+Diferente da memória (lições históricas), o contexto é o "estado atual" que muda frequentemente.
+
+## Quando Usar
+
+<triggers>
+  - Início de sessão ou tarefa complexa
+  - Verificar stack/tecnologias antes de implementar
+  - Confirmar restrições antes de codificar
+  - Projeto sofre mudança significativa de estado
+  - Usuário pergunta "qual é o contexto do projeto?"
+</triggers>
+
+## Estrutura do Contexto
+
+<context-structure>
+```
+{workspace}/.github-project/context/
+└── project.md    # Estado atual do projeto
+```
+
+**Nota**: Os dados ficam em `.github-project/` (específico do projeto),
+enquanto esta skill fica em `.github/` (core reutilizável).
+</context-structure>
+
+## Conteúdo do Contexto
+
+<context-sections>
+  | Seção | Propósito |
+  |-------|-----------|
+  | Objetivo | O que o projeto faz |
+  | Stack | Tecnologias em uso |
+  | Restrições | O que NÃO pode fazer |
+  | Integrações | Sistemas conectados |
+  | Estado Atual | Fase do projeto, status |
+</context-sections>
+
+## Workflow: Consultar Contexto
+
+<workflow id="consult-context" trigger="início de tarefa ou sessão">
+  <step n="1" goal="Carregar contexto">
+    <action>Ler: {workspace}/.github-project/context/project.md</action>
+    <action>Extrair informações relevantes para a tarefa</action>
+  </step>
+
+  <step n="2" goal="Aplicar restrições">
+    <action>Identificar restrições aplicáveis à tarefa</action>
+    <action>Validar que ações planejadas não violam restrições</action>
+    
+    <check if="ação viola restrição">
+      <halt reason="Ação viola restrição do projeto"/>
+    </check>
+  </step>
+
+  <step n="3" goal="Confirmar stack">
+    <action>Verificar stack tecnológico</action>
+    <action>Usar tecnologias corretas para o projeto</action>
+    
+    <output>
+      📋 **Contexto carregado**
+      - Stack: {tecnologias}
+      - Restrições ativas: {n}
+    </output>
+  </step>
+</workflow>
+
+## Workflow: Atualizar Contexto
+
+<workflow id="update-context" trigger="mudança significativa no projeto">
+  <step n="1" goal="Identificar mudança">
+    <triggers>
+      - Nova integração adicionada
+      - Stack tecnológico alterado
+      - Nova restrição estabelecida
+      - Objetivo do projeto mudou
+      - Fase do projeto avançou
+    </triggers>
+  </step>
+
+  <step n="2" goal="Atualizar arquivo">
+    <action>Ler: {workspace}/.github-project/context/project.md</action>
+    <action>Identificar seção a atualizar</action>
+    <action>Fazer atualização mantendo estrutura</action>
+    <action>Atualizar "Última Atualização" com data</action>
+    
+    <output>🔄 Contexto atualizado em project.md</output>
+  </step>
+</workflow>
+
+## Workflow: Inicializar Contexto
+
+<workflow id="init-context" trigger="projeto sem estrutura de contexto">
+  <step n="1" goal="Verificar estrutura">
+    <check if="pasta context/ NÃO existe">
+      <action>Criar: {workspace}/.github-project/context/</action>
+    </check>
+  </step>
+
+  <step n="2" goal="Criar project.md">
+    <check if="project.md NÃO existe">
+      <action>Criar com template base</action>
+      
+      <template>
+```markdown
+# Project Context
+
+Estado atual do projeto para referência do Copilot.
+
+---
+
+## Objetivo
+
+{descrição do objetivo principal}
+
+## Stack
+
+| Componente | Tecnologia |
+|------------|------------|
+| {tipo} | {tecnologia} |
+
+## Restrições
+
+<constraints>
+  - {restrição 1}
+  - {restrição 2}
+</constraints>
+
+## Integrações
+
+| Sistema | Propósito | Status |
+|---------|-----------|--------|
+| {sistema} | {propósito} | {status} |
+
+## Estado Atual
+
+**Fase**: {fase do projeto}
+**Status**: {status atual}
+
+## Última Atualização
+
+**Data**: {YYYY-MM-DD}
+**Motivo**: Criação inicial
+```
+      </template>
+    </check>
+  </step>
+
+  <step n="3" goal="Confirmar">
+    <output>
+      📋 **Contexto inicializado**
+      - context/project.md criado
+    </output>
+  </step>
+</workflow>
+
+## Diferença: Memory vs Context
+
+<comparison>
+  | Aspecto | Memory | Context |
+  |---------|--------|---------|
+  | Foco | Histórico, lições | Estado atual |
+  | Muda | Raramente (append) | Frequentemente (update) |
+  | Conteúdo | Decisões, erros, aprendizados | Stack, restrições, objetivo |
+  | Uso | Evitar repetir erros | Guiar implementação |
+  | Skill | memory.md | context.md |
+  | Dados | memory/lessons-learned.md | context/project.md |
+</comparison>
+
+## Comandos do Usuário
+
+<user-commands>
+  | Comando | Ação |
+  |---------|------|
+  | "qual é o contexto?" | Consultar e exibir contexto |
+  | "atualizar contexto" | Workflow update-context |
+  | "quais são as restrições?" | Listar restrições ativas |
+  | "qual é a stack?" | Mostrar tecnologias |
+  | "inicializar contexto" | Workflow init-context |
+</user-commands>
+
+## Integração com Outros Skills
+
+<integration>
+  <auto-trigger skill="context" when="sessão-iniciada">
+    Carregar contexto automaticamente
+  </auto-trigger>
+  
+  <auto-trigger skill="context" when="implementação-começando">
+    Verificar stack e restrições
+  </auto-trigger>
+</integration>
+
+## Output Padrão
+
+<output-formats>
+  <format id="context-loaded">
+    📋 **Contexto carregado**
+    - Objetivo: {resumo}
+    - Stack: {tecnologias}
+    - Restrições: {n} ativas
+  </format>
+  
+  <format id="context-updated">
+    🔄 **Contexto atualizado**
+    - Seção: {seção}
+    - Mudança: {descrição}
+  </format>
+</output-formats>
+
+</skill>

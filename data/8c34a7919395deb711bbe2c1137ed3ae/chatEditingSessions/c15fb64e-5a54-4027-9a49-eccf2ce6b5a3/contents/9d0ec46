@@ -1,0 +1,9 @@
+[submodule ".github"]
+	path = .github
+	url = https://github.com/pdmartins/.github.git
+	ignore = all
+[submodule ".github-project"]
+	path = .github-project
+	url = https://github.com/pdmartins/.github-project.git
+	branch = scripts
+	ignore = all

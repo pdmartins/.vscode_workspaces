@@ -1,0 +1,80 @@
+{
+  "extensions": {
+    "uBlock Origin": "cjpalhdlnbpafiamejdnhcphjbkeiagm",
+    "ClearURLs": "lckanjgmijmafbedllaakclkaicjfmnk",
+    "Privacy Badger": "pkehgijcmpdhfbdbbnkijodmdjhbjlgp",
+    "Decentraleyes": "ldpochfccmkkmhdbclfhpagapcfdljkj",
+    "HTTPS Everywhere": "gcbommkclmclpchllfjekcdonpmejbdp",
+    "Bitwarden": "nngceckbapebfimnlniiiahkandclblb",
+    "Dark Reader": "eimadpbcbfnmbkopoojfekhnkhdbieeh",
+    "Simple Translate": "ibplnjkanclpjokhdolnendpplpjiace",
+    "Cookie AutoDelete": "fhcgjolkccmbidfldomjliifgaodjagh",
+    "Raindrop.io": "ldgfbffkinooeadadnedjhcfbqqcpifp",
+    "TamperMonkey": "dhdgffkkebhmkfjojejmpbldmpobfkfo",
+    "Wappalyzer": "gppongmhjkpfnbhagpmjfkondmcpkbnj",
+    "EditThisCookie": "fngmhnnpilhplaeedifhccceomclgfbg",
+    "Requestly": "mdnleldcmiljblolnjhpnblkcekpdkpa"
+  },
+  "blockedExtensions": [
+    {
+      "name": "Microsoft Purview",
+      "id": "echcggldkblhodogklpincgchnpgcdco"
+    }
+  ],
+  "downloadPath": {
+    "windows": "D:\\.temp",
+    "linux": "~/.tmp",
+    "macos": "~/.tmp"
+  },
+  "settings": {
+    "cookies": {
+      "blockThirdParty": true,
+      "cookieControlsMode": 1
+    },
+    "tracking": {
+      "doNotTrack": true,
+      "metricsEnabled": false,
+      "scoutReportingEnabled": false
+    },
+    "safeBrowsing": {
+      "enabled": true,
+      "enhanced": false
+    },
+    "privacySandbox": {
+      "topicsEnabled": false,
+      "fledgeEnabled": false,
+      "adMeasurementEnabled": false,
+      "apisEnabled": false
+    },
+    "autofill": {
+      "profileEnabled": false,
+      "creditCardEnabled": false,
+      "passwordManagerEnabled": false,
+      "paymentsEnabled": false
+    },
+    "search": {
+      "suggestEnabled": false
+    },
+    "network": {
+      "predictionOptions": 2
+    },
+    "startup": {
+      "restoreOnStartup": 5
+    },
+    "downloads": {
+      "promptForDownload": true
+    },
+    "languages": {
+      "acceptLanguages": "en-US,en,pt-BR,pt",
+      "selectedLanguages": "en-US,en,pt-BR,pt",
+      "spellcheckDictionaries": ["pt-BR", "en-US"],
+      "useSpellingService": false
+    },
+    "performance": {
+      "highEfficiencyModeState": 2,
+      "batterySaverModeState": 1,
+      "hardwareAccelerationEnabled": true,
+      "backgroundModeEnabled": false
+    }
+  }
+}

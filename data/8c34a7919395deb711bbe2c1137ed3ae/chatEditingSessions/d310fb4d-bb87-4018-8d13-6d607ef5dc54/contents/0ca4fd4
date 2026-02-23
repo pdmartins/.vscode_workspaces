@@ -1,0 +1,165 @@
+---
+applyTo: '**/*.ps1,**/*.sh'
+---
+# Sync Instructions
+
+<workflow id="sync-workflow" extends="workflow-engine" trigger="after-script-modification">
+  <require>core/workflow-engine.md</require>
+  
+  <step n="1" goal="Identificar tipo de mudança">
+    <action>Analisar alterações feitas no script</action>
+    
+    <check if="mudança em parâmetros">
+      <action>Marcar: sync_params = true</action>
+    </check>
+    
+    <check if="mudança em lógica/comportamento">
+      <action>Marcar: sync_logic = true</action>
+    </check>
+    
+    <check if="mudança em output/mensagens">
+      <action>Marcar: sync_output = true</action>
+    </check>
+    
+    <check if="apenas correção de bug interno">
+      <action>Marcar: sync_minor = true</action>
+    </check>
+  </step>
+
+  <step n="2" goal="Verificar exceções de sincronização">
+    <action>Identificar pasta do script</action>
+    
+    <check if="pasta == 'docker'">
+      <output>ℹ️ Pasta docker: PS1 é wrapper do SH - não sincronizar lógica</output>
+      <action>Marcar: exception_ps1_sh = true</action>
+    </check>
+    
+    <check if="pasta == 'azure'">
+      <output>ℹ️ Pasta azure: Scripts específicos Windows - não sincronizar para SH</output>
+      <action>Marcar: exception_ps1_sh = true</action>
+    </check>
+  </step>
+
+  <step n="3" goal="Sincronizar contraparte PS1/SH">
+    <check if="exception_ps1_sh == false">
+      <check if="script é *.sh E existe *.ps1 correspondente">
+        <action>Aplicar mesma lógica ao arquivo .ps1</action>
+        <action>Adaptar sintaxe para PowerShell</action>
+        <output>🔄 Sincronizado: {arquivo}.ps1</output>
+      </check>
+      
+      <check if="script é *.ps1 E existe *.sh correspondente">
+        <action>Aplicar mesma lógica ao arquivo .sh</action>
+        <action>Adaptar sintaxe para Bash</action>
+        <output>🔄 Sincronizado: {arquivo}.sh</output>
+      </check>
+    </check>
+    
+    <check if="exception_ps1_sh == true">
+      <output>⏭️ Sincronização PS1↔SH pulada (exceção de pasta)</output>
+    </check>
+  </step>
+
+  <step n="4" goal="Atualizar README">
+    <check if="sync_params == true OU sync_logic == true">
+      <action>Atualizar README.md da pasta do script</action>
+      <action>Atualizar tabela de parâmetros se necessário</action>
+      <action>Atualizar exemplos se comportamento mudou</action>
+      <output>📝 README atualizado: {pasta}/README.md</output>
+    </check>
+    
+    <check if="sync_minor == true E sync_params == false E sync_logic == false">
+      <output>⏭️ README não atualizado (mudança menor sem impacto funcional)</output>
+    </check>
+  </step>
+
+  <step n="5" goal="Replicar para versão em inglês">
+    <action>SEMPRE replicar alterações para .english-version/</action>
+    
+    <check if="script modificado">
+      <action>Criar/atualizar .english-version/{pasta}/{script}</action>
+      <action>Traduzir comentários e mensagens para inglês</action>
+      <output>🌐 Versão EN criada: .english-version/{pasta}/{script}</output>
+    </check>
+    
+    <check if="README modificado">
+      <action>Criar/atualizar .english-version/{pasta}/README.md</action>
+      <action>Traduzir conteúdo para inglês</action>
+      <output>🌐 README EN criado: .english-version/{pasta}/README.md</output>
+    </check>
+  </step>
+
+  <step n="6" goal="Resumo de sincronização">
+    <output>
+      📋 **Resumo de Sincronização**
+      
+      | Ação | Status |
+      |------|--------|
+      | Contraparte PS1/SH | {status} |
+      | README | {status} |
+      | Versão EN | {status} |
+    </output>
+  </step>
+</workflow>
+
+## Matriz de Sincronização
+
+<sync-matrix>
+  | Tipo de Mudança | PS1↔SH | README | .english-version |
+  |-----------------|--------|--------|------------------|
+  | Novo script | ✓ Se ambos existem | ✓ Criar | ✓ Obrigatório |
+  | Alterar parâmetros | Verificar exceções | ✓ Obrigatório | ✓ Obrigatório |
+  | Alterar lógica | Verificar exceções | ✓ Se funcional | ✓ Obrigatório |
+  | Alterar output | Verificar exceções | ✗ Não necessário | ✓ Obrigatório |
+  | Fix de bug | Verificar exceções | ✗ Se não muda comportamento | ✓ Obrigatório |
+</sync-matrix>
+
+## Exceções por Pasta
+
+<exceptions>
+  <folder name="docker">
+    <sync-ps1-sh>false</sync-ps1-sh>
+    <reason>PS1 é wrapper que chama o SH via WSL - lógica real está no SH</reason>
+    <behavior>
+      - Modificações no .sh NÃO atualizam o .ps1 automaticamente
+      - PS1 apenas passa parâmetros para o SH
+    </behavior>
+  </folder>
+  
+  <folder name="azure">
+    <sync-ps1-sh>false</sync-ps1-sh>
+    <reason>Scripts específicos para Windows/PowerShell - não têm equivalente Bash</reason>
+    <behavior>
+      - Não existe contraparte .sh para criar
+      - Apenas versão EN é replicada
+    </behavior>
+  </folder>
+</exceptions>
+
+## Fluxo de Decisão
+
+```
+Script alterado
+│
+├─► Está em pasta com exceção?
+│   ├─► SIM → Pular sync PS1↔SH
+│   └─► NÃO → Verificar contraparte
+│             ├─► Existe → Sincronizar
+│             └─► Não existe → Apenas EN + README
+│
+├─► Mudou parâmetros ou comportamento?
+│   ├─► SIM → Atualizar README (PT e EN)
+│   └─► NÃO → Pular README
+│
+└─► SEMPRE → Replicar para .english-version/
+```
+
+## Checklist Pós-Alteração
+
+<checklist>
+  <item>[ ] Verificar se pasta tem exceção de sync</item>
+  <item>[ ] Sincronizar contraparte PS1/SH (se aplicável)</item>
+  <item>[ ] Atualizar README se mudança funcional</item>
+  <item>[ ] Criar/atualizar versão em .english-version/</item>
+  <item>[ ] Traduzir mensagens e comentários para EN</item>
+</checklist>

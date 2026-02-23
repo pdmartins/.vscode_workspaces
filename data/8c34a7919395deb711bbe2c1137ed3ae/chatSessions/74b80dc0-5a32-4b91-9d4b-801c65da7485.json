@@ -1,0 +1,780 @@
+{
+  "version": 3,
+  "responderUsername": "GitHub Copilot",
+  "responderAvatarIconUri": {
+    "id": "copilot"
+  },
+  "initialLocation": "panel",
+  "requests": [
+    {
+      "requestId": "request_5820d834-b237-4503-8211-48e503c5750c",
+      "message": {
+        "parts": [
+          {
+            "range": {
+              "start": 0,
+              "endExclusive": 18
+            },
+            "editorRange": {
+              "startLineNumber": 1,
+              "startColumn": 1,
+              "endLineNumber": 1,
+              "endColumn": 19
+            },
+            "text": "pq deu este erro ?",
+            "kind": "text"
+          }
+        ],
+        "text": "pq deu este erro ?"
+      },
+      "variableData": {
+        "variables": [
+          {
+            "kind": "file",
+            "value": {
+              "$mid": 1,
+              "fsPath": "\\git-error-1769891712652",
+              "_sep": 1,
+              "external": "git-output:/git-error-1769891712652",
+              "path": "/git-error-1769891712652",
+              "scheme": "git-output"
+            },
+            "id": "git-output:/git-error-1769891712652",
+            "name": "git-error-1769891712652"
+          },
+          {
+            "id": "vscode.prompt.instructions.root__vscode-remote://wsl%2Bubuntu-24.04/home/pmartins/scripts/.github/instructions/default.instructions.md",
+            "name": "prompt:default.instructions.md",
+            "value": {
+              "$mid": 1,
+              "fsPath": "\\home\\pmartins\\scripts\\.github\\instructions\\default.instructions.md",
+              "_sep": 1,
+              "external": "vscode-remote://wsl%2Bubuntu-24.04/home/pmartins/scripts/.github/instructions/default.instructions.md",
+              "path": "/home/pmartins/scripts/.github/instructions/default.instructions.md",
+              "scheme": "vscode-remote",
+              "authority": "wsl+Ubuntu-24.04"
+            },
+            "kind": "promptFile",
+            "modelDescription": "Prompt instructions file",
+            "isRoot": true,
+            "originLabel": "Automatically attached as pattern is **",
+            "automaticallyAdded": true
+          },
+          {
+            "id": "vscode.prompt.instructions.text",
+            "name": "prompt:instructionsList",
+            "value": "<instructions>\nHere is a list of instruction files that contain rules for modifying or creating new code.\nThese files are important for ensuring that the code is modified or created correctly.\nPlease make sure to follow the rules specified in these files when working with the codebase.\nIf the file is not already available as attachment, use the #tool:readFile tool to acquire it.\nMake sure to acquire the instructions before making any changes to the code.\n<instruction>\n<file>\\home\\pmartins\\scripts\\.github\\instructions\\default.instructions.md</file>\n<applyTo>**</applyTo>\n</instruction>\n</instructions>\n\n",
+            "kind": "promptText",
+            "modelDescription": "Prompt instructions list",
+            "automaticallyAdded": true,
+            "toolReferences": [
+              {
+                "kind": "tool",
+                "id": "copilot_readFile",
+                "name": "Read File",
+                "range": {
+                  "start": 347,
+                  "endExclusive": 361
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "response": [
+        {
+          "kind": "mcpServersStarting",
+          "didStartServerIds": []
+        },
+        {
+          "kind": "thinking",
+          "value": "O usuário está perguntando sobre o erro de git pull que aparece no anexo. Vou analisar o erro e explicar.",
+          "id": "1769891799906",
+          "generatedTitle": "Analyzed git pull error and explained"
+        },
+        {
+          "kind": "thinking",
+          "value": "",
+          "id": "",
+          "metadata": {
+            "vscodeReasoningDone": true,
+            "stopReason": "other"
+          }
+        },
+        {
+          "value": "O erro ocorreu porque você tem **branches divergentes** — ou seja, seu branch local `main` tem commits que não existem no remoto, e o remoto tem commits que não existem no local. O Git não sabe como reconciliar essas diferenças automaticamente.\n\n## Causas comuns:\n\n1. Você fez commits locais que ainda não foram enviados (`git push`)\n2. Alguém fez commits no repositório remoto enquanto isso\n3. Você pode ter feito `git commit --amend` ou `git rebase` em commits já enviados\n\n## Soluções:\n\n**Opção 1 - Merge (mantém histórico de ambos):**\n```bash\ngit pull --no-rebase origin main\n```\n\n**Opção 2 - Rebase (aplica seus commits sobre os do remoto):**\n```bash\ngit pull --rebase origin main\n```\n\n**Opção 3 - Forçar o remoto (⚠️ descarta suas mudanças locais):**\n```bash\ngit reset --hard origin/main\n```\n\nQuer que eu execute um desses comandos? Se quiser, posso primeiro mostrar quais são os commits divergentes para você decidir melhor: ",
+          "supportThemeIcons": false,
+          "supportHtml": false,
+          "baseUri": {
+            "$mid": 1,
+            "path": "/home/pmartins/scripts/",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        },
+        {
+          "kind": "prepareToolInvocation",
+          "toolName": "run_in_terminal"
+        },
+        {
+          "kind": "toolInvocationSerialized",
+          "invocationMessage": "Using \"Run in Terminal\"",
+          "isConfirmed": {
+            "type": 0
+          },
+          "isComplete": true,
+          "source": {
+            "type": "internal",
+            "label": "Built-In"
+          },
+          "toolSpecificData": {
+            "kind": "terminal",
+            "terminalToolSessionId": "cae3aa78-d7b6-4d86-92cd-894227779ba6",
+            "terminalCommandId": "tool-4f7f7c9c-91da-4f1a-bc9c-b5e5f30540a5",
+            "commandLine": {
+              "original": "cd /home/pmartins/scripts && git log --oneline HEAD...origin/main --left-right 2>/dev/null || git fetch && git log --oneline HEAD...origin/main --left-right",
+              "toolEdited": " cd /home/pmartins/scripts && git log --oneline HEAD...origin/main --left-right 2>/dev/null || git fetch && git log --oneline HEAD...origin/main --left-right"
+            },
+            "language": "sh",
+            "terminalCommandState": {
+              "timestamp": 1769892233562
+            }
+          },
+          "toolCallId": "d7cd7a8f-0a60-4893-92d6-0238f5c8bc3c",
+          "toolId": "run_in_terminal"
+        }
+      ],
+      "agent": {
+        "extensionId": {
+          "value": "GitHub.copilot-chat",
+          "_lower": "github.copilot-chat"
+        },
+        "extensionVersion": "0.36.2",
+        "publisherDisplayName": "GitHub",
+        "extensionPublisherId": "GitHub",
+        "extensionDisplayName": "GitHub Copilot Chat",
+        "id": "github.copilot.editsAgent",
+        "description": "Edit files in your workspace in agent mode",
+        "when": "config.chat.agent.enabled",
+        "metadata": {
+          "themeIcon": {
+            "id": "tools"
+          },
+          "hasFollowups": false,
+          "supportIssueReporting": false
+        },
+        "name": "agent",
+        "fullName": "GitHub Copilot",
+        "isDefault": true,
+        "locations": [
+          "panel"
+        ],
+        "modes": [
+          "agent"
+        ],
+        "slashCommands": [],
+        "disambiguation": []
+      },
+      "timestamp": 1769891797526,
+      "modelId": "copilot/claude-opus-4.5",
+      "responseId": "response_732c37f3-811e-4821-bc02-a96014d6c96c",
+      "result": {
+        "timings": {
+          "firstProgress": 3483,
+          "totalElapsed": 436621
+        },
+        "metadata": {
+          "codeBlocks": [
+            {
+              "code": "git pull --no-rebase origin main\n",
+              "language": "bash",
+              "markdownBeforeBlock": "O erro ocorreu porque você tem **branches divergentes** — ou seja, seu branch local `main` tem commits que não existem no remoto, e o remoto tem commits que não existem no local. O Git não sabe como reconciliar essas diferenças automaticamente.\n\n## Causas comuns:\n\n1. Você fez commits locais que ainda não foram enviados (`git push`)\n2. Alguém fez commits no repositório remoto enquanto isso\n3. Você pode ter feito `git commit --amend` ou `git rebase` em commits já enviados\n\n## Soluções:\n\n**Opção 1 - Merge (mantém histórico de ambos):**\n"
+            },
+            {
+              "code": "git pull --rebase origin main\n",
+              "language": "bash",
+              "markdownBeforeBlock": "\n**Opção 2 - Rebase (aplica seus commits sobre os do remoto):**\n"
+            },
+            {
+              "code": "git reset --hard origin/main\n",
+              "language": "bash",
+              "markdownBeforeBlock": "\n**Opção 3 - Forçar o remoto (⚠️ descarta suas mudanças locais):**\n"
+            }
+          ],
+          "renderedUserMessage": [
+            {
+              "type": 1,
+              "text": "<attachments>\n<attachment id=\"git-error-1769891712652\" filePath=\"git-output:/git-error-1769891712652\">\n> git pull --tags origin main\nFrom https://github.com/pdmartins/scripts\n * branch            main       -> FETCH_HEAD\nhint: You have divergent branches and need to specify how to reconcile them.\nhint: You can do so by running one of the following commands sometime before\nhint: your next pull:\nhint: \nhint:   git config pull.rebase false  # merge\nhint:   git config pull.rebase true   # rebase\nhint:   git config pull.ff only       # fast-forward only\nhint: \nhint: You can replace \"git config\" with \"git config --global\" to set a default\nhint: preference for all repositories. You can also pass --rebase, --no-rebase,\nhint: or --ff-only on the command line to override the configured default per\nhint: invocation.\nfatal: Need to specify how to reconcile divergent branches.\n</attachment>\n\n</attachments>\n<context>\nThe current date is January 31, 2026.\nTerminals:\nTerminal: bash\nLast Command: ./install-omp-theme.sh\nCwd: /home/pmartins/scripts\nExit Code: 0\n\n</context>\n<editorContext>\nThe user's current file is git-output:/git-error-1769891712652. \n</editorContext>\n<reminderInstructions>\nWhen using the replace_string_in_file tool, include 3-5 lines of unchanged code before and after the string you want to replace, to make it unambiguous which part of the file should be edited.\nFor maximum efficiency, whenever you plan to perform multiple independent edit operations, invoke them simultaneously using multi_replace_string_in_file tool rather than sequentially. This will greatly improve user's cost and time efficiency leading to a better user experience. Do not announce which tool you're using (for example, avoid saying \"I'll implement all the changes using multi_replace_string_in_file\").\nDo NOT create a new markdown file to document each change or summarize your work unless specifically requested by the user.\n\n</reminderInstructions>\n<userRequest>\npq deu este erro ?\n</userRequest>\n"
+            },
+            {
+              "type": 3,
+              "cacheType": "ephemeral"
+            }
+          ],
+          "renderedGlobalContext": [
+            {
+              "type": 1,
+              "text": "<environment_info>\nThe user's current OS is: Linux\n</environment_info>\n<workspace_info>\nI am working in a workspace with the following folders:\n- /home/pmartins/scripts \nI am working in a workspace that has the following structure:\n```\nLICENSE\nREADME.md\nazure/\n\texport-azure-resources.ps1\n\tREADME.md\n\trun-execution-policy.bat\ndocker/\n\tinstall-docker.ps1\n\tinstall-docker.sh\n\tREADME.md\n\tuninstall-docker.ps1\n\tuninstall-docker.sh\noh-my-posh/\n\tblocks.emoji.omp.json\n\tinstall-omp-theme-mac.sh\n\tinstall-omp-theme.ps1\n\tinstall-omp-theme.sh\n\tREADME.md\nssh/\n\tgenerate-ssh-key.ps1\n\tgenerate-ssh-key.sh\n\tREADME.md\n```\nThis is the state of the context at this point in the conversation. The view of the workspace structure may be truncated. You can use tools to collect more context if needed.\n</workspace_info>\n"
+            },
+            {
+              "type": 3,
+              "cacheType": "ephemeral"
+            }
+          ],
+          "cacheKey": "file:///home/pmartins/scripts",
+          "toolCallRounds": [
+            {
+              "response": "O erro ocorreu porque você tem **branches divergentes** — ou seja, seu branch local `main` tem commits que não existem no remoto, e o remoto tem commits que não existem no local. O Git não sabe como reconciliar essas diferenças automaticamente.\n\n## Causas comuns:\n\n1. Você fez commits locais que ainda não foram enviados (`git push`)\n2. Alguém fez commits no repositório remoto enquanto isso\n3. Você pode ter feito `git commit --amend` ou `git rebase` em commits já enviados\n\n## Soluções:\n\n**Opção 1 - Merge (mantém histórico de ambos):**\n```bash\ngit pull --no-rebase origin main\n```\n\n**Opção 2 - Rebase (aplica seus commits sobre os do remoto):**\n```bash\ngit pull --rebase origin main\n```\n\n**Opção 3 - Forçar o remoto (⚠️ descarta suas mudanças locais):**\n```bash\ngit reset --hard origin/main\n```\n\nQuer que eu execute um desses comandos? Se quiser, posso primeiro mostrar quais são os commits divergentes para você decidir melhor: ",
+              "toolCalls": [
+                {
+                  "name": "run_in_terminal",
+                  "arguments": "{\"command\": \"cd /home/pmartins/scripts && git log --oneline HEAD...origin/main --left-right 2>/dev/null || git fetch && git log --oneline HEAD...origin/main --left-right\", \"explanation\": \"Mostrar os commits divergentes entre local e remoto\", \"isBackground\": false}",
+                  "id": "toolu_vrtx_01LeTtmA51JwGkDvptA8Seu8__vscode-1769880567182"
+                }
+              ],
+              "toolInputRetry": 0,
+              "id": "a339c0bf-1d66-4b9b-9d89-0d4c448b4b9e",
+              "thinking": {
+                "id": "jIL2uCFFsHQMUdH5MrTvnmvnhJoJ6mvY4OZcpxQcvTvhVh2Jv3/RNCOrnHKF5p2IfbqDRMyP7mVMO76XkXn+miarUbbTW1kBw4ZUc2OSTgeg+VMiGNcCJ1s14uk9hV96m5hlnc+B7YrM6OJgJStHWxMu5ekZ1ZQR040mv1n7DSlJUspwM7E7zsPZCXJdTYNgf77XmiNp8nb8pkNLsFGtXVxRW3YNqYDlxKkSRKPfl9J+cI+Hpp/xT6rq+cu3f5W+Ac6RYCHedwdjMDL3+1GuN+paG2CKImZ1afJpdDdjiUir0ZIhKiQrXSRoykD9eHNQrjnj0bCptjaB5NTVsJFWyhdgLKY5YlG41MZX2pmBWS53wh8dlpLT4bweKFu5uSH+3OSy08ip52yYe9ewFhIBZLHZK+LUQs/Il2kJsFj1fwqWoAprlr0cZ00PP3rleGupTI/lwn1Ud3p39FdKcz2hY+ASSJ2b4RYRtQ0/mDl7JW82alCujSGPm+2cauVGVtFBbd7QKxJy5fZNYj0j3yoIwWOBjDTrMBSPGuMnxQNA8S2iqAEZFBU4vaAt6NIDjKQ1tEyEvXKbci6UIJH9rsiLsz5vWoyS074mOcy+n4SF/PfvOSjjQngfefS01rawZ0MiKpC3CxBFzw9tJtXbvzxwKlHjANOHXj3C46174zWPwSqmu5SDww9sFyqF/cnei80AY3SFlP4ivKh9dcG61MnK1c14KyK/uCr+l9KPH4mk5ZCUzOb2uDQIntBeurjTd93UStQgij3vCvsGPmL1gXZPOLaZeJcd0VC+qJy7FMy/UaqxsDAng/lUkrIHQwuB6yrgwNHboNUtoUbPO9KJ2KYVbYTqzUS/TnXwmg==",
+                "text": "O usuário está perguntando sobre o erro de git pull que aparece no anexo. Vou analisar o erro e explicar.",
+                "encrypted": "jIL2uCFFsHQMUdH5MrTvnmvnhJoJ6mvY4OZcpxQcvTvhVh2Jv3/RNCOrnHKF5p2IfbqDRMyP7mVMO76XkXn+miarUbbTW1kBw4ZUc2OSTgeg+VMiGNcCJ1s14uk9hV96m5hlnc+B7YrM6OJgJStHWxMu5ekZ1ZQR040mv1n7DSlJUspwM7E7zsPZCXJdTYNgf77XmiNp8nb8pkNLsFGtXVxRW3YNqYDlxKkSRKPfl9J+cI+Hpp/xT6rq+cu3f5W+Ac6RYCHedwdjMDL3+1GuN+paG2CKImZ1afJpdDdjiUir0ZIhKiQrXSRoykD9eHNQrjnj0bCptjaB5NTVsJFWyhdgLKY5YlG41MZX2pmBWS53wh8dlpLT4bweKFu5uSH+3OSy08ip52yYe9ewFhIBZLHZK+LUQs/Il2kJsFj1fwqWoAprlr0cZ00PP3rleGupTI/lwn1Ud3p39FdKcz2hY+ASSJ2b4RYRtQ0/mDl7JW82alCujSGPm+2cauVGVtFBbd7QKxJy5fZNYj0j3yoIwWOBjDTrMBSPGuMnxQNA8S2iqAEZFBU4vaAt6NIDjKQ1tEyEvXKbci6UIJH9rsiLsz5vWoyS074mOcy+n4SF/PfvOSjjQngfefS01rawZ0MiKpC3CxBFzw9tJtXbvzxwKlHjANOHXj3C46174zWPwSqmu5SDww9sFyqF/cnei80AY3SFlP4ivKh9dcG61MnK1c14KyK/uCr+l9KPH4mk5ZCUzOb2uDQIntBeurjTd93UStQgij3vCvsGPmL1gXZPOLaZeJcd0VC+qJy7FMy/UaqxsDAng/lUkrIHQwuB6yrgwNHboNUtoUbPO9KJ2KYVbYTqzUS/TnXwmg=="
+              }
+            }
+          ],
+          "toolCallResults": {
+            "toolu_vrtx_01LeTtmA51JwGkDvptA8Seu8__vscode-1769880567182": {
+              "$mid": 20,
+              "content": [
+                {
+                  "$mid": 21,
+                  "value": "The user cancelled the tool call."
+                }
+              ]
+            }
+          },
+          "modelMessageId": "5a2249b3-dd7d-4f41-961a-2fc14129861f",
+          "responseId": "cb6c4f4d-da82-4024-87d2-38c76d3cb19f",
+          "sessionId": "0968fa06-5dc7-4223-90c5-f60204f87978",
+          "agentId": "github.copilot.editsAgent"
+        },
+        "details": "Claude Opus 4.5 • 3x"
+      },
+      "responseMarkdownInfo": [],
+      "followups": [],
+      "modelState": {
+        "value": 2,
+        "completedAt": 1769892233565
+      },
+      "contentReferences": [
+        {
+          "kind": "reference",
+          "reference": {
+            "$mid": 1,
+            "external": "vscode-remote://wsl%2Bubuntu-24.04/home/pmartins/scripts/.github/instructions/default.instructions.md",
+            "path": "/home/pmartins/scripts/.github/instructions/default.instructions.md",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        }
+      ],
+      "codeCitations": [],
+      "timeSpentWaiting": 425460
+    },
+    {
+      "requestId": "request_48ca7f7a-191b-46ce-9557-403d5fb532d8",
+      "message": {
+        "parts": [
+          {
+            "range": {
+              "start": 0,
+              "endExclusive": 102
+            },
+            "editorRange": {
+              "startLineNumber": 1,
+              "startColumn": 1,
+              "endLineNumber": 3,
+              "endColumn": 1
+            },
+            "text": "só eu uso este projeto, mas uso em vários computadores.\ncomo faço para não perder nenhuma informação?\n",
+            "kind": "text"
+          }
+        ],
+        "text": "só eu uso este projeto, mas uso em vários computadores.\ncomo faço para não perder nenhuma informação?\n"
+      },
+      "variableData": {
+        "variables": [
+          {
+            "id": "vscode.prompt.instructions.root__vscode-remote://wsl%2Bubuntu-24.04/home/pmartins/scripts/.github/instructions/default.instructions.md",
+            "name": "prompt:default.instructions.md",
+            "value": {
+              "$mid": 1,
+              "fsPath": "\\home\\pmartins\\scripts\\.github\\instructions\\default.instructions.md",
+              "_sep": 1,
+              "external": "vscode-remote://wsl%2Bubuntu-24.04/home/pmartins/scripts/.github/instructions/default.instructions.md",
+              "path": "/home/pmartins/scripts/.github/instructions/default.instructions.md",
+              "scheme": "vscode-remote",
+              "authority": "wsl+Ubuntu-24.04"
+            },
+            "kind": "promptFile",
+            "modelDescription": "Prompt instructions file",
+            "isRoot": true,
+            "originLabel": "Automatically attached as pattern is **",
+            "automaticallyAdded": true
+          },
+          {
+            "id": "vscode.prompt.instructions.text",
+            "name": "prompt:instructionsList",
+            "value": "<instructions>\nHere is a list of instruction files that contain rules for modifying or creating new code.\nThese files are important for ensuring that the code is modified or created correctly.\nPlease make sure to follow the rules specified in these files when working with the codebase.\nIf the file is not already available as attachment, use the #tool:readFile tool to acquire it.\nMake sure to acquire the instructions before making any changes to the code.\n<instruction>\n<file>\\home\\pmartins\\scripts\\.github\\instructions\\default.instructions.md</file>\n<applyTo>**</applyTo>\n</instruction>\n</instructions>\n\n",
+            "kind": "promptText",
+            "modelDescription": "Prompt instructions list",
+            "automaticallyAdded": true,
+            "toolReferences": [
+              {
+                "kind": "tool",
+                "id": "copilot_readFile",
+                "name": "Read File",
+                "range": {
+                  "start": 347,
+                  "endExclusive": 361
+                }
+              }
+            ]
+          }
+        ]
+      },
+      "response": [
+        {
+          "kind": "mcpServersStarting",
+          "didStartServerIds": []
+        },
+        {
+          "kind": "thinking",
+          "value": "O usuário quer manter tudo sincronizado entre vários computadores sem perder nada. Vou mostrar os commits divergentes primeiro para entender a situação, e então recomendar a melhor estratégia.",
+          "id": "1769892236495",
+          "generatedTitle": "Showed divergent commits and recommended strategy"
+        },
+        {
+          "kind": "thinking",
+          "value": "",
+          "id": "",
+          "metadata": {
+            "vscodeReasoningDone": true,
+            "stopReason": "other"
+          }
+        },
+        {
+          "value": "Entendi! Como só você usa, a melhor estratégia é fazer um **merge** para combinar as mudanças de ambos os lados sem perder nada. ",
+          "supportThemeIcons": false,
+          "supportHtml": false,
+          "baseUri": {
+            "$mid": 1,
+            "path": "/home/pmartins/scripts/",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        },
+        {
+          "kind": "prepareToolInvocation",
+          "toolName": "run_in_terminal"
+        },
+        {
+          "kind": "toolInvocationSerialized",
+          "invocationMessage": "Using \"Run in Terminal\"",
+          "isConfirmed": {
+            "type": 4
+          },
+          "isComplete": true,
+          "source": {
+            "type": "internal",
+            "label": "Built-In"
+          },
+          "toolSpecificData": {
+            "kind": "terminal",
+            "terminalToolSessionId": "d0b40074-c201-427f-a7be-23aa00e6b651",
+            "terminalCommandId": "tool-00cca44c-73eb-4b84-a599-ae75382caaad",
+            "commandLine": {
+              "original": "cd /home/pmartins/scripts && git fetch && git log --oneline HEAD...origin/main --left-right",
+              "toolEdited": " cd /home/pmartins/scripts && git fetch && git log --oneline HEAD...origin/main --left-right"
+            },
+            "language": "sh",
+            "terminalCommandState": {
+              "exitCode": 0,
+              "timestamp": 1769892258308,
+              "duration": 342
+            },
+            "terminalCommandUri": {
+              "$mid": 1,
+              "path": "/8c34a7919395deb711bbe2c1137ed3ae/2",
+              "scheme": "vscode-terminal",
+              "query": "command=tool-00cca44c-73eb-4b84-a599-ae75382caaad"
+            },
+            "terminalCommandOutput": {
+              "text": "\u001b[33m< 388f95a (\u001b[36;1mHEAD\u001b[33;22m -> \u001b[32;1mmain\u001b[33;22m)\u001b[0m Remove outdated script directives and templates for Bash, PowerShell, and README files; add new skill instructions for Bash and PowerShell scripts; create workflows for skill creation, structure updates, and synchronization processes; establish new guidelines for README documentation and script synchronization; enhance error handling and idempotency patterns across scripts.\r\n\u001b[33m< e4998ae\u001b[0m feat: update installation scripts for Oh My Posh with English translations and PATH configuration\r\n\u001b[33m> c9fddec (\u001b[31;1morigin/main\u001b[33;22m, \u001b[31;1morigin/HEAD\u001b[33;22m)\u001b[0m feat: enhance Docker installation and uninstallation scripts for WSL2 and Linux\r\n\u001b[33m> fc16cca\u001b[0m chore: update uninstall script permissions to be executable",
+              "lineCount": 6
+            },
+            "terminalTheme": {
+              "background": "#181818",
+              "foreground": "#cccccc"
+            }
+          },
+          "toolCallId": "7c3b3c64-d108-4646-8627-215c7230b551",
+          "toolId": "run_in_terminal"
+        },
+        {
+          "value": "Agora vejo a situação:\n\n- **Local (`<`)**: 2 commits feitos neste computador\n- **Remoto (`>`)**: 2 commits feitos em outro computador\n\nPara não perder nada, vamos fazer o **merge**: ",
+          "supportThemeIcons": false,
+          "supportHtml": false,
+          "baseUri": {
+            "$mid": 1,
+            "path": "/home/pmartins/scripts/",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        },
+        {
+          "kind": "prepareToolInvocation",
+          "toolName": "run_in_terminal"
+        },
+        {
+          "kind": "toolInvocationSerialized",
+          "invocationMessage": "Using \"Run in Terminal\"",
+          "isConfirmed": {
+            "type": 4
+          },
+          "isComplete": true,
+          "source": {
+            "type": "internal",
+            "label": "Built-In"
+          },
+          "toolSpecificData": {
+            "kind": "terminal",
+            "terminalToolSessionId": "4c5c2019-aa62-4c96-bcbc-77ace593eefd",
+            "terminalCommandId": "tool-8c93e256-8e7b-495c-9ae6-32047a1c8460",
+            "commandLine": {
+              "original": "cd /home/pmartins/scripts && git pull --no-rebase origin main",
+              "toolEdited": " cd /home/pmartins/scripts && git pull --no-rebase origin main"
+            },
+            "language": "sh",
+            "terminalCommandState": {
+              "exitCode": 0,
+              "timestamp": 1769892523079,
+              "duration": 256877
+            },
+            "terminalCommandUri": {
+              "$mid": 1,
+              "path": "/8c34a7919395deb711bbe2c1137ed3ae/2",
+              "scheme": "vscode-terminal",
+              "query": "command=tool-8c93e256-8e7b-495c-9ae6-32047a1c8460"
+            },
+            "terminalCommandOutput": {
+              "text": "From https://github.com/pdmartins/scripts\r\n * branch            main       -> FETCH_HEAD\r\nMerge made by the 'ort' strategy.\r\n .english-version/docker/install-docker.ps1   | 140 \u001b[32m+++++++++++++++++++++++++++++++++++\u001b[31m-----------------------------------------------\r\n\u001b[0m .english-version/docker/install-docker.sh    |  15 \u001b[32m++++\u001b[31m-----\r\n\u001b[0m .english-version/docker/uninstall-docker.ps1 | 136 \u001b[32m+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\r\n\u001b[0m .english-version/docker/uninstall-docker.sh  | 245 \u001b[32m+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\r\n\u001b[0m docker/uninstall-docker.sh                   |   0\r\n 5 files changed, 448 insertions(+), 88 deletions(-)\r\n create mode 100644 .english-version/docker/uninstall-docker.ps1\r\n create mode 100644 .english-version/docker/uninstall-docker.sh\r\n mode change 100644 => 100755 docker/uninstall-docker.sh",
+              "lineCount": 12
+            },
+            "terminalTheme": {
+              "background": "#181818",
+              "foreground": "#cccccc"
+            }
+          },
+          "toolCallId": "3677580f-1040-44b8-acda-31f97083483a",
+          "toolId": "run_in_terminal"
+        },
+        {
+          "value": "Perfeito! ✅ Merge feito com sucesso — nada foi perdido!\n\nAgora envie para o remoto para manter tudo sincronizado: ",
+          "supportThemeIcons": false,
+          "supportHtml": false,
+          "baseUri": {
+            "$mid": 1,
+            "path": "/home/pmartins/scripts/",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        },
+        {
+          "kind": "prepareToolInvocation",
+          "toolName": "run_in_terminal"
+        },
+        {
+          "kind": "toolInvocationSerialized",
+          "invocationMessage": "Using \"Run in Terminal\"",
+          "isConfirmed": {
+            "type": 4
+          },
+          "isComplete": true,
+          "source": {
+            "type": "internal",
+            "label": "Built-In"
+          },
+          "toolSpecificData": {
+            "kind": "terminal",
+            "terminalToolSessionId": "a3386d9f-6504-43aa-a8c4-3aad5df93616",
+            "terminalCommandId": "tool-c0e2b766-5a70-41a4-9bc4-c4531aebec9c",
+            "commandLine": {
+              "original": "cd /home/pmartins/scripts && git push origin main",
+              "toolEdited": " cd /home/pmartins/scripts && git push origin main"
+            },
+            "language": "sh",
+            "terminalCommandState": {
+              "exitCode": 0,
+              "timestamp": 1769892531610,
+              "duration": 1883
+            },
+            "terminalCommandUri": {
+              "$mid": 1,
+              "path": "/8c34a7919395deb711bbe2c1137ed3ae/2",
+              "scheme": "vscode-terminal",
+              "query": "command=tool-c0e2b766-5a70-41a4-9bc4-c4531aebec9c"
+            },
+            "terminalCommandOutput": {
+              "text": "Enumerating objects: 52, done.\r\nCounting objects: 100% (43/43), done.\r\nDelta compression using up to 14 threads\r\nCompressing objects: 100% (29/29), done.\r\nWriting objects: 100% (30/30), 21.69 KiB | 7.23 MiB/s, done.\r\nTotal 30 (delta 11), reused 0 (delta 0), pack-reused 0\r\nremote: Resolving deltas: 100% (11/11), completed with 5 local objects.\r\nTo https://github.com/pdmartins/scripts.git\r\n   c9fddec..713e2b1  main -> main",
+              "lineCount": 9
+            },
+            "terminalTheme": {
+              "background": "#181818",
+              "foreground": "#cccccc"
+            }
+          },
+          "toolCallId": "5fd9ec59-d5bb-4bce-98c4-2558598bdbcc",
+          "toolId": "run_in_terminal"
+        },
+        {
+          "value": "✅ **Tudo resolvido!** \n\n## Dica para evitar isso no futuro:\n\nComo você usa em vários computadores, crie o hábito:\n\n| Quando | Comando |\n|--------|---------|\n| **Ao começar a trabalhar** | `git pull` |\n| **Ao terminar** | `git push` |\n\nOu configure o Git para sempre fazer merge automaticamente:\n\n```bash\ngit config --global pull.rebase false\n```\n\nAssim o `git pull` nunca mais vai reclamar de branches divergentes — vai fazer merge automaticamente.",
+          "supportThemeIcons": false,
+          "supportHtml": false,
+          "baseUri": {
+            "$mid": 1,
+            "path": "/home/pmartins/scripts/",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        }
+      ],
+      "agent": {
+        "extensionId": {
+          "value": "GitHub.copilot-chat",
+          "_lower": "github.copilot-chat"
+        },
+        "extensionVersion": "0.36.2",
+        "publisherDisplayName": "GitHub",
+        "extensionPublisherId": "GitHub",
+        "extensionDisplayName": "GitHub Copilot Chat",
+        "id": "github.copilot.editsAgent",
+        "description": "Edit files in your workspace in agent mode",
+        "when": "config.chat.agent.enabled",
+        "metadata": {
+          "themeIcon": {
+            "id": "tools"
+          },
+          "hasFollowups": false,
+          "supportIssueReporting": false
+        },
+        "name": "agent",
+        "fullName": "GitHub Copilot",
+        "isDefault": true,
+        "locations": [
+          "panel"
+        ],
+        "modes": [
+          "agent"
+        ],
+        "slashCommands": [],
+        "disambiguation": []
+      },
+      "timestamp": 1769892234512,
+      "modelId": "copilot/claude-opus-4.5",
+      "responseId": "response_a7c55caa-f159-4c7c-9182-27ebeaec814c",
+      "result": {
+        "timings": {
+          "firstProgress": 3404,
+          "totalElapsed": 302932
+        },
+        "metadata": {
+          "codeBlocks": [
+            {
+              "code": "git config --global pull.rebase false\n",
+              "language": "bash",
+              "markdownBeforeBlock": "✅ **Tudo resolvido!** \n\n## Dica para evitar isso no futuro:\n\nComo você usa em vários computadores, crie o hábito:\n\n| Quando | Comando |\n|--------|---------|\n| **Ao começar a trabalhar** | `git pull` |\n| **Ao terminar** | `git push` |\n\nOu configure o Git para sempre fazer merge automaticamente:\n\n"
+            }
+          ],
+          "renderedUserMessage": [
+            {
+              "type": 1,
+              "text": "<context>\nThe current date is January 31, 2026.\nTerminals:\nTerminal: bash\nLast Command: ./install-omp-theme.sh\nCwd: /home/pmartins/scripts\nExit Code: 0\n\n</context>\n<editorContext>\nThe user's current file is git-output:/git-error-1769891712652. \n</editorContext>\n<reminderInstructions>\nWhen using the replace_string_in_file tool, include 3-5 lines of unchanged code before and after the string you want to replace, to make it unambiguous which part of the file should be edited.\nFor maximum efficiency, whenever you plan to perform multiple independent edit operations, invoke them simultaneously using multi_replace_string_in_file tool rather than sequentially. This will greatly improve user's cost and time efficiency leading to a better user experience. Do not announce which tool you're using (for example, avoid saying \"I'll implement all the changes using multi_replace_string_in_file\").\nDo NOT create a new markdown file to document each change or summarize your work unless specifically requested by the user.\n\n</reminderInstructions>\n<userRequest>\nsó eu uso este projeto, mas uso em vários computadores.\ncomo faço para não perder nenhuma informação?\n\n</userRequest>\n"
+            },
+            {
+              "type": 3,
+              "cacheType": "ephemeral"
+            }
+          ],
+          "toolCallRounds": [
+            {
+              "response": "Entendi! Como só você usa, a melhor estratégia é fazer um **merge** para combinar as mudanças de ambos os lados sem perder nada. ",
+              "toolCalls": [
+                {
+                  "name": "run_in_terminal",
+                  "arguments": "{\"command\": \"cd /home/pmartins/scripts && git fetch && git log --oneline HEAD...origin/main --left-right\", \"explanation\": \"Ver quais commits estão no local vs remoto\", \"isBackground\": false}",
+                  "id": "toolu_vrtx_01CK2GXWTMdMRbLThst1AepW__vscode-1769880567183"
+                }
+              ],
+              "toolInputRetry": 0,
+              "id": "f1fa5d87-fe72-4a1f-8c0d-50417af3ce1f",
+              "thinking": {
+                "id": "f0sG7mX/R/6z19GzwieGy7R7m0Mgxg1yR+SCOEAPrwTgpwsgy7UqxxLt2KfBmlrbsG6V/aZ0aJx/OkOP1n/SsUsDHY4+x9+hxOZ9n8g+X4uw16Lj1qHzkN0nRq3JJyZmXXrHndv6Atl/lcdI/9WDXClHMGfmTdQC12YVZt8dNWkiu5RmS4+1OpszC7Z5kQT8pHfE5IbuNCVOlhRc7JTHhz0wfbi8LtxJv2ICslN29j2I5rl6wPPjeb5i69vdnIX/+7KIrZvmCw3grgWRmCijBBbB1K620amIvFrlmfjCINBzTH9NR4lnd2NKqSVZrlca65nM+VyYhtHX+MXtRFWQRmWUiyiNE/pqMYW541K3NZmGVbkkRwGZkDvJHLb5c/hCfS8BIL7nTP3n3CGbmYB4RAhjdknZJ5sdXNnQumMyhX4cNV2iV3DsjmYlSQUdjnfIy6mREHH9PVVyM6k9qEqYHvGu3js/DkTstaMYweQkMaIW82ez6EmJRxm/171GoKaLshM+o6tS38ZxuTtuNjmBSYucNGVV6sDVN/s3SqLt+LhqkAyNVLuTtdXYWvLiJt/8lGVS5ocXE4L1XU7P6F42sM0s9RzxZTUWaZcsQmG3eKUdfliqkKA9CZs076j+UdLwqlkf+gfdRXVmXveibxKOZgmJQCMtIN7UfaXiQenzctDyw7zUCyTEJgO4x4A/3fxVMgZyj/2xJQAmUTdwCeuG1bVI3vO00a9Mp7d1+/TqdsEp589MyCYd9/Bj17OsMHoiIOlewryU96aA1LkKwICySqMGM0kkm7rUTuZ0mj3IlDpaJtLFDO/o8qUAtSbyCL/HE3w50RIcF7MJBW8b1KIeuobfe/6FM+DVzqwsVAhpHASRYsVqQOXpOP7/0pHKlWkoCWDnWiI6o1MoDTqLVkWX0tHjbvOBgbrga9XrjPHPS0Dn8gEZeeTVSDeOtKYruYRYdA9Oq9vlzKOCz9gFTNTRVk/ChnIu85RTSJ8TeChEblYeyRVJHhJgAeLznbjVoysePCbq5h0=",
+                "text": "O usuário quer manter tudo sincronizado entre vários computadores sem perder nada. Vou mostrar os commits divergentes primeiro para entender a situação, e então recomendar a melhor estratégia.",
+                "encrypted": "f0sG7mX/R/6z19GzwieGy7R7m0Mgxg1yR+SCOEAPrwTgpwsgy7UqxxLt2KfBmlrbsG6V/aZ0aJx/OkOP1n/SsUsDHY4+x9+hxOZ9n8g+X4uw16Lj1qHzkN0nRq3JJyZmXXrHndv6Atl/lcdI/9WDXClHMGfmTdQC12YVZt8dNWkiu5RmS4+1OpszC7Z5kQT8pHfE5IbuNCVOlhRc7JTHhz0wfbi8LtxJv2ICslN29j2I5rl6wPPjeb5i69vdnIX/+7KIrZvmCw3grgWRmCijBBbB1K620amIvFrlmfjCINBzTH9NR4lnd2NKqSVZrlca65nM+VyYhtHX+MXtRFWQRmWUiyiNE/pqMYW541K3NZmGVbkkRwGZkDvJHLb5c/hCfS8BIL7nTP3n3CGbmYB4RAhjdknZJ5sdXNnQumMyhX4cNV2iV3DsjmYlSQUdjnfIy6mREHH9PVVyM6k9qEqYHvGu3js/DkTstaMYweQkMaIW82ez6EmJRxm/171GoKaLshM+o6tS38ZxuTtuNjmBSYucNGVV6sDVN/s3SqLt+LhqkAyNVLuTtdXYWvLiJt/8lGVS5ocXE4L1XU7P6F42sM0s9RzxZTUWaZcsQmG3eKUdfliqkKA9CZs076j+UdLwqlkf+gfdRXVmXveibxKOZgmJQCMtIN7UfaXiQenzctDyw7zUCyTEJgO4x4A/3fxVMgZyj/2xJQAmUTdwCeuG1bVI3vO00a9Mp7d1+/TqdsEp589MyCYd9/Bj17OsMHoiIOlewryU96aA1LkKwICySqMGM0kkm7rUTuZ0mj3IlDpaJtLFDO/o8qUAtSbyCL/HE3w50RIcF7MJBW8b1KIeuobfe/6FM+DVzqwsVAhpHASRYsVqQOXpOP7/0pHKlWkoCWDnWiI6o1MoDTqLVkWX0tHjbvOBgbrga9XrjPHPS0Dn8gEZeeTVSDeOtKYruYRYdA9Oq9vlzKOCz9gFTNTRVk/ChnIu85RTSJ8TeChEblYeyRVJHhJgAeLznbjVoysePCbq5h0="
+              }
+            },
+            {
+              "response": "Agora vejo a situação:\n\n- **Local (`<`)**: 2 commits feitos neste computador\n- **Remoto (`>`)**: 2 commits feitos em outro computador\n\nPara não perder nada, vamos fazer o **merge**: ",
+              "toolCalls": [
+                {
+                  "name": "run_in_terminal",
+                  "arguments": "{\"command\": \"cd /home/pmartins/scripts && git pull --no-rebase origin main\", \"explanation\": \"Fazer merge para combinar ambos os históricos\", \"isBackground\": false}",
+                  "id": "toolu_vrtx_015kS7EpdXn16DfFfVnnZrVZ__vscode-1769880567184"
+                }
+              ],
+              "toolInputRetry": 0,
+              "id": "848f4130-600f-46a5-a216-6c8b7e47a04f"
+            },
+            {
+              "response": "Perfeito! ✅ Merge feito com sucesso — nada foi perdido!\n\nAgora envie para o remoto para manter tudo sincronizado: ",
+              "toolCalls": [
+                {
+                  "name": "run_in_terminal",
+                  "arguments": "{\"command\": \"cd /home/pmartins/scripts && git push origin main\", \"explanation\": \"Enviar o merge para o repositório remoto\", \"isBackground\": false}",
+                  "id": "toolu_vrtx_013jwVhN7gEQbiSrVar23gho__vscode-1769880567186"
+                }
+              ],
+              "toolInputRetry": 0,
+              "id": "a17083cc-2090-49c9-b6b2-6585fcb93d38"
+            },
+            {
+              "response": "✅ **Tudo resolvido!** \n\n## Dica para evitar isso no futuro:\n\nComo você usa em vários computadores, crie o hábito:\n\n| Quando | Comando |\n|--------|---------|\n| **Ao começar a trabalhar** | `git pull` |\n| **Ao terminar** | `git push` |\n\nOu configure o Git para sempre fazer merge automaticamente:\n\n```bash\ngit config --global pull.rebase false\n```\n\nAssim o `git pull` nunca mais vai reclamar de branches divergentes — vai fazer merge automaticamente.",
+              "toolCalls": [],
+              "toolInputRetry": 0,
+              "id": "719364f5-a9e7-43dc-81be-7fe2d97e0b37"
+            }
+          ],
+          "toolCallResults": {
+            "toolu_vrtx_01CK2GXWTMdMRbLThst1AepW__vscode-1769880567183": {
+              "$mid": 20,
+              "content": [
+                {
+                  "$mid": 21,
+                  "value": "Note: The tool simplified the command to ` cd /home/pmartins/scripts && git fetch && git log --oneline HEAD...origin/main --left-right`, and this is the output of running that command instead:\n< 388f95a (HEAD -> main) Remove outdated script directives and templates for Bash, PowerShell, and README files; add new skill instructions for Bash and PowerShell scripts; create workflows for sk\nill creation, structure updates, and synchronization processes; establish new guidelines for README documentation and script synchronization; enhance error handling and idempotency patterns across scripts.                                                                                                                                                                                           < e4998ae feat: update installation scripts for Oh My Posh with English translations and PATH configuration\n> c9fddec (origin/main, origin/HEAD) feat: enhance Docker installation and uninstallation scripts for WSL2 and Linux\n> fc16cca chore: update uninstall script permissions to be executable\n"
+                }
+              ]
+            },
+            "toolu_vrtx_015kS7EpdXn16DfFfVnnZrVZ__vscode-1769880567184": {
+              "$mid": 20,
+              "content": [
+                {
+                  "$mid": 21,
+                  "value": "Note: The tool simplified the command to ` cd /home/pmartins/scripts && git pull --no-rebase origin main`, and this is the output of running that command instead:\nFrom https://github.com/pdmartins/scripts\n * branch            main       -> FETCH_HEAD\nMerge made by the 'ort' strategy.\n .english-version/docker/install-docker.ps1   | 140 +++++++++++++++++++++++++++++++++++-----------------------------------------------\n .english-version/docker/install-docker.sh    |  15 ++++-----\n .english-version/docker/uninstall-docker.ps1 | 136 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n .english-version/docker/uninstall-docker.sh  | 245 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++\n docker/uninstall-docker.sh                   |   0\n 5 files changed, 448 insertions(+), 88 deletions(-)\n create mode 100644 .english-version/docker/uninstall-docker.ps1\n create mode 100644 .english-version/docker/uninstall-docker.sh\n mode change 100644 => 100755 docker/uninstall-docker.sh\n"
+                }
+              ]
+            },
+            "toolu_vrtx_013jwVhN7gEQbiSrVar23gho__vscode-1769880567186": {
+              "$mid": 20,
+              "content": [
+                {
+                  "$mid": 21,
+                  "value": "Note: The tool simplified the command to ` cd /home/pmartins/scripts && git push origin main`, and this is the output of running that command instead:\nEnumerating objects: 52, done.\nCounting objects: 100% (43/43), done.\nDelta compression using up to 14 threads\nCompressing objects: 100% (29/29), done.\nWriting objects: 100% (30/30), 21.69 KiB | 7.23 MiB/s, done.\nTotal 30 (delta 11), reused 0 (delta 0), pack-reused 0\nremote: Resolving deltas: 100% (11/11), completed with 5 local objects.\nTo https://github.com/pdmartins/scripts.git\n   c9fddec..713e2b1  main -> main\n"
+                }
+              ]
+            }
+          },
+          "modelMessageId": "69ac3a86-e793-4975-b301-aca881af143b",
+          "responseId": "5928aec8-7333-4caf-a930-b0d344e07081",
+          "sessionId": "0968fa06-5dc7-4223-90c5-f60204f87978",
+          "agentId": "github.copilot.editsAgent"
+        },
+        "details": "Claude Opus 4.5 • 3x"
+      },
+      "responseMarkdownInfo": [
+        {
+          "suggestionId": "sgt-f586782d-fbf9-4864-ba1d-afb9de48f3a4"
+        }
+      ],
+      "followups": [],
+      "modelState": {
+        "value": 1,
+        "completedAt": 1769892536580
+      },
+      "contentReferences": [
+        {
+          "kind": "reference",
+          "reference": {
+            "$mid": 1,
+            "external": "vscode-remote://wsl%2Bubuntu-24.04/home/pmartins/scripts/.github/instructions/default.instructions.md",
+            "path": "/home/pmartins/scripts/.github/instructions/default.instructions.md",
+            "scheme": "vscode-remote",
+            "authority": "wsl+Ubuntu-24.04"
+          }
+        }
+      ],
+      "codeCitations": [],
+      "timeSpentWaiting": 24092
+    }
+  ],
+  "sessionId": "74b80dc0-5a32-4b91-9d4b-801c65da7485",
+  "creationDate": 1769891767164,
+  "lastMessageDate": 1769892234512,
+  "customTitle": "Erro desconhecido em sistema",
+  "hasPendingEdits": false,
+  "inputState": {
+    "contrib": {
+      "chatDynamicVariableModel": []
+    },
+    "attachments": [],
+    "mode": {
+      "id": "agent",
+      "kind": "agent"
+    },
+    "selectedModel": {
+      "identifier": "copilot/claude-opus-4.5",
+      "metadata": {
+        "extension": {
+          "value": "GitHub.copilot-chat",
+          "_lower": "github.copilot-chat"
+        },
+        "id": "claude-opus-4.5",
+        "vendor": "copilot",
+        "name": "Claude Opus 4.5",
+        "family": "claude-opus-4.5",
+        "detail": "3x",
+        "tooltip": "Claude Opus 4.5 (claude-opus-4.5) is counted at a 3x rate.",
+        "version": "claude-opus-4.5",
+        "maxInputTokens": 127805,
+        "maxOutputTokens": 16000,
+        "auth": {
+          "providerLabel": "GitHub Copilot Chat",
+          "accountLabel": "pdmartins"
+        },
+        "isDefault": false,
+        "isUserSelectable": true,
+        "modelPickerCategory": {
+          "label": "Premium Models",
+          "order": 1
+        },
+        "capabilities": {
+          "vision": true,
+          "toolCalling": true,
+          "agentMode": true
+        }
+      }
+    },
+    "inputText": "",
+    "selections": [
+      {
+        "startLineNumber": 1,
+        "startColumn": 1,
+        "endLineNumber": 1,
+        "endColumn": 1,
+        "selectionStartLineNumber": 1,
+        "selectionStartColumn": 1,
+        "positionLineNumber": 1,
+        "positionColumn": 1
+      }
+    ]
+  }
+}

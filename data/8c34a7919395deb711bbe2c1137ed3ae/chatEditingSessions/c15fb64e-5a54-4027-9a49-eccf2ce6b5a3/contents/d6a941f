@@ -1,0 +1,501 @@
+#!/bin/bash
+set -euo pipefail
+
+# ============================================================================
+# Script: configure-chrome.sh
+# Description: Configura segurança, privacidade e extensões do Google Chrome
+# ============================================================================
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+NC='\033[0m'
+
+# Helpers
+print_info()    { echo -e "${CYAN}🔍 $1${NC}"; }
+print_success() { echo -e "${GREEN}✅ $1${NC}"; }
+print_warning() { echo -e "${YELLOW}⚠️ $1${NC}"; }
+print_error()   { echo -e "${RED}❌ $1${NC}"; }
+print_step()    { echo -e "\n${WHITE}🚀 $1${NC}"; }
+
+# Script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Error handling
+trap 'print_error "Error on line $LINENO"; exit 1' ERR
+
+# ============================================================================
+# Configuration
+# ============================================================================
+
+# Extension IDs from Chrome Web Store
+declare -A EXTENSIONS=(
+    ["uBlock Origin"]="cjpalhdlnbpafiamejdnhcphjbkeiagm"
+    ["ClearURLs"]="lckanjgmijmafbedllaakclkaicjfmnk"
+    ["Privacy Badger"]="pkehgijcmpdhfbdbbnkijodmdjhbjlgp"
+    ["Decentraleyes"]="ldpochfccmkkmhdbclfhpagapcfdljkj"
+    ["HTTPS Everywhere"]="gcbommkclmclpchllfjekcdonpmejbdp"
+    ["Bitwarden"]="nngceckbapebfimnlniiiahkandclblb"
+    ["Dark Reader"]="eimadpbcbfnmbkopoojfekhnkhdbieeh"
+    ["Simple Translate"]="ibplnjkanclpjokhdolnendpplpjiace"
+    ["Cookie AutoDelete"]="fhcgjolkccmbidfldomjliifgaodjagh"
+    ["Raindrop.io"]="ldgfbffkinooeadadnedjhcfbqqcpifp"
+    ["TamperMonkey"]="dhdgffkkebhmkfjojejmpbldmpobfkfo"
+    ["Wappalyzer"]="gppongmhjkpfnbhagpmjfkondmcpkbnj"
+    ["EditThisCookie"]="fngmhnnpilhplaeedifhccceomclgfbg"
+    ["Requestly"]="mdnleldcmiljblolnjhpnblkcekpdkpa"
+)
+
+# Options
+SKIP_EXTENSIONS=false
+SKIP_SETTINGS=false
+FORCE=false
+
+# ============================================================================
+# OS Detection and Paths
+# ============================================================================
+
+detect_os() {
+    case "$(uname -s)" in
+        Linux*)  echo "linux" ;;
+        Darwin*) echo "macos" ;;
+        *)       echo "unknown" ;;
+    esac
+}
+
+get_chrome_path() {
+    local os="$1"
+    
+    case "$os" in
+        linux)
+            # Check for Chrome, Chromium, or Chrome Beta
+            if [[ -d "$HOME/.config/google-chrome" ]]; then
+                echo "$HOME/.config/google-chrome"
+            elif [[ -d "$HOME/.config/chromium" ]]; then
+                echo "$HOME/.config/chromium"
+            elif [[ -d "$HOME/.config/google-chrome-beta" ]]; then
+                echo "$HOME/.config/google-chrome-beta"
+            else
+                echo ""
+            fi
+            ;;
+        macos)
+            echo "$HOME/Library/Application Support/Google/Chrome"
+            ;;
+        *)
+            echo ""
+            ;;
+    esac
+}
+
+get_download_path() {
+    # For Linux/macOS: ~/.tmp
+    echo "$HOME/.tmp"
+}
+
+get_chrome_binary() {
+    local os="$1"
+    
+    case "$os" in
+        linux)
+            if command -v google-chrome &>/dev/null; then
+                echo "google-chrome"
+            elif command -v google-chrome-stable &>/dev/null; then
+                echo "google-chrome-stable"
+            elif command -v chromium &>/dev/null; then
+                echo "chromium"
+            elif command -v chromium-browser &>/dev/null; then
+                echo "chromium-browser"
+            else
+                echo ""
+            fi
+            ;;
+        macos)
+            if [[ -d "/Applications/Google Chrome.app" ]]; then
+                echo "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+            else
+                echo ""
+            fi
+            ;;
+        *)
+            echo ""
+            ;;
+    esac
+}
+
+# ============================================================================
+# Functions
+# ============================================================================
+
+parse_args() {
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --skip-extensions)
+                SKIP_EXTENSIONS=true
+                shift
+                ;;
+            --skip-settings)
+                SKIP_SETTINGS=true
+                shift
+                ;;
+            --force)
+                FORCE=true
+                shift
+                ;;
+            -h|--help)
+                show_help
+                exit 0
+                ;;
+            *)
+                print_error "Unknown option: $1"
+                show_help
+                exit 1
+                ;;
+        esac
+    done
+}
+
+show_help() {
+    echo "Usage: $0 [OPTIONS]"
+    echo ""
+    echo "Options:"
+    echo "  --skip-extensions    Skip extension installation"
+    echo "  --skip-settings      Skip settings configuration"
+    echo "  --force              Don't ask to close Chrome"
+    echo "  -h, --help           Show this help message"
+}
+
+get_chrome_profiles() {
+    local chrome_path="$1"
+    local profiles=()
+    
+    print_info "Detecting Chrome profiles..."
+    
+    if [[ ! -d "$chrome_path" ]]; then
+        print_error "Chrome User Data folder not found: $chrome_path"
+        return 1
+    fi
+    
+    # Default profile
+    if [[ -d "$chrome_path/Default" ]]; then
+        profiles+=("Default")
+    fi
+    
+    # Profile N folders
+    for folder in "$chrome_path"/Profile\ *; do
+        if [[ -d "$folder" ]]; then
+            local profile_name
+            profile_name=$(basename "$folder")
+            profiles+=("$profile_name")
+        fi
+    done
+    
+    print_success "Found ${#profiles[@]} profile(s)"
+    for profile in "${profiles[@]}"; do
+        echo "   📁 $profile"
+    done
+    
+    # Return profiles via a global variable
+    CHROME_PROFILES=("${profiles[@]}")
+}
+
+set_chrome_preferences() {
+    local chrome_path="$1"
+    local profile_name="$2"
+    local download_path="$3"
+    
+    print_step "Configuring preferences for: $profile_name"
+    
+    local profile_path="$chrome_path/$profile_name"
+    local prefs_file="$profile_path/Preferences"
+    
+    # Check if jq is installed
+    if ! command -v jq &>/dev/null; then
+        print_warning "jq not found. Installing..."
+        local os
+        os=$(detect_os)
+        
+        case "$os" in
+            linux)
+                if command -v apt-get &>/dev/null; then
+                    sudo apt-get update && sudo apt-get install -y jq
+                elif command -v dnf &>/dev/null; then
+                    sudo dnf install -y jq
+                elif command -v pacman &>/dev/null; then
+                    sudo pacman -S --noconfirm jq
+                else
+                    print_error "Could not install jq. Please install it manually."
+                    return 1
+                fi
+                ;;
+            macos)
+                if command -v brew &>/dev/null; then
+                    brew install jq
+                else
+                    print_error "Homebrew not found. Please install jq manually: brew install jq"
+                    return 1
+                fi
+                ;;
+        esac
+    fi
+    
+    # Create backup
+    if [[ -f "$prefs_file" ]]; then
+        cp "$prefs_file" "$prefs_file.backup.$(date +%Y%m%d-%H%M%S)"
+        print_info "Created backup of Preferences file"
+    else
+        print_warning "Preferences file not found, creating new..."
+        echo '{}' > "$prefs_file"
+    fi
+    
+    # Create download directory
+    if [[ ! -d "$download_path" ]]; then
+        mkdir -p "$download_path"
+        print_success "Created download folder: $download_path"
+    fi
+    
+    # Build the JSON updates using jq
+    print_info "Configuring cookies and tracking..."
+    
+    local tmp_file
+    tmp_file=$(mktemp)
+    
+    # Apply all settings using jq
+    jq --arg download_path "$download_path" '
+    # Cookies and Tracking
+    .profile.block_third_party_cookies = true |
+    .profile.cookie_controls_mode = 1 |
+    .enable_do_not_track = true |
+    .safebrowsing.metrics_enabled = false |
+    .safebrowsing.scout_reporting_enabled = false |
+    .safebrowsing.enabled = true |
+    .safebrowsing.enhanced = false |
+    
+    # Privacy Sandbox APIs (Topics, Ad Measurement, etc.)
+    .privacy_sandbox.m1.topics_enabled = false |
+    .privacy_sandbox.m1.fledge_enabled = false |
+    .privacy_sandbox.m1.ad_measurement_enabled = false |
+    .privacy_sandbox.apis_enabled = false |
+    .privacy_sandbox.apis_enabled_v2 = false |
+    
+    # Autofill - Disable everything
+    .autofill.profile_enabled = false |
+    .autofill.credit_card_enabled = false |
+    .credentials_enable_service = false |
+    .profile.password_manager_enabled = false |
+    .payments.can_make_payment_enabled = false |
+    
+    # Other settings
+    .search.suggest_enabled = false |
+    .net.network_prediction_options = 2 |
+    .alternate_error_pages.enabled = false |
+    .session.restore_on_startup = 5 |
+    .download.prompt_for_download = true |
+    .download.default_directory = $download_path |
+    .savefile.default_directory = $download_path |
+    
+    # Languages
+    .intl.accept_languages = "en-US,en,pt-BR,pt" |
+    .intl.selected_languages = "en-US,en,pt-BR,pt" |
+    .spellcheck.dictionaries = ["pt-BR", "en-US"] |
+    .spellcheck.use_spelling_service = false |
+    
+    # Performance
+    .performance_tuning.high_efficiency_mode.state = 2 |
+    .performance_tuning.battery_saver_mode.state = 1 |
+    .hardware_acceleration_mode.enabled = true |
+    .background_mode.enabled = false |
+    .browser.background_mode_enabled = false
+    ' "$prefs_file" > "$tmp_file"
+    
+    # Check if jq succeeded
+    if [[ $? -eq 0 ]] && [[ -s "$tmp_file" ]]; then
+        mv "$tmp_file" "$prefs_file"
+        print_success "Preferences saved for $profile_name"
+    else
+        print_error "Failed to update preferences"
+        rm -f "$tmp_file"
+        return 1
+    fi
+}
+
+open_extension_pages() {
+    local os="$1"
+    local chrome_binary="$2"
+    
+    print_step "Opening extension installation pages..."
+    
+    print_info "Extensions will be opened in Chrome for installation."
+    print_warning "Please click 'Add to Chrome' for each extension."
+    echo ""
+    
+    local count=0
+    local total=${#EXTENSIONS[@]}
+    
+    for ext_name in "${!EXTENSIONS[@]}"; do
+        local ext_id="${EXTENSIONS[$ext_name]}"
+        local url="https://chrome.google.com/webstore/detail/$ext_id"
+        
+        ((count++))
+        echo -e "   ${CYAN}📦 [$count/$total] $ext_name${NC}"
+        
+        # Open in Chrome
+        case "$os" in
+            linux)
+                if [[ -n "$chrome_binary" ]]; then
+                    "$chrome_binary" "$url" &>/dev/null &
+                else
+                    xdg-open "$url" &>/dev/null &
+                fi
+                ;;
+            macos)
+                open -a "Google Chrome" "$url" &>/dev/null &
+                ;;
+        esac
+        
+        # Wait between opening tabs
+        sleep 1.5
+    done
+    
+    echo ""
+    print_success "Opened all $count extension pages in Chrome"
+    print_info "Install each extension by clicking 'Add to Chrome'"
+}
+
+show_summary() {
+    print_step "Configuration Summary"
+    
+    echo ""
+    echo -e "${WHITE}📋 Settings Applied:${NC}"
+    echo "   ├─ Block third-party cookies: Yes"
+    echo "   ├─ Do Not Track: Enabled"
+    echo "   ├─ Telemetry/Metrics: Disabled"
+    echo "   ├─ Safe Browsing: Standard mode"
+    echo "   ├─ Privacy Sandbox APIs: Disabled"
+    echo "   ├─ Autofill (addresses, cards, passwords): Disabled"
+    echo "   ├─ Search suggestions: Disabled"
+    echo "   ├─ Page preloading: Disabled"
+    echo "   ├─ URL reporting: Disabled"
+    echo "   ├─ On startup: New tab"
+    echo "   ├─ Downloads: Always ask, default ~/.tmp"
+    echo "   ├─ Languages: EN-US interface, spellcheck PT-BR + EN-US"
+    echo "   ├─ Memory Saver: Enabled"
+    echo "   ├─ Energy Saver: On battery"
+    echo "   ├─ Hardware acceleration: Enabled"
+    echo "   └─ Background apps: Disabled"
+    echo ""
+    
+    if [[ "$SKIP_EXTENSIONS" == "false" ]]; then
+        echo -e "${WHITE}📦 Extensions to install:${NC}"
+        for ext_name in "${!EXTENSIONS[@]}"; do
+            echo "   ├─ $ext_name"
+        done
+        echo ""
+    fi
+}
+
+check_chrome_running() {
+    if pgrep -x "chrome" &>/dev/null || pgrep -x "Google Chrome" &>/dev/null || pgrep -x "chromium" &>/dev/null; then
+        return 0  # Chrome is running
+    fi
+    return 1  # Chrome is not running
+}
+
+# ============================================================================
+# Main
+# ============================================================================
+
+main() {
+    parse_args "$@"
+    
+    echo ""
+    echo -e "${CYAN}╔══════════════════════════════════════════════════════════════╗${NC}"
+    echo -e "${CYAN}║     🔒 Chrome Security & Privacy Configuration Tool          ║${NC}"
+    echo -e "${CYAN}╚══════════════════════════════════════════════════════════════╝${NC}"
+    echo ""
+    
+    # Detect OS
+    local os
+    os=$(detect_os)
+    print_info "Detected OS: $os"
+    
+    if [[ "$os" == "unknown" ]]; then
+        print_error "Unsupported operating system"
+        exit 1
+    fi
+    
+    # Get Chrome paths
+    local chrome_path
+    chrome_path=$(get_chrome_path "$os")
+    
+    if [[ -z "$chrome_path" ]] || [[ ! -d "$chrome_path" ]]; then
+        print_error "Chrome installation not found"
+        exit 1
+    fi
+    
+    print_info "Chrome path: $chrome_path"
+    
+    local chrome_binary
+    chrome_binary=$(get_chrome_binary "$os")
+    
+    local download_path
+    download_path=$(get_download_path)
+    
+    # Check if Chrome is running
+    if check_chrome_running && [[ "$FORCE" == "false" ]]; then
+        print_warning "Chrome is currently running!"
+        echo ""
+        read -p "Close Chrome to continue? (y/n) " -n 1 -r
+        echo ""
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            print_info "Closing Chrome..."
+            pkill -x "chrome" 2>/dev/null || true
+            pkill -x "Google Chrome" 2>/dev/null || true
+            pkill -x "chromium" 2>/dev/null || true
+            sleep 2
+        else
+            print_warning "Some settings may not be applied while Chrome is running."
+        fi
+    fi
+    
+    # Get profiles
+    CHROME_PROFILES=()
+    get_chrome_profiles "$chrome_path"
+    
+    if [[ ${#CHROME_PROFILES[@]} -eq 0 ]]; then
+        print_error "No Chrome profiles found!"
+        exit 1
+    fi
+    
+    # Apply settings to each profile
+    if [[ "$SKIP_SETTINGS" == "false" ]]; then
+        for profile in "${CHROME_PROFILES[@]}"; do
+            set_chrome_preferences "$chrome_path" "$profile" "$download_path"
+        done
+    fi
+    
+    # Show summary
+    show_summary
+    
+    # Open extension installation pages
+    if [[ "$SKIP_EXTENSIONS" == "false" ]]; then
+        echo ""
+        read -p "Open extension installation pages now? (y/n) " -n 1 -r
+        echo ""
+        if [[ $REPLY =~ ^[Yy]$ ]]; then
+            open_extension_pages "$os" "$chrome_binary"
+        else
+            print_info "You can install extensions later by running with --skip-settings"
+        fi
+    fi
+    
+    echo ""
+    print_success "Configuration complete!"
+    echo ""
+    print_info "💡 Tip: Restart Chrome to apply all settings"
+}
+
+main "$@"

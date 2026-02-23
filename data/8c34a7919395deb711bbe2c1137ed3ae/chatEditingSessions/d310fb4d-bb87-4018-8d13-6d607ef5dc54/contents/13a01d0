@@ -1,0 +1,43 @@
+# .github-project
+
+Template de configurações específicas de projeto para o Copilot.
+
+## Uso
+
+Cada projeto tem sua própria branch com configurações específicas.
+
+### Branches disponíveis
+
+| Branch | Projeto | Descrição |
+|--------|---------|-----------|
+| `scripts` | [scripts](https://github.com/pdmartins/scripts) | Scripts de automação multi-plataforma |
+
+## Estrutura de uma branch de projeto
+
+```
+.github-project/
+├── initial.md              # Loader que carrega os outros arquivos
+├── conventions.md          # Convenções de código do projeto
+├── cross-platform.md       # Regras de sincronização (se aplicável)
+├── english-version.md      # Regras de tradução (se aplicável)
+├── project-structure.md    # Estrutura atual do projeto
+├── skills-catalog.md       # Catálogo de skills disponíveis
+├── skills/                 # Skills específicos do projeto
+│   ├── bash.md
+│   ├── powershell.md
+│   └── ...
+└── memory/                 # Memória persistente do Copilot
+    ├── lessons-learned.md
+    └── project-context.md
+```
+
+## Como adicionar um novo projeto
+
+1. Criar branch: `git checkout -b nome-do-projeto`
+2. Copiar estrutura de uma branch existente
+3. Customizar para o novo projeto
+4. Push: `git push -u origin nome-do-projeto`
+
+## Relacionado
+
+- [.github](https://github.com/pdmartins/.github) - Core do agente Copilot (compartilhado)

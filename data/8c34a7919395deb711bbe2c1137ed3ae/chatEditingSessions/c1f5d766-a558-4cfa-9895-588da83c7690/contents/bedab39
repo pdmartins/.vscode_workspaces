@@ -1,0 +1,417 @@
+# ============================================================================
+# Script: clone-devops-repos.ps1
+# Description: Clona todos os repositórios de um projeto no Azure DevOps
+# ============================================================================
+
+param(
+    [string]$OrganizationUrl,
+    [string]$Project,
+    [string]$Username,
+    [string]$Pat,
+    [string]$ClonePath,
+    [string]$ConfigFile,
+    [switch]$DebugMode
+)
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+function Write-Step {
+    param([string]$Message)
+    Write-Host "🚀 $Message" -ForegroundColor White
+}
+
+function Write-Info {
+    param([string]$Message)
+    Write-Host "🔍 $Message" -ForegroundColor Cyan
+}
+
+function Write-Success {
+    param([string]$Message)
+    Write-Host "✅ $Message" -ForegroundColor Green
+}
+
+function Write-Warning {
+    param([string]$Message)
+    Write-Host "⚠️ $Message" -ForegroundColor Yellow
+}
+
+function Write-Error {
+    param([string]$Message)
+    Write-Host "❌ $Message" -ForegroundColor Red
+}
+
+function Write-Install {
+    param([string]$Message)
+    Write-Host "📦 $Message" -ForegroundColor Yellow
+}
+
+function Write-Update {
+    param([string]$Message)
+    Write-Host "🔄 $Message" -ForegroundColor Cyan
+}
+
+function Write-DebugMsg {
+    param([string]$Message)
+    if ($script:DebugMode) {
+        Write-Host "🐛 DEBUG: $Message" -ForegroundColor Magenta
+    }
+}
+
+# Script directory
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$DefaultConfigFile = Join-Path $ScriptDir "config.json"
+
+# Tracking arrays
+$script:ReposCloned = @()
+$script:ReposUpdated = @()
+$script:ReposStashed = @()
+$script:ReposFailed = @()
+
+# ============================================================================
+# Functions
+# ============================================================================
+
+function Show-Usage {
+    Write-Host "Uso: .\clone-devops-repos.ps1 [opções]"
+    Write-Host ""
+    Write-Host "Opções:"
+    Write-Host "  -OrganizationUrl URL     URL da organização Azure DevOps"
+    Write-Host "  -Project NOME            Nome do projeto"
+    Write-Host "  -Username USER           Nome de usuário"
+    Write-Host "  -Pat TOKEN               Personal Access Token"
+    Write-Host "  -ClonePath PATH          Pasta de destino (padrão: .\repos)"
+    Write-Host "  -ConfigFile FILE         Arquivo de configuração JSON"
+    Write-Host "  -DebugMode               Ativa modo debug (mostra erros detalhados)"
+    Write-Host ""
+    Write-Host "Exemplo de config (config.json):"
+    Write-Host '{'
+    Write-Host '  "organization_url": "https://dev.azure.com/sua-org",'
+    Write-Host '  "project": "nome-do-projeto",'
+    Write-Host '  "username": "seu-usuario",'
+    Write-Host '  "pat": "seu-personal-access-token",'
+    Write-Host '  "clone_path": "./repos"'
+    Write-Host '}'
+}
+
+function Import-ConfigFile {
+    param([string]$Path)
+    
+    if (-not (Test-Path $Path)) {
+        return $false
+    }
+    
+    Write-Info "Carregando configuração de: $Path"
+    
+    try {
+        $config = Get-Content $Path -Raw | ConvertFrom-Json
+        
+        if ($config.organization_url) { $script:OrganizationUrl = $config.organization_url }
+        if ($config.project) { $script:Project = $config.project }
+        if ($config.username) { $script:Username = $config.username }
+        if ($config.pat) { $script:Pat = $config.pat }
+        if ($config.clone_path) { $script:ClonePath = $config.clone_path }
+        
+        Write-Success "Configuração carregada"
+        return $true
+    }
+    catch {
+        Write-Error "Erro ao ler configuração: $_"
+        return $false
+    }
+}
+
+function Test-Prerequisites {
+    Write-Info "Verificando pré-requisitos..."
+    
+    if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
+        Write-Error "Git não encontrado. Instale o Git primeiro."
+        exit 1
+    }
+    
+    Write-Success "Pré-requisitos OK"
+}
+
+function Test-Configuration {
+    $valid = $true
+    
+    if ([string]::IsNullOrEmpty($OrganizationUrl)) {
+        Write-Error "URL da organização não informada"
+        $valid = $false
+    }
+    
+    if ([string]::IsNullOrEmpty($Project)) {
+        Write-Error "Nome do projeto não informado"
+        $valid = $false
+    }
+    
+    if ([string]::IsNullOrEmpty($Username)) {
+        Write-Error "Username não informado"
+        $valid = $false
+    }
+    
+    if ([string]::IsNullOrEmpty($Pat)) {
+        Write-Error "PAT (Personal Access Token) não informado"
+        $valid = $false
+    }
+    
+    if (-not $valid) {
+        Write-Host ""
+        Show-Usage
+        exit 1
+    }
+    
+    # Valor padrão para ClonePath
+    if ([string]::IsNullOrEmpty($script:ClonePath)) {
+        $script:ClonePath = ".\repos"
+    }
+}
+
+function Get-Repositories {
+    Write-Info "Buscando repositórios do projeto: $Project"
+    
+    # Remover trailing slash da URL
+    $orgUrl = $OrganizationUrl.TrimEnd('/')
+    
+    # Codificar credenciais em base64
+    $auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${Username}:${Pat}"))
+    
+    # URL da API
+    $apiUrl = "${orgUrl}/${Project}/_apis/git/repositories?api-version=7.0"
+    
+    try {
+        $headers = @{
+            "Authorization" = "Basic $auth"
+        }
+        
+        $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers -Method Get
+        
+        return $response.value
+    }
+    catch {
+        Write-Error "Erro ao buscar repositórios: $_"
+        exit 1
+    }
+}
+
+function Copy-Repository {
+    param(
+        [string]$RepoName,
+        [string]$RepoUrl
+    )
+    
+    $targetDir = Join-Path $ClonePath $RepoName
+    $hadStash = $false
+    
+    # Construir URL com autenticação
+    $authUrl = $RepoUrl -replace "https://", "https://${Username}:${Pat}@"
+    
+    if (Test-Path (Join-Path $targetDir ".git")) {
+        Write-Update "Atualizando: $RepoName"
+        
+        try {
+            Push-Location $targetDir
+            
+            # Verificar se há mudanças locais
+            $diffOutput = git diff --quiet 2>&1
+            $diffCachedOutput = git diff --cached --quiet 2>&1
+            $hasChanges = ($LASTEXITCODE -ne 0)
+            
+            if ($hasChanges) {
+                Write-Warning "  Mudanças locais detectadas, fazendo stash..."
+                $stashResult = git stash push -m "auto-stash antes de pull $(Get-Date -Format 'yyyyMMdd-HHmmss')" --quiet 2>&1
+                if ($LASTEXITCODE -eq 0) {
+                    $hadStash = $true
+                    $script:ReposStashed += $RepoName
+                }
+                else {
+                    Write-Error "  Falha ao fazer stash"
+                    $script:ReposFailed += "$RepoName (stash falhou)"
+                    Pop-Location
+                    return $false
+                }
+            }
+            
+            # Fazer pull
+            git pull --quiet 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) {
+                $script:ReposUpdated += $RepoName
+                if ($hadStash) {
+                    Write-Info "  Restaurando stash..."
+                    git stash pop --quiet 2>&1 | Out-Null
+                    if ($LASTEXITCODE -ne 0) {
+                        Write-Warning "  ⚠️ Conflito ao restaurar stash. Use 'git stash pop' manualmente."
+                    }
+                }
+                Write-Success "OK: $RepoName"
+            }
+            else {
+                Write-Error "  Falha no pull"
+                $script:ReposFailed += "$RepoName (pull falhou)"
+                if ($hadStash) {
+                    git stash pop --quiet 2>&1 | Out-Null
+                }
+                Pop-Location
+                return $false
+            }
+            
+            Pop-Location
+        }
+        catch {
+            Write-Warning "Falha ao atualizar $RepoName"
+            $script:ReposFailed += "$RepoName (erro: $_)"
+            Pop-Location
+            return $false
+        }
+    }
+    else {
+        Write-Install "Clonando: $RepoName"
+        try {
+            # Em modo debug, mostra saída completa; caso contrário, silencia
+            if ($script:DebugMode) {
+                Write-DebugMsg "URL: $RepoUrl"
+                Write-DebugMsg "Destino: $targetDir"
+                Write-DebugMsg "Executando: git clone $authUrl $targetDir"
+                $cloneOutput = git clone $authUrl $targetDir 2>&1
+                $cloneExitCode = $LASTEXITCODE
+                Write-DebugMsg "Exit Code: $cloneExitCode"
+                if ($cloneOutput) {
+                    Write-DebugMsg "Output: $cloneOutput"
+                }
+            }
+            else {
+                $cloneOutput = git clone --quiet $authUrl $targetDir 2>&1
+                $cloneExitCode = $LASTEXITCODE
+            }
+            
+            if ($cloneExitCode -eq 0) {
+                $script:ReposCloned += $RepoName
+                Write-Success "OK: $RepoName"
+            }
+            else {
+                Write-Error "Falha ao clonar: $RepoName"
+                if ($script:DebugMode -and $cloneOutput) {
+                    Write-Host "   $cloneOutput" -ForegroundColor Red
+                }
+                $script:ReposFailed += "$RepoName (clone falhou)"
+                return $false
+            }
+        }
+        catch {
+            Write-Warning "Falha ao clonar $RepoName"
+            if ($script:DebugMode) {
+                Write-DebugMsg "Exceção: $_"
+            }
+            $script:ReposFailed += "$RepoName (clone falhou)"
+            return $false
+        }
+    }
+    
+    return $true
+}
+
+function Write-Summary {
+    Write-Host ""
+    Write-Host "============================================================"
+    Write-Step "RESUMO DA EXECUÇÃO"
+    Write-Host "============================================================"
+    Write-Host ""
+    
+    # Clonados
+    if ($script:ReposCloned.Count -gt 0) {
+        Write-Install "Repositórios clonados ($($script:ReposCloned.Count)):"
+        foreach ($repo in $script:ReposCloned) {
+            Write-Host "    • $repo"
+        }
+        Write-Host ""
+    }
+    
+    # Atualizados
+    if ($script:ReposUpdated.Count -gt 0) {
+        Write-Update "Repositórios atualizados ($($script:ReposUpdated.Count)):"
+        foreach ($repo in $script:ReposUpdated) {
+            Write-Host "    • $repo"
+        }
+        Write-Host ""
+    }
+    
+    # Com stash
+    if ($script:ReposStashed.Count -gt 0) {
+        Write-Warning "Repositórios com stash aplicado ($($script:ReposStashed.Count)):"
+        foreach ($repo in $script:ReposStashed) {
+            Write-Host "    • $repo"
+        }
+        Write-Host ""
+    }
+    
+    # Falhas
+    if ($script:ReposFailed.Count -gt 0) {
+        Write-Error "Repositórios com falha ($($script:ReposFailed.Count)):"
+        foreach ($repo in $script:ReposFailed) {
+            Write-Host "    • $repo"
+        }
+        Write-Host ""
+    }
+    
+    # Totalizador
+    Write-Host "------------------------------------------------------------"
+    $total = $script:ReposCloned.Count + $script:ReposUpdated.Count + $script:ReposFailed.Count
+    $success = $script:ReposCloned.Count + $script:ReposUpdated.Count
+    Write-Host "📊 TOTAL: $success de $total repositórios processados com sucesso" -ForegroundColor White
+    Write-Host "   📦 Clonados:    $($script:ReposCloned.Count)"
+    Write-Host "   🔄 Atualizados: $($script:ReposUpdated.Count)"
+    Write-Host "   📂 Com stash:   $($script:ReposStashed.Count)"
+    Write-Host "   ❌ Falhas:      $($script:ReposFailed.Count)"
+    Write-Host "------------------------------------------------------------"
+    Write-Info "Local: $ClonePath"
+}
+
+# ============================================================================
+# Main
+# ============================================================================
+
+function Main {
+    Write-Step "Clone de Repositórios Azure DevOps"
+    
+    if ($DebugMode) {
+        $script:DebugMode = $true
+        Write-Host "🐛 MODO DEBUG ATIVADO" -ForegroundColor Magenta
+    }
+    Write-Host ""
+    
+    # Tentar carregar config se parâmetros não foram fornecidos
+    if ([string]::IsNullOrEmpty($OrganizationUrl)) {
+        if (-not [string]::IsNullOrEmpty($ConfigFile)) {
+            Import-ConfigFile -Path $ConfigFile | Out-Null
+        }
+        elseif (Test-Path $DefaultConfigFile) {
+            Import-ConfigFile -Path $DefaultConfigFile | Out-Null
+        }
+    }
+    
+    Test-Prerequisites
+    Test-Configuration
+    
+    # Criar pasta de destino
+    if (-not (Test-Path $ClonePath)) {
+        Write-Info "Criando pasta: $ClonePath"
+        New-Item -ItemType Directory -Path $ClonePath -Force | Out-Null
+    }
+    
+    # Buscar repositórios
+    $repos = Get-Repositories
+    
+    if ($repos.Count -eq 0) {
+        Write-Warning "Nenhum repositório encontrado no projeto"
+        exit 0
+    }
+    
+    foreach ($repo in $repos) {
+        Copy-Repository -RepoName $repo.name -RepoUrl $repo.remoteUrl | Out-Null
+    }
+    
+    Write-Summary
+}
+
+Main

@@ -1,0 +1,376 @@
+#!/bin/bash
+set -euo pipefail
+
+# ============================================================================
+# Script: clone-devops-repos.sh
+# Description: Clona todos os repositórios de um projeto no Azure DevOps
+# ============================================================================
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+NC='\033[0m'
+
+# Helpers
+print_info()    { echo -e "${CYAN}🔍 $1${NC}"; }
+print_success() { echo -e "${GREEN}✅ $1${NC}"; }
+print_warning() { echo -e "${YELLOW}⚠️ $1${NC}"; }
+print_error()   { echo -e "${RED}❌ $1${NC}"; }
+print_step()    { echo -e "${WHITE}🚀 $1${NC}"; }
+print_install() { echo -e "${YELLOW}📦 $1${NC}"; }
+print_update()  { echo -e "${CYAN}🔄 $1${NC}"; }
+
+# Script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+CONFIG_FILE="${SCRIPT_DIR}/devops-config.json"
+
+# Default values
+ORGANIZATION_URL=""
+PROJECT=""
+USERNAME=""
+PAT=""
+CLONE_PATH=""
+
+# Tracking arrays
+REPOS_CLONED=()
+REPOS_UPDATED=()
+REPOS_STASHED=()
+REPOS_FAILED=()
+
+# Error handling
+trap 'print_error "Erro na linha $LINENO"; exit 1' ERR
+
+# ============================================================================
+# Functions
+# ============================================================================
+
+show_usage() {
+    echo "Uso: $0 [opções]"
+    echo ""
+    echo "Opções:"
+    echo "  -o, --org URL            URL da organização Azure DevOps"
+    echo "  -p, --project NOME       Nome do projeto"
+    echo "  -u, --username USER      Nome de usuário"
+    echo "  -t, --pat TOKEN          Personal Access Token"
+    echo "  -d, --destination PATH   Pasta de destino (padrão: ./repos)"
+    echo "  -c, --config FILE        Arquivo de configuração JSON"
+    echo "  -h, --help               Mostra esta ajuda"
+    echo ""
+    echo "Exemplo de config (devops-config.json):"
+    echo '{'
+    echo '  "organization_url": "https://dev.azure.com/sua-org",'
+    echo '  "project": "nome-do-projeto",'
+    echo '  "username": "seu-usuario",'
+    echo '  "pat": "seu-personal-access-token",'
+    echo '  "clone_path": "./repos"'
+    echo '}'
+}
+
+load_config() {
+    local config_path="$1"
+    
+    if [[ ! -f "$config_path" ]]; then
+        return 1
+    fi
+    
+    print_info "Carregando configuração de: $config_path"
+    
+    # Verificar se jq está disponível
+    if ! command -v jq &>/dev/null; then
+        print_error "jq não encontrado. Instale com: sudo apt install jq"
+        exit 1
+    fi
+    
+    ORGANIZATION_URL=$(jq -r '.organization_url // empty' "$config_path")
+    PROJECT=$(jq -r '.project // empty' "$config_path")
+    USERNAME=$(jq -r '.username // empty' "$config_path")
+    PAT=$(jq -r '.pat // empty' "$config_path")
+    CLONE_PATH=$(jq -r '.clone_path // empty' "$config_path")
+    
+    print_success "Configuração carregada"
+}
+
+check_prerequisites() {
+    print_info "Verificando pré-requisitos..."
+    
+    if ! command -v git &>/dev/null; then
+        print_error "Git não encontrado. Instale o Git primeiro."
+        exit 1
+    fi
+    
+    if ! command -v curl &>/dev/null; then
+        print_error "curl não encontrado. Instale o curl primeiro."
+        exit 1
+    fi
+    
+    if ! command -v jq &>/dev/null; then
+        print_error "jq não encontrado. Instale com: sudo apt install jq"
+        exit 1
+    fi
+    
+    print_success "Pré-requisitos OK"
+}
+
+validate_config() {
+    local valid=true
+    
+    if [[ -z "$ORGANIZATION_URL" ]]; then
+        print_error "URL da organização não informada"
+        valid=false
+    fi
+    
+    if [[ -z "$PROJECT" ]]; then
+        print_error "Nome do projeto não informado"
+        valid=false
+    fi
+    
+    if [[ -z "$USERNAME" ]]; then
+        print_error "Username não informado"
+        valid=false
+    fi
+    
+    if [[ -z "$PAT" ]]; then
+        print_error "PAT (Personal Access Token) não informado"
+        valid=false
+    fi
+    
+    if [[ "$valid" == "false" ]]; then
+        echo ""
+        show_usage
+        exit 1
+    fi
+    
+    # Valor padrão para clone_path
+    if [[ -z "$CLONE_PATH" ]]; then
+        CLONE_PATH="./repos"
+    fi
+}
+
+get_repositories() {
+    print_info "Buscando repositórios do projeto: $PROJECT"
+    
+    # Codificar credenciais em base64
+    local auth=$(echo -n "${USERNAME}:${PAT}" | base64)
+    
+    # Remover trailing slash da URL se existir
+    ORGANIZATION_URL="${ORGANIZATION_URL%/}"
+    
+    # URL da API para listar repositórios
+    local api_url="${ORGANIZATION_URL}/${PROJECT}/_apis/git/repositories?api-version=7.0"
+    
+    # Fazer requisição
+    local response
+    response=$(curl -s -H "Authorization: Basic ${auth}" "$api_url")
+    
+    # Verificar erro
+    if echo "$response" | jq -e '.message' &>/dev/null; then
+        local error_msg=$(echo "$response" | jq -r '.message')
+        print_error "Erro da API: $error_msg"
+        exit 1
+    fi
+    
+    # Extrair lista de repositórios
+    echo "$response" | jq -r '.value[] | "\(.name)|\(.remoteUrl)"'
+}
+
+clone_repository() {
+    local repo_name="$1"
+    local repo_url="$2"
+    local target_dir="${CLONE_PATH}/${repo_name}"
+    local had_stash=false
+    
+    # Construir URL com autenticação
+    local auth_url
+    auth_url=$(echo "$repo_url" | sed "s|https://|https://${USERNAME}:${PAT}@|")
+    
+    if [[ -d "$target_dir/.git" ]]; then
+        print_update "Atualizando: $repo_name"
+        
+        cd "$target_dir"
+        
+        # Verificar se há mudanças locais
+        if ! git diff --quiet 2>/dev/null || ! git diff --cached --quiet 2>/dev/null; then
+            print_warning "  Mudanças locais detectadas, fazendo stash..."
+            if git stash push -m "auto-stash antes de pull $(date +%Y%m%d-%H%M%S)" --quiet 2>/dev/null; then
+                had_stash=true
+                REPOS_STASHED+=("$repo_name")
+            else
+                print_error "  Falha ao fazer stash"
+                REPOS_FAILED+=("$repo_name (stash falhou)")
+                cd - > /dev/null
+                return 1
+            fi
+        fi
+        
+        # Fazer pull
+        if git pull --quiet 2>/dev/null; then
+            REPOS_UPDATED+=("$repo_name")
+            if [[ "$had_stash" == "true" ]]; then
+                print_info "  Restaurando stash..."
+                if ! git stash pop --quiet 2>/dev/null; then
+                    print_warning "  ⚠️ Conflito ao restaurar stash. Use 'git stash pop' manualmente."
+                fi
+            fi
+            print_success "OK: $repo_name"
+        else
+            print_error "  Falha no pull"
+            REPOS_FAILED+=("$repo_name (pull falhou)")
+            # Restaurar stash mesmo se pull falhou
+            if [[ "$had_stash" == "true" ]]; then
+                git stash pop --quiet 2>/dev/null || true
+            fi
+            cd - > /dev/null
+            return 1
+        fi
+        
+        cd - > /dev/null
+    else
+        print_install "Clonando: $repo_name"
+        if git clone --quiet "$auth_url" "$target_dir" 2>/dev/null; then
+            REPOS_CLONED+=("$repo_name")
+            print_success "OK: $repo_name"
+        else
+            print_error "Falha ao clonar: $repo_name"
+            REPOS_FAILED+=("$repo_name (clone falhou)")
+            return 1
+        fi
+    fi
+}
+
+print_summary() {
+    echo ""
+    echo "============================================================"
+    print_step "RESUMO DA EXECUÇÃO"
+    echo "============================================================"
+    echo ""
+    
+    # Clonados
+    if [[ ${#REPOS_CLONED[@]} -gt 0 ]]; then
+        print_install "Repositórios clonados (${#REPOS_CLONED[@]}):"
+        for repo in "${REPOS_CLONED[@]}"; do
+            echo "    • $repo"
+        done
+        echo ""
+    fi
+    
+    # Atualizados
+    if [[ ${#REPOS_UPDATED[@]} -gt 0 ]]; then
+        print_update "Repositórios atualizados (${#REPOS_UPDATED[@]}):"
+        for repo in "${REPOS_UPDATED[@]}"; do
+            echo "    • $repo"
+        done
+        echo ""
+    fi
+    
+    # Com stash
+    if [[ ${#REPOS_STASHED[@]} -gt 0 ]]; then
+        print_warning "Repositórios com stash aplicado (${#REPOS_STASHED[@]}):"
+        for repo in "${REPOS_STASHED[@]}"; do
+            echo "    • $repo"
+        done
+        echo ""
+    fi
+    
+    # Falhas
+    if [[ ${#REPOS_FAILED[@]} -gt 0 ]]; then
+        print_error "Repositórios com falha (${#REPOS_FAILED[@]}):"
+        for repo in "${REPOS_FAILED[@]}"; do
+            echo "    • $repo"
+        done
+        echo ""
+    fi
+    
+    # Totalizador
+    echo "------------------------------------------------------------"
+    local total=$((${#REPOS_CLONED[@]} + ${#REPOS_UPDATED[@]} + ${#REPOS_FAILED[@]}))
+    local success=$((${#REPOS_CLONED[@]} + ${#REPOS_UPDATED[@]}))
+    echo -e "${WHITE}📊 TOTAL: $success de $total repositórios processados com sucesso${NC}"
+    echo -e "   📦 Clonados:    ${#REPOS_CLONED[@]}"
+    echo -e "   🔄 Atualizados: ${#REPOS_UPDATED[@]}"
+    echo -e "   📂 Com stash:   ${#REPOS_STASHED[@]}"
+    echo -e "   ❌ Falhas:      ${#REPOS_FAILED[@]}"
+    echo "------------------------------------------------------------"
+    print_info "Local: $CLONE_PATH"
+}
+
+# ============================================================================
+# Main
+# ============================================================================
+
+main() {
+    print_step "Clone de Repositórios Azure DevOps"
+    echo ""
+    
+    # Parse argumentos
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -o|--org)
+                ORGANIZATION_URL="$2"
+                shift 2
+                ;;
+            -p|--project)
+                PROJECT="$2"
+                shift 2
+                ;;
+            -u|--username)
+                USERNAME="$2"
+                shift 2
+                ;;
+            -t|--pat)
+                PAT="$2"
+                shift 2
+                ;;
+            -d|--destination)
+                CLONE_PATH="$2"
+                shift 2
+                ;;
+            -c|--config)
+                CONFIG_FILE="$2"
+                shift 2
+                ;;
+            -h|--help)
+                show_usage
+                exit 0
+                ;;
+            *)
+                print_error "Opção desconhecida: $1"
+                show_usage
+                exit 1
+                ;;
+        esac
+    done
+    
+    # Tentar carregar config se existir e parâmetros não foram fornecidos
+    if [[ -z "$ORGANIZATION_URL" ]] && [[ -f "$CONFIG_FILE" ]]; then
+        load_config "$CONFIG_FILE"
+    fi
+    
+    check_prerequisites
+    validate_config
+    
+    # Criar pasta de destino
+    if [[ ! -d "$CLONE_PATH" ]]; then
+        print_info "Criando pasta: $CLONE_PATH"
+        mkdir -p "$CLONE_PATH"
+    fi
+    
+    # Buscar e clonar repositórios
+    local repos
+    repos=$(get_repositories)
+    
+    if [[ -z "$repos" ]]; then
+        print_warning "Nenhum repositório encontrado no projeto"
+        exit 0
+    fi
+    
+    while IFS='|' read -r repo_name repo_url; do
+        clone_repository "$repo_name" "$repo_url" || true
+    done <<< "$repos"
+    
+    print_summary
+}
+
+main "$@"

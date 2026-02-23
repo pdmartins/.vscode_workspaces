@@ -1,0 +1,271 @@
+# ============================================================================
+# Script: clone-devops-repos.ps1
+# Description: Clone all repositories from an Azure DevOps project
+# ============================================================================
+
+param(
+    [string]$OrganizationUrl,
+    [string]$Project,
+    [string]$Username,
+    [string]$Pat,
+    [string]$ClonePath,
+    [string]$ConfigFile
+)
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+function Write-Step {
+    param([string]$Message)
+    Write-Host "🚀 $Message" -ForegroundColor White
+}
+
+function Write-Info {
+    param([string]$Message)
+    Write-Host "🔍 $Message" -ForegroundColor Cyan
+}
+
+function Write-Success {
+    param([string]$Message)
+    Write-Host "✅ $Message" -ForegroundColor Green
+}
+
+function Write-Warning {
+    param([string]$Message)
+    Write-Host "⚠️ $Message" -ForegroundColor Yellow
+}
+
+function Write-Error {
+    param([string]$Message)
+    Write-Host "❌ $Message" -ForegroundColor Red
+}
+
+function Write-Install {
+    param([string]$Message)
+    Write-Host "📦 $Message" -ForegroundColor Yellow
+}
+
+function Write-Update {
+    param([string]$Message)
+    Write-Host "🔄 $Message" -ForegroundColor Cyan
+}
+
+# Script directory
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$DefaultConfigFile = Join-Path $ScriptDir "devops-config.json"
+
+# ============================================================================
+# Functions
+# ============================================================================
+
+function Show-Usage {
+    Write-Host "Usage: .\clone-devops-repos.ps1 [options]"
+    Write-Host ""
+    Write-Host "Options:"
+    Write-Host "  -OrganizationUrl URL     Azure DevOps organization URL"
+    Write-Host "  -Project NAME            Project name"
+    Write-Host "  -Username USER           Username"
+    Write-Host "  -Pat TOKEN               Personal Access Token"
+    Write-Host "  -ClonePath PATH          Destination folder (default: .\repos)"
+    Write-Host "  -ConfigFile FILE         JSON configuration file"
+    Write-Host ""
+    Write-Host "Config file example (devops-config.json):"
+    Write-Host '{'
+    Write-Host '  "organization_url": "https://dev.azure.com/your-org",'
+    Write-Host '  "project": "project-name",'
+    Write-Host '  "username": "your-username",'
+    Write-Host '  "pat": "your-personal-access-token",'
+    Write-Host '  "clone_path": "./repos"'
+    Write-Host '}'
+}
+
+function Import-ConfigFile {
+    param([string]$Path)
+    
+    if (-not (Test-Path $Path)) {
+        return $false
+    }
+    
+    Write-Info "Loading configuration from: $Path"
+    
+    try {
+        $config = Get-Content $Path -Raw | ConvertFrom-Json
+        
+        if ($config.organization_url) { $script:OrganizationUrl = $config.organization_url }
+        if ($config.project) { $script:Project = $config.project }
+        if ($config.username) { $script:Username = $config.username }
+        if ($config.pat) { $script:Pat = $config.pat }
+        if ($config.clone_path) { $script:ClonePath = $config.clone_path }
+        
+        Write-Success "Configuration loaded"
+        return $true
+    }
+    catch {
+        Write-Error "Error reading configuration: $_"
+        return $false
+    }
+}
+
+function Test-Prerequisites {
+    Write-Info "Checking prerequisites..."
+    
+    if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
+        Write-Error "Git not found. Install Git first."
+        exit 1
+    }
+    
+    Write-Success "Prerequisites OK"
+}
+
+function Test-Configuration {
+    $valid = $true
+    
+    if ([string]::IsNullOrEmpty($OrganizationUrl)) {
+        Write-Error "Organization URL not provided"
+        $valid = $false
+    }
+    
+    if ([string]::IsNullOrEmpty($Project)) {
+        Write-Error "Project name not provided"
+        $valid = $false
+    }
+    
+    if ([string]::IsNullOrEmpty($Username)) {
+        Write-Error "Username not provided"
+        $valid = $false
+    }
+    
+    if ([string]::IsNullOrEmpty($Pat)) {
+        Write-Error "PAT (Personal Access Token) not provided"
+        $valid = $false
+    }
+    
+    if (-not $valid) {
+        Write-Host ""
+        Show-Usage
+        exit 1
+    }
+    
+    # Default value for ClonePath
+    if ([string]::IsNullOrEmpty($script:ClonePath)) {
+        $script:ClonePath = ".\repos"
+    }
+}
+
+function Get-Repositories {
+    Write-Info "Fetching repositories from project: $Project"
+    
+    # Remove trailing slash from URL
+    $orgUrl = $OrganizationUrl.TrimEnd('/')
+    
+    # Encode credentials in base64
+    $auth = [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("${Username}:${Pat}"))
+    
+    # API URL
+    $apiUrl = "${orgUrl}/${Project}/_apis/git/repositories?api-version=7.0"
+    
+    try {
+        $headers = @{
+            "Authorization" = "Basic $auth"
+        }
+        
+        $response = Invoke-RestMethod -Uri $apiUrl -Headers $headers -Method Get
+        
+        return $response.value
+    }
+    catch {
+        Write-Error "Error fetching repositories: $_"
+        exit 1
+    }
+}
+
+function Copy-Repository {
+    param(
+        [string]$RepoName,
+        [string]$RepoUrl
+    )
+    
+    $targetDir = Join-Path $ClonePath $RepoName
+    
+    # Build URL with authentication
+    $authUrl = $RepoUrl -replace "https://", "https://${Username}:${Pat}@"
+    
+    if (Test-Path (Join-Path $targetDir ".git")) {
+        Write-Update "Repository already exists: $RepoName (updating...)"
+        try {
+            Push-Location $targetDir
+            git pull --quiet 2>$null
+            Pop-Location
+        }
+        catch {
+            Write-Warning "Failed to update $RepoName"
+            Pop-Location
+        }
+    }
+    else {
+        Write-Install "Cloning: $RepoName"
+        try {
+            git clone --quiet $authUrl $targetDir 2>$null
+        }
+        catch {
+            Write-Warning "Failed to clone $RepoName"
+            return $false
+        }
+    }
+    
+    Write-Success "OK: $RepoName"
+    return $true
+}
+
+# ============================================================================
+# Main
+# ============================================================================
+
+function Main {
+    Write-Step "Azure DevOps Repository Clone"
+    Write-Host ""
+    
+    # Try to load config if parameters were not provided
+    if ([string]::IsNullOrEmpty($OrganizationUrl)) {
+        if (-not [string]::IsNullOrEmpty($ConfigFile)) {
+            Import-ConfigFile -Path $ConfigFile | Out-Null
+        }
+        elseif (Test-Path $DefaultConfigFile) {
+            Import-ConfigFile -Path $DefaultConfigFile | Out-Null
+        }
+    }
+    
+    Test-Prerequisites
+    Test-Configuration
+    
+    # Create destination folder
+    if (-not (Test-Path $ClonePath)) {
+        Write-Info "Creating folder: $ClonePath"
+        New-Item -ItemType Directory -Path $ClonePath -Force | Out-Null
+    }
+    
+    # Fetch repositories
+    $repos = Get-Repositories
+    
+    if ($repos.Count -eq 0) {
+        Write-Warning "No repositories found in project"
+        exit 0
+    }
+    
+    $total = 0
+    $success = 0
+    
+    foreach ($repo in $repos) {
+        $total++
+        if (Copy-Repository -RepoName $repo.name -RepoUrl $repo.remoteUrl) {
+            $success++
+        }
+    }
+    
+    Write-Host ""
+    Write-Success "Done! $success of $total repositories cloned/updated"
+    Write-Info "Location: $ClonePath"
+}
+
+Main

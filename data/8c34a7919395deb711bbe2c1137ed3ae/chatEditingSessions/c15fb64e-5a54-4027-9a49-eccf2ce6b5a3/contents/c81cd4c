@@ -1,0 +1,189 @@
+# Chrome
+
+Scripts para configurar segurança, privacidade e extensões do Google Chrome em múltiplos perfis.
+
+## Scripts
+
+| Script | Descrição |
+|--------|-----------|
+| `configure-chrome.ps1` | Configura Chrome no Windows (inclui bloqueio da extensão Purview) |
+| `configure-chrome.sh` | Configura Chrome no Linux e macOS |
+
+## O que é Configurado
+
+### 🔒 Segurança e Privacidade
+
+| Configuração | Valor |
+|--------------|-------|
+| Cookies de terceiros | Bloqueados |
+| Do Not Track | Ativado |
+| Telemetria/Métricas Google | Desativado |
+| Safe Browsing | Modo padrão |
+| Topics API | Desativado |
+| Ad Measurement API | Desativado |
+| FLEDGE API | Desativado |
+
+### 📝 Autofill
+
+| Configuração | Valor |
+|--------------|-------|
+| Endereços | Desativado |
+| Cartões de crédito | Desativado |
+| Senhas | Desativado |
+
+### ⚙️ Outras Configurações
+
+| Configuração | Valor |
+|--------------|-------|
+| Sugestões de pesquisa | Desativado |
+| Pré-carregamento de páginas | Desativado |
+| Relatórios de URL | Desativado |
+| Ao iniciar | Nova aba |
+| Downloads | Sempre perguntar |
+| Pasta de downloads | `D:\.temp` (Windows) / `~/.tmp` (Linux/macOS) |
+| Idioma da interface | Inglês |
+| Verificação ortográfica | PT-BR e EN-US |
+
+### 🚀 Performance
+
+| Configuração | Valor |
+|--------------|-------|
+| Memory Saver | Ativado |
+| Energy Saver | Ativado (na bateria) |
+| Aceleração de hardware | Ativado |
+| Apps em background | Desativado |
+
+### 📦 Extensões Instaladas
+
+- uBlock Origin
+- ClearURLs
+- Privacy Badger
+- Decentraleyes
+- HTTPS Everywhere
+- Bitwarden
+- Dark Reader
+- Simple Translate
+- Cookie AutoDelete
+- Raindrop.io
+- TamperMonkey
+- Wappalyzer
+- EditThisCookie
+- Requestly
+
+### 🛡️ Bloqueio Microsoft Purview (Somente Windows)
+
+O script verifica se a extensão Microsoft Purview (`echcggldkblhodogklpincgchnpgcdco`) está instalada em cada perfil. Se estiver:
+1. Remove o conteúdo da pasta da extensão
+2. Bloqueia a pasta com permissão "Deny ALL" para "Everyone"
+
+## Requisitos
+
+### Windows
+- PowerShell 5.1+
+- Direitos de administrador (para bloqueio da extensão Purview)
+
+### Linux
+- Bash 4.0+
+- `jq` (instalado automaticamente se não existir)
+- Chrome ou Chromium instalado
+
+### macOS
+- Bash 4.0+
+- `jq` (instalado via Homebrew se não existir)
+- Google Chrome instalado
+
+## Uso
+
+### PowerShell (Windows)
+
+```powershell
+# Executar como administrador para funcionalidade completa
+.\configure-chrome.ps1
+
+# Apenas instalar extensões (pular configurações)
+.\configure-chrome.ps1 -SkipSettings
+
+# Apenas configurar (pular extensões)
+.\configure-chrome.ps1 -SkipExtensions
+
+# Pular bloqueio da extensão Purview
+.\configure-chrome.ps1 -SkipPurviewBlock
+
+# Não perguntar para fechar o Chrome
+.\configure-chrome.ps1 -Force
+```
+
+### Bash (Linux/macOS)
+
+```bash
+# Tornar executável (primeira vez)
+chmod +x configure-chrome.sh
+
+# Executar
+./configure-chrome.sh
+
+# Apenas instalar extensões
+./configure-chrome.sh --skip-settings
+
+# Apenas configurar
+./configure-chrome.sh --skip-extensions
+
+# Não perguntar para fechar o Chrome
+./configure-chrome.sh --force
+```
+
+## Parâmetros
+
+### PowerShell
+
+| Parâmetro | Tipo | Descrição |
+|-----------|------|-----------|
+| `-SkipExtensions` | Switch | Não abre páginas de instalação de extensões |
+| `-SkipSettings` | Switch | Não modifica as preferências do Chrome |
+| `-SkipPurviewBlock` | Switch | Não bloqueia a extensão Microsoft Purview |
+| `-Force` | Switch | Não pergunta para fechar o Chrome |
+
+### Bash
+
+| Parâmetro | Descrição |
+|-----------|-----------|
+| `--skip-extensions` | Não abre páginas de instalação de extensões |
+| `--skip-settings` | Não modifica as preferências do Chrome |
+| `--force` | Não pergunta para fechar o Chrome |
+| `-h, --help` | Mostra ajuda |
+
+## Notas Importantes
+
+1. **Feche o Chrome** antes de executar o script para garantir que todas as configurações sejam aplicadas corretamente.
+
+2. **Instalação de extensões**: O script abre as páginas da Chrome Web Store para cada extensão. Você precisa clicar em "Adicionar ao Chrome" manualmente para cada uma.
+
+3. **Perfis detectados**: O script detecta automaticamente todos os perfis do Chrome (Default, Profile 1, Profile 2, etc.) e aplica as configurações em todos.
+
+4. **Backup**: Antes de modificar, o script cria um backup do arquivo `Preferences` de cada perfil.
+
+5. **Reinstalação de extensões**: As extensões são instaladas de forma padrão - o usuário pode removê-las posteriormente se desejar.
+
+## Exemplos
+
+### Configurar tudo em uma nova máquina
+
+```powershell
+# Windows - Execute como Administrador
+.\configure-chrome.ps1
+```
+
+```bash
+# Linux/macOS
+./configure-chrome.sh
+```
+
+### Apenas adicionar extensões em uma máquina já configurada
+
+```powershell
+.\configure-chrome.ps1 -SkipSettings -SkipPurviewBlock
+```
+
+```bash
+./configure-chrome.sh --skip-settings
+```

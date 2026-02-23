@@ -1,0 +1,116 @@
+# ☁️ Azure Scripts
+
+Scripts for automation and management of Microsoft Azure resources.
+
+## 📋 Available Scripts
+
+### `export-azure-resources.ps1`
+
+Exports an Azure Resource Group as an ARM Template for backup or migration.
+
+**Features:**
+- 🔐 Connects to an Azure tenant
+- 📦 Exports all resources from a Resource Group
+- 💾 Saves as ARM Template locally
+- ✅ Automatically checks Execution Policy
+
+**Parameters:**
+| Parameter | Required | Description |
+|-----------|----------|-------------|
+| `-TenantId` | No* | Azure tenant ID |
+| `-SubscriptionId` | No* | Azure subscription ID |
+| `-ResourceGroupName` | No* | Name of the Resource Group to export |
+| `-ExportPath` | No | Path to save (default: `.\azure-migration`) |
+| `-SkipLogin` | No | Skip login if already authenticated |
+
+*If not provided, will be requested interactively.
+
+**Usage example:**
+```powershell
+# With parameters
+.\export-azure-resources.ps1 -TenantId "xxx" -SubscriptionId "yyy" -ResourceGroupName "my-rg"
+
+# Interactive (data will be requested)
+.\export-azure-resources.ps1
+```
+
+**Requirements:**
+- Azure CLI installed
+- PowerShell 5.1+ or PowerShell Core
+
+---
+
+### `run-execution-policy.bat`
+
+Helper script to configure PowerShell Execution Policy.
+
+**Usage:**
+```batch
+run-execution-policy.bat
+```
+
+Sets the execution policy to `RemoteSigned` for the current user scope.
+
+---
+
+### `clone-devops-repos.ps1` / `clone-devops-repos.sh`
+
+Clone all repositories from an Azure DevOps project.
+
+**Features:**
+- 📦 Lists all repositories in a project
+- 🔄 Clones new repositories automatically
+- 🔄 Updates existing repositories (git pull)
+- 📁 Supports JSON configuration file
+- ✅ Idempotent (can run multiple times)
+
+**Parameters:**
+| Parameter | Description |
+|-----------|-------------|
+| `-OrganizationUrl` / `-o` | Azure DevOps organization URL |
+| `-Project` / `-p` | Project name |
+| `-Username` / `-u` | Username (email) |
+| `-Pat` / `-t` | Personal Access Token |
+| `-ClonePath` / `-d` | Destination folder (default: `./repos`) |
+| `-ConfigFile` / `-c` | JSON configuration file |
+
+**Configuration file (`devops-config.json`):**
+```json
+{
+  "organization_url": "https://dev.azure.com/your-org",
+  "project": "project-name",
+  "username": "your-email@example.com",
+  "pat": "your-personal-access-token",
+  "clone_path": "./repos"
+}
+```
+
+> ⚠️ **Security:** Copy `devops-config.example.json` to `devops-config.json` and fill in your data. The `devops-config.json` file is in `.gitignore`.
+
+**Usage examples:**
+```powershell
+# Windows - With configuration file in the same folder
+.\clone-devops-repos.ps1
+
+# Windows - With parameters
+.\clone-devops-repos.ps1 -OrganizationUrl "https://dev.azure.com/my-org" -Project "my-project" -Username "email@example.com" -Pat "my-token"
+```
+
+```bash
+# Linux - With configuration file in the same folder
+./clone-devops-repos.sh
+
+# Linux - With parameters
+./clone-devops-repos.sh -o "https://dev.azure.com/my-org" -p "my-project" -u "email@example.com" -t "my-token"
+```
+
+**Requirements:**
+- Git installed
+- Azure DevOps Personal Access Token (PAT) with repository read permission
+- Linux: `curl` and `jq` installed
+
+**How to get the PAT:**
+1. Go to Azure DevOps → User Settings → Personal Access Tokens
+2. Click "New Token"
+3. Select scope: `Code (Read)` at minimum
+4. Copy the generated token

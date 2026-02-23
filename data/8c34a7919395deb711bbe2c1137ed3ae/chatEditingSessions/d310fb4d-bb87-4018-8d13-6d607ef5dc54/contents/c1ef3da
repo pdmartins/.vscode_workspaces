@@ -1,0 +1,171 @@
+# Sync Skill
+
+<skill id="sync" context="after modifying *.ps1 or *.sh">
+
+## Quando Usar
+
+<triggers>
+  - Após criar/modificar qualquer script
+  - Verificar sincronização entre plataformas
+  - Verificar sincronização .english-version/
+</triggers>
+
+## Regras Fundamentais
+
+<rules critical="true">
+  <rule id="english-version">
+    A pasta `.english-version/` DEVE SEMPRE refletir os scripts da raiz.
+    TODA alteração em script/README DEVE ser replicada com textos em inglês.
+  </rule>
+  
+  <rule id="cross-platform">
+    TODO script DEVE ter versão Linux (.sh) E Windows (.ps1) quando possível.
+    Se não existir solução nativa para uma plataforma, criar WRAPPER para WSL.
+  </rule>
+  
+  <rule id="readme-per-folder" critical="true">
+    TODA pasta de scripts DEVE ter um README.md.
+  </rule>
+</rules>
+
+## Workflow
+
+<workflow id="sync-workflow" trigger="after-script-modification">
+  
+  <step n="1" goal="Identificar tipo de mudança">
+    <action>Analisar alterações feitas no script</action>
+    
+    <check if="mudança em parâmetros">
+      <action>Marcar: sync_params = true</action>
+    </check>
+    
+    <check if="mudança em lógica/comportamento">
+      <action>Marcar: sync_logic = true</action>
+    </check>
+    
+    <check if="mudança em output/mensagens">
+      <action>Marcar: sync_output = true</action>
+    </check>
+  </step>
+
+  <step n="2" goal="Determinar estratégia de sincronização">
+    <action>Consultar project-structure.md para exceções</action>
+    
+    <check if="pasta tem estratégia 'wrapper'">
+      <action>Marcar: strategy = "wrapper"</action>
+    </check>
+    
+    <check if="pasta tem estratégia 'platform-specific'">
+      <action>Marcar: strategy = "platform-specific"</action>
+    </check>
+    
+    <check if="pasta NÃO está em exceções">
+      <action>Marcar: strategy = "full-sync"</action>
+    </check>
+  </step>
+
+  <step n="3" goal="Verificar/criar contraparte cross-platform">
+    <check if="strategy == 'full-sync'">
+      <check if="script é *.sh E NÃO existe *.ps1">
+        <action>Criar arquivo .ps1 com mesma lógica</action>
+      </check>
+      
+      <check if="script é *.ps1 E NÃO existe *.sh">
+        <action>Criar arquivo .sh com mesma lógica</action>
+      </check>
+      
+      <check if="ambos existem">
+        <action>Sincronizar lógica entre os dois</action>
+      </check>
+    </check>
+    
+    <check if="strategy == 'wrapper'">
+      <action>Criar/atualizar wrapper WSL</action>
+    </check>
+  </step>
+
+  <step n="4" goal="Garantir README da pasta">
+    <check if="README.md NÃO existe">
+      <action>Criar usando skill readme.md</action>
+    </check>
+    
+    <check if="README.md existe E houve mudança funcional">
+      <action>Atualizar README</action>
+    </check>
+  </step>
+
+  <step n="5" goal="Replicar para .english-version/">
+    <action critical="true">SEMPRE replicar para .english-version/</action>
+    <action>Traduzir comentários para inglês</action>
+    <action>Traduzir mensagens de output para inglês</action>
+    <action>Manter nomes de variáveis/funções iguais</action>
+    
+    <check if="README modificado">
+      <action>Criar/atualizar .english-version/{pasta}/README.md</action>
+    </check>
+  </step>
+
+  <step n="6" goal="Resumo">
+    <output>
+      📋 **Resumo de Sincronização**
+      | Item | Status |
+      |------|--------|
+      | Script principal | ✅ |
+      | Contraparte | {status} |
+      | README.md | {status} |
+      | .english-version/ | ✅ |
+    </output>
+  </step>
+</workflow>
+
+## WSL Wrapper Template
+
+```powershell
+# ============================================================================
+# Script: {nome}.ps1 (WSL Wrapper)
+# Description: Windows wrapper for {nome}.sh (runs via WSL)
+# ============================================================================
+
+param(
+    # Mesmos parâmetros do .sh
+)
+
+function Test-WslAvailable {
+    try {
+        $null = wsl --status 2>&1
+        return $true
+    }
+    catch { return $false }
+}
+
+Write-Host "🚀 Running via WSL..." -ForegroundColor White
+
+if (-not (Test-WslAvailable)) {
+    Write-Host "❌ WSL not available. Run: wsl --install" -ForegroundColor Red
+    exit 1
+}
+
+$ScriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
+$WslPath = $ScriptDir -replace '\\', '/' -replace '^([A-Za-z]):', '/mnt/$1'.ToLower()
+
+wsl bash -c "cd '$WslPath' && chmod +x '{nome}.sh' && ./{nome}.sh"
+```
+
+## Estratégias
+
+| Estratégia | Quando Usar |
+|------------|-------------|
+| `full-sync` | Ferramenta com suporte nativo em ambas plataformas |
+| `wrapper` | Ferramenta só existe no Linux |
+| `platform-specific` | Ferramenta exclusiva de uma plataforma |
+
+## Checklist
+
+<checklist>
+  - [ ] Contraparte existe (ou wrapper)
+  - [ ] Contraparte sincronizada
+  - [ ] README atualizado
+  - [ ] .english-version/ atualizado
+</checklist>
+
+</skill>

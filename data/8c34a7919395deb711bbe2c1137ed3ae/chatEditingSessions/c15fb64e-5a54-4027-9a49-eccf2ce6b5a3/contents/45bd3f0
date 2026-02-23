@@ -1,0 +1,189 @@
+# Chrome
+
+Scripts to configure security, privacy, and extensions for Google Chrome across multiple profiles.
+
+## Scripts
+
+| Script | Description |
+|--------|-------------|
+| `configure-chrome.ps1` | Configures Chrome on Windows (includes Purview extension blocking) |
+| `configure-chrome.sh` | Configures Chrome on Linux and macOS |
+
+## What is Configured
+
+### 🔒 Security and Privacy
+
+| Setting | Value |
+|---------|-------|
+| Third-party cookies | Blocked |
+| Do Not Track | Enabled |
+| Google Telemetry/Metrics | Disabled |
+| Safe Browsing | Standard mode |
+| Topics API | Disabled |
+| Ad Measurement API | Disabled |
+| FLEDGE API | Disabled |
+
+### 📝 Autofill
+
+| Setting | Value |
+|---------|-------|
+| Addresses | Disabled |
+| Credit cards | Disabled |
+| Passwords | Disabled |
+
+### ⚙️ Other Settings
+
+| Setting | Value |
+|---------|-------|
+| Search suggestions | Disabled |
+| Page preloading | Disabled |
+| URL reporting | Disabled |
+| On startup | New tab |
+| Downloads | Always ask |
+| Download folder | `D:\.temp` (Windows) / `~/.tmp` (Linux/macOS) |
+| Interface language | English |
+| Spell check | PT-BR and EN-US |
+
+### 🚀 Performance
+
+| Setting | Value |
+|---------|-------|
+| Memory Saver | Enabled |
+| Energy Saver | Enabled (on battery) |
+| Hardware acceleration | Enabled |
+| Background apps | Disabled |
+
+### 📦 Installed Extensions
+
+- uBlock Origin
+- ClearURLs
+- Privacy Badger
+- Decentraleyes
+- HTTPS Everywhere
+- Bitwarden
+- Dark Reader
+- Simple Translate
+- Cookie AutoDelete
+- Raindrop.io
+- TamperMonkey
+- Wappalyzer
+- EditThisCookie
+- Requestly
+
+### 🛡️ Microsoft Purview Blocking (Windows Only)
+
+The script checks if the Microsoft Purview extension (`echcggldkblhodogklpincgchnpgcdco`) is installed in each profile. If found:
+1. Removes the content from the extension folder
+2. Blocks the folder with "Deny ALL" permission for "Everyone"
+
+## Requirements
+
+### Windows
+- PowerShell 5.1+
+- Administrator rights (for Purview extension blocking)
+
+### Linux
+- Bash 4.0+
+- `jq` (automatically installed if not present)
+- Chrome or Chromium installed
+
+### macOS
+- Bash 4.0+
+- `jq` (installed via Homebrew if not present)
+- Google Chrome installed
+
+## Usage
+
+### PowerShell (Windows)
+
+```powershell
+# Run as administrator for full functionality
+.\configure-chrome.ps1
+
+# Only install extensions (skip settings)
+.\configure-chrome.ps1 -SkipSettings
+
+# Only configure (skip extensions)
+.\configure-chrome.ps1 -SkipExtensions
+
+# Skip Purview extension blocking
+.\configure-chrome.ps1 -SkipPurviewBlock
+
+# Don't ask to close Chrome
+.\configure-chrome.ps1 -Force
+```
+
+### Bash (Linux/macOS)
+
+```bash
+# Make executable (first time)
+chmod +x configure-chrome.sh
+
+# Run
+./configure-chrome.sh
+
+# Only install extensions
+./configure-chrome.sh --skip-settings
+
+# Only configure
+./configure-chrome.sh --skip-extensions
+
+# Don't ask to close Chrome
+./configure-chrome.sh --force
+```
+
+## Parameters
+
+### PowerShell
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `-SkipExtensions` | Switch | Don't open extension installation pages |
+| `-SkipSettings` | Switch | Don't modify Chrome preferences |
+| `-SkipPurviewBlock` | Switch | Don't block Microsoft Purview extension |
+| `-Force` | Switch | Don't ask to close Chrome |
+
+### Bash
+
+| Parameter | Description |
+|-----------|-------------|
+| `--skip-extensions` | Don't open extension installation pages |
+| `--skip-settings` | Don't modify Chrome preferences |
+| `--force` | Don't ask to close Chrome |
+| `-h, --help` | Show help |
+
+## Important Notes
+
+1. **Close Chrome** before running the script to ensure all settings are applied correctly.
+
+2. **Extension installation**: The script opens Chrome Web Store pages for each extension. You need to click "Add to Chrome" manually for each one.
+
+3. **Detected profiles**: The script automatically detects all Chrome profiles (Default, Profile 1, Profile 2, etc.) and applies settings to all of them.
+
+4. **Backup**: Before modifying, the script creates a backup of each profile's `Preferences` file.
+
+5. **Extension reinstallation**: Extensions are installed in the standard way - users can remove them later if desired.
+
+## Examples
+
+### Configure everything on a new machine
+
+```powershell
+# Windows - Run as Administrator
+.\configure-chrome.ps1
+```
+
+```bash
+# Linux/macOS
+./configure-chrome.sh
+```
+
+### Only add extensions on an already configured machine
+
+```powershell
+.\configure-chrome.ps1 -SkipSettings -SkipPurviewBlock
+```
+
+```bash
+./configure-chrome.sh --skip-settings
+```
