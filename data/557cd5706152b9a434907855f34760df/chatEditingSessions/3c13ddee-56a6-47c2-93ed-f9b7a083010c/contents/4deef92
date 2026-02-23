@@ -1,0 +1,82 @@
+#Requires -Version 7.0
+<#
+.SYNOPSIS
+    Setup script for GCP authentication and local development.
+
+.DESCRIPTION
+    Configures gcloud CLI, authenticates the user, and sets up
+    Application Default Credentials (ADC) for the PoC STT GCP project.
+
+.NOTES
+    Prerequisites:
+    - gcloud CLI installed (https://cloud.google.com/sdk/docs/install)
+    - Access to the GCP project 'poc-stt-gcp'
+#>
+
+$ErrorActionPreference = "Stop"
+$ProjectId = "poc-stt-gcp"
+
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  GCP Setup - PoC Speech-to-Text" -ForegroundColor Cyan
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host ""
+
+# 1. Check gcloud CLI
+Write-Host "[1/4] Checking gcloud CLI..." -ForegroundColor Yellow
+$gcloud = Get-Command gcloud -ErrorAction SilentlyContinue
+if (-not $gcloud) {
+    Write-Host "  ERROR: gcloud CLI not found." -ForegroundColor Red
+    Write-Host "  Install it from: https://cloud.google.com/sdk/docs/install" -ForegroundColor Red
+    exit 1
+}
+$version = (gcloud --version 2>&1 | Select-Object -First 1)
+Write-Host "  OK: $version" -ForegroundColor Green
+
+# 2. Authenticate
+Write-Host ""
+Write-Host "[2/4] Authenticating with Google Cloud..." -ForegroundColor Yellow
+Write-Host "  A browser window will open. Sign in with your Google account."
+gcloud auth login --brief
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "  ERROR: Authentication failed." -ForegroundColor Red
+    exit 1
+}
+Write-Host "  OK: Authenticated." -ForegroundColor Green
+
+# 3. Set project
+Write-Host ""
+Write-Host "[3/4] Setting active project to '$ProjectId'..." -ForegroundColor Yellow
+gcloud config set project $ProjectId 2>&1 | Out-Null
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "  ERROR: Failed to set project. Do you have access to '$ProjectId'?" -ForegroundColor Red
+    exit 1
+}
+Write-Host "  OK: Project set to '$ProjectId'." -ForegroundColor Green
+
+# 4. Application Default Credentials
+Write-Host ""
+Write-Host "[4/4] Setting up Application Default Credentials (ADC)..." -ForegroundColor Yellow
+Write-Host "  A browser window will open. Authorize the application."
+gcloud auth application-default login --project=$ProjectId
+if ($LASTEXITCODE -ne 0) {
+    Write-Host "  ERROR: ADC setup failed." -ForegroundColor Red
+    exit 1
+}
+Write-Host "  OK: ADC configured." -ForegroundColor Green
+
+# Summary
+Write-Host ""
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host "  Setup complete!" -ForegroundColor Green
+Write-Host "========================================" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  Project:  $ProjectId"
+Write-Host "  Region:   us-central1"
+Write-Host "  Bucket:   poc-stt-gcp-audio"
+Write-Host ""
+Write-Host "  Next steps:" -ForegroundColor Yellow
+Write-Host "    cd src/poc_stt_gcp"
+Write-Host "    dotnet run"
+Write-Host "    # Open https://localhost:7265/swagger"
+Write-Host ""
