@@ -1,0 +1,137 @@
+---
+name: project-init
+description: Guia manual para inicializar estrutura de .copilot-core e .copilot-project em novo workspace. Para setup automatizado, use plug + bootstrap. Triggers - inicializar projeto manualmente, passo a passo, entender estrutura.
+metadata:
+  author: copilot-core
+  version: "1.2"
+  category: project
+---
+
+# Project Init
+
+Guia **manual** para inicializar a estrutura de prompts em um novo workspace.
+
+> 💡 **Quer o caminho mais rápido?** Dois passos:
+> 1. **Plug**: `irm .../plug.ps1 | iex` — adiciona submodules
+> 2. **Configure**: Diga "configure este projeto" no Copilot Chat
+>
+> Detalhes em `docs/QUICK-START.md`
+
+## Quando Usar Este Guia
+
+- Precisa entender o processo em detalhes
+- Setup automatizado não funcionou
+- Ambiente com restrições especiais
+
+## Alternativas Recomendadas
+
+| Método | Comando | Quando usar |
+|--------|---------|-------------|
+| **Plug** (one-liner) | `plug.ps1` / `plug.sh` | Adicionar submodules rápido |
+| **Configure** (skill) | "configure este projeto" | Preencher contexto via Copilot Chat |
+| **Setup** (script) | `setup.ps1` / `setup.sh` | Tudo de uma vez via terminal |
+| **Manual** | Este guia | Entender ou debug |
+
+## Pré-requisitos
+
+- Git inicializado no workspace
+- Acesso aos repositórios:
+  - `https://github.com/pdmartins/.copilot-core.git`
+  - `https://github.com/pdmartins/.copilot-project.git`
+
+## Arquitetura
+
+```
+{projeto}/
+└── .github/
+    ├── .copilot-core/          # Submodule - Core compartilhado
+    │   ├── instructions/
+    │   │   └── default.instructions.md
+    │   └── skills/
+    │       └── {core-skills}/
+    │
+    └── .copilot-project/       # Submodule (branch específica)
+        ├── context/
+        │   └── project.md
+        ├── memory/
+        │   └── lessons-learned.md
+        └── skills/
+            └── {project-skills}/
+```
+
+## Workflow Manual
+
+### 1. Verificar pré-requisitos
+
+- Verificar se `.github/.copilot-core/` já existe
+- Verificar se git está inicializado
+
+**Se já existe:**
+→ Informar que estrutura já existe
+→ Sugerir usar `project-update` para atualizar
+
+### 2. Adicionar .copilot-core como submodule
+
+```bash
+git submodule add https://github.com/pdmartins/.copilot-core.git .github/.copilot-core
+```
+
+### 3. Configurar repositório project
+
+**Detectar nome do projeto** (pasta do workspace)
+
+**Perguntar ao usuário:**
+```
+Branch do .copilot-project para este projeto?
+Sugestão: `{nome-do-projeto}`
+[Enter para confirmar ou digite outro nome]
+```
+
+**Se branch existe:**
+```bash
+git submodule add -b {branch} https://github.com/pdmartins/.copilot-project.git .github/.copilot-project
+```
+
+**Se branch não existe (novo projeto):**
+```bash
+git submodule add https://github.com/pdmartins/.copilot-project.git .github/.copilot-project
+cd .github/.copilot-project
+git checkout -b {branch}
+```
+
+### 4. Criar estrutura de dados
+
+- Criar `memory/lessons-learned.md` (via `agent-memory-init`)
+- Criar `context/project.md` (via `project-context-init`)
+
+### 5. Confirmar inicialização
+
+**Output**:
+```
+✅ **Projeto inicializado**
+- Core: `.github/.copilot-core/`
+- Project: `.github/.copilot-project/` (branch: {branch})
+- Memória: inicializada
+- Contexto: inicializado
+```
+
+## Clonando em Nova Máquina
+
+Ao clonar um projeto que usa submodules:
+
+```bash
+# Opção 1: Clone recursivo
+git clone --recursive https://github.com/seu/projeto.git
+
+# Opção 2: Clone normal + inicializar submodules
+git clone https://github.com/seu/projeto.git
+cd projeto
+git submodule update --init --recursive
+```
+
+## Referência
+
+- **Plug (one-liner)**: `.github/scripts/plug.ps1` / `plug.sh`
+- **Full setup (script)**: `.github/scripts/setup.ps1` / `setup.sh`
+- **Configure (skill)**: `project-bootstrap`
+- **Documentação**: `.github/docs/QUICK-START.md`

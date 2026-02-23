@@ -1,0 +1,183 @@
+---
+name: infra-resource-create
+description: Guia para adicionar novos recursos de infraestrutura ao docker-framework (SQL Server, Kafka, Redis, PostgreSQL, etc). Inclui criação do docker-compose, registro em ports/credentials, e template de init script. Triggers: "adicionar infra", "novo recurso", "adicionar sql", "adicionar kafka", "adicionar redis", "novo serviço de infra".
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: infra
+---
+
+# Infra Resource Create
+
+Guia para adicionar novos recursos de infraestrutura ao docker-framework.
+
+## Quando Usar
+
+- Novo recurso de infra precisa ser adicionado (PostgreSQL, Elasticsearch, Grafana, etc.)
+- Atualizar versão de imagem Docker de um recurso existente
+- Ajustar healthcheck ou configuração de um recurso
+
+## Workflow
+
+### 1. Criar diretório do recurso
+
+```
+infra/{resource_name}/
+└── docker-compose.yml
+```
+
+O `{resource_name}` deve usar **snake_case**: `sql_server`, `kafka`, `rabbit_mq`, `elastic_search`.
+
+### 2. Criar docker-compose.yml
+
+Template obrigatório:
+
+```yaml
+services:
+  {resource_name}:
+    image: {imagem}:{tag}
+    container_name: infra-{resource_name}
+    ports:
+      - "${PORT}:{container_port}"
+    environment:
+      # Variáveis injetadas pelo CLI via config/credentials.yml
+      {ENV_VARS}
+    volumes:
+      - infra-{resource_name}-data:{mount_path}
+    networks:
+      - df-network
+    labels:
+      managed-by: docker-framework
+      df.type: infra
+      df.resource: {resource_name}
+    healthcheck:
+      test: {healthcheck_command}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  infra-{resource_name}-data:
+    name: infra-{resource_name}-data
+
+networks:
+  df-network:
+    name: df-network
+    external: true
+```
+
+**Regras do compose:**
+- Container name: `infra-{resource_name}`
+- Volume name: `infra-{resource_name}-data`
+- Network: `df-network` (external, criada pelo CLI)
+- DEVE ter healthcheck
+- DEVE ter labels para identificação pelo framework
+- NUNCA referenciar projetos — compose de infra é genérico
+
+### 3. Registrar porta em config/ports.yml
+
+```yaml
+# Adicionar na seção de infra
+{resource_name}: {port}
+```
+
+**Regras de portas:**
+- Verificar que a porta não conflita com nenhuma outra entrada
+- Usar porta padrão do serviço quando possível (1433, 5432, 27017, etc.)
+- Se porta padrão já está ocupada, usar próxima disponível e documentar
+
+### 4. Registrar credenciais em config/credentials.yml
+
+```yaml
+{resource_name}:
+  {credential_key}: "{value}"
+```
+
+Apenas se o recurso requer autenticação. Exemplo:
+
+```yaml
+postgresql:
+  user: "admin"
+  password: "Dev@12345"
+  database: "postgres"
+```
+
+### 5. Criar template de init script
+
+Documentar o formato esperado de init script para este recurso. Projetos que usarem este recurso criarão `init/{resource_name}.{ext}` seguindo o template.
+
+Exemplos por tipo de recurso:
+
+**SQL Server / PostgreSQL:**
+```sql
+-- init/sql_server.sql (deve ser idempotente)
+IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '{db_name}')
+  CREATE DATABASE [{db_name}];
+GO
+```
+
+**Kafka:**
+```bash
+#!/usr/bin/env bash
+# init/kafka.sh (deve ser idempotente)
+kafka-topics --create --if-not-exists \
+  --topic {app}.events \
+  --partitions 3 \
+  --replication-factor 1 \
+  --bootstrap-server kafka:9092
+```
+
+**MongoDB:**
+```javascript
+// init/mongodb.js (deve ser idempotente)
+db = db.getSiblingDB('{db_name}');
+db.createCollection('_init', { capped: true, size: 1 });
+```
+
+**Redis:**
+Redis normalmente não precisa de init script (databases numéricos 0-15 já existem).
+
+**RabbitMQ:**
+```bash
+#!/usr/bin/env bash
+# init/rabbitmq.sh (deve ser idempotente)
+rabbitmqadmin declare vhost name={app}
+rabbitmqadmin declare queue name={app}.events vhost={app} durable=true
+```
+
+### 6. Registrar executor de init em lib/init.sh
+
+Cada tipo de recurso precisa de um executor em `lib/init.sh` que saiba como rodar o init script dentro do container:
+
+```bash
+run_init_sql_server() {
+  local init_file="${1}"
+  docker exec -i infra-sql_server /opt/mssql-tools18/bin/sqlcmd \
+    -S localhost -U sa -P "${SQL_SA_PASSWORD}" \
+    -C -i "/dev/stdin" < "${init_file}"
+}
+```
+
+## Checklist
+
+- [ ] Diretório `infra/{resource_name}/` criado
+- [ ] `docker-compose.yml` com healthcheck, labels, named volume
+- [ ] Porta registrada em `config/ports.yml` (sem conflito)
+- [ ] Credenciais registradas em `config/credentials.yml` (se aplicável)
+- [ ] Template de init script documentado
+- [ ] Executor de init registrado em `lib/init.sh`
+- [ ] Testado: `docker compose -f infra/{resource_name}/docker-compose.yml up -d` funciona
+- [ ] Testado: healthcheck passa
+
+## Recursos Existentes
+
+| Recurso | Porta | Imagen | Init Script Type |
+|---------|-------|--------|-----------------|
+| sql_server | 1433 | mcr.microsoft.com/mssql/server | .sql |
+| kafka | 9092 | confluentinc/cp-kafka | .sh |
+| zookeeper | 2181 | confluentinc/cp-zookeeper | — |
+| mongodb | 27017 | mongo | .js |
+| redis | 6379 | redis | — |
+
+*Atualizar esta tabela ao adicionar novos recursos.*

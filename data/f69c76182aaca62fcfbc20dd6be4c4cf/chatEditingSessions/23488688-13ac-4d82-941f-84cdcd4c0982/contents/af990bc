@@ -1,0 +1,150 @@
+---
+name: coding-conventions
+description: Convenções de código do docker-framework. Aplica padrões de Bash, nomenclatura de containers/volumes/networks, estrutura de arquivos e estilo de código. Triggers: criar qualquer arquivo .sh, revisar código, novo script, refatorar.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: conventions
+---
+
+# Coding Conventions
+
+Convenções obrigatórias para todo código do docker-framework.
+
+## Bash Style Guide
+
+### Shebang e Configuração
+
+Todo script DEVE começar com:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+```
+
+### Variáveis
+
+- Sempre usar `"${var}"` com aspas duplas e chaves
+- Variáveis locais em funções: `local var_name`
+- Constantes em UPPER_SNAKE_CASE: `readonly ROOT_DIR`
+- Variáveis locais em lower_snake_case: `local container_name`
+
+### Funções
+
+- Nomes em lower_snake_case: `start_infra()`, `resolve_deps()`
+- Declarar com `nome() {` (sem `function` keyword)
+- Documentar com comentário acima:
+
+```bash
+# Resolve e retorna lista de dependências de infra para o projeto.
+# Args: $1 - caminho do df.yml
+# Returns: lista de nomes de recursos (stdout, um por linha)
+resolve_deps() {
+  local df_yml="${1}"
+  # ...
+}
+```
+
+### Controle de Fluxo
+
+- Sempre usar `[[` em vez de `[` para testes
+- Preferir `if/then/fi` em múltiplas linhas (evitar one-liners longos)
+- Usar `case` para dispatch de comandos
+
+### Output e Logging
+
+- Usar funções de log padronizadas de `lib/core.sh`:
+  - `log_info "mensagem"` — informação normal
+  - `log_success "mensagem"` — operação concluída com ✓
+  - `log_warn "mensagem"` — aviso
+  - `log_error "mensagem"` — erro (vai para stderr)
+- Nunca usar `echo` diretamente para output ao usuário
+
+### Tratamento de Erros
+
+- Usar `set -euo pipefail` (já no shebang padrão)
+- Para comandos que podem falhar esperadamente: `cmd || true`
+- Validar argumentos no início da função
+- Mensagens de erro devem ser claras e acionáveis
+
+## Nomenclatura Docker
+
+### Containers
+
+| Tipo | Pattern | Exemplo |
+|------|---------|---------|
+| Infra | `infra-{recurso}` | `infra-sql_server`, `infra-kafka` |
+| App | `{app_name}` | `autocid`, `comissao` |
+
+### Volumes (Named Volumes)
+
+| Tipo | Pattern | Exemplo |
+|------|---------|---------|
+| Infra | `infra-{recurso}-data` | `infra-sql_server-data` |
+| App | `{app_name}-data` | `autocid-data` |
+
+**Sem prefixo `df-`** nos nomes de volumes.
+
+### Network
+
+Todos os containers usam a network: `df-network`
+
+### Labels
+
+Todos os containers gerenciados pelo framework devem ter:
+
+```yaml
+labels:
+  managed-by: docker-framework
+  df.type: infra|project
+  df.resource: sql_server    # (para infra)
+  df.project: project-hv     # (para apps)
+  df.app: autocid             # (para apps)
+```
+
+## Estrutura de Arquivos
+
+### CLI (`lib/`)
+
+```
+lib/
+├── core.sh          # NUNCA conter lógica de negócio
+├── config.sh        # Apenas leitura/parse de YAML
+├── deps.sh          # Apenas resolução de dependências
+├── infra.sh         # Apenas gerência de containers de infra
+├── init.sh          # Apenas execução de init scripts
+└── commands/        # Um arquivo por comando, cada um exporta UMA função
+    ├── start.sh     # cmd_start()
+    ├── stop.sh      # cmd_stop()
+    └── ...
+```
+
+Cada arquivo em `commands/` deve exportar uma função `cmd_{nome}()`.
+
+### Infra (`infra/`)
+
+```
+infra/{recurso}/
+└── docker-compose.yml    # Define UM container + volume + healthcheck
+```
+
+O compose de infra NUNCA referencia projetos. Ele define apenas o recurso isolado.
+
+### Projetos (`project-{team}/{app}/`)
+
+```
+project-{team}/{app}/
+├── df.yml                # Manifesto de dependências
+├── docker-compose.yml    # Build e run do app
+└── init/                 # Scripts de inicialização (idempotentes)
+    ├── sql_server.sql
+    └── kafka.sh
+```
+
+## Regras Gerais
+
+1. **Um compose, um propósito** — nunca misturar infra e projeto no mesmo compose
+2. **Init scripts sempre idempotentes** — usar IF NOT EXISTS, --if-not-exists, etc.
+3. **Sem hardcode de portas/credenciais** — sempre ler de `config/ports.yml` e `config/credentials.yml`
+4. **Chat em português, código em inglês** — variáveis, funções e comentários em inglês
+5. **Sem dependências além de bash/docker/yq** — nunca adicionar runtime externo

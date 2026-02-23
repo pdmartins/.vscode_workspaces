@@ -1,0 +1,340 @@
+#Requires -Version 5.1
+<#
+.SYNOPSIS
+    Configura o sistema de skills do Copilot Agent em um projeto.
+
+.DESCRIPTION
+    Este script automatiza a configuração dos repositórios .copilot-core e .copilot-project
+    como submodules em .github/, criando toda a estrutura necessária.
+
+.PARAMETER ProjectName
+    Nome do projeto (usado como branch name para .copilot-project).
+    Se não informado, usa o nome da pasta atual.
+
+.PARAMETER CoreUrl
+    URL do repositório .copilot-core.
+    Default: https://github.com/pdmartins/.copilot-core.git
+
+.PARAMETER ProjectUrl
+    URL do repositório .copilot-project.
+    Default: https://github.com/pdmartins/.copilot-project.git
+
+.PARAMETER Force
+    Se especificado, sobrescreve configuração existente.
+
+.EXAMPLE
+    .\setup.ps1
+    # Usa defaults e nome da pasta como project name
+
+.EXAMPLE
+    .\setup.ps1 -ProjectName "meu-projeto"
+    # Especifica nome do projeto
+
+.EXAMPLE
+    irm https://raw.githubusercontent.com/pdmartins/.copilot-core/main/scripts/setup.ps1 | iex
+    # Execução remota (one-liner)
+#>
+
+[CmdletBinding()]
+param(
+    [Parameter(Position = 0)]
+    [string]$ProjectName,
+    
+    [Parameter()]
+    [string]$CoreUrl = "https://github.com/pdmartins/.copilot-core.git",
+    
+    [Parameter()]
+    [string]$ProjectUrl = "https://github.com/pdmartins/.copilot-project.git",
+    
+    [Parameter()]
+    [switch]$Force
+)
+
+$ErrorActionPreference = "Stop"
+
+# ============================================================
+# Helpers
+# ============================================================
+
+function Write-Step {
+    param([string]$Message)
+    Write-Host "`n[*] " -ForegroundColor Cyan -NoNewline
+    Write-Host $Message
+}
+
+function Write-Success {
+    param([string]$Message)
+    Write-Host "[+] " -ForegroundColor Green -NoNewline
+    Write-Host $Message
+}
+
+function Write-Warning {
+    param([string]$Message)
+    Write-Host "[!] " -ForegroundColor Yellow -NoNewline
+    Write-Host $Message
+}
+
+function Write-Error {
+    param([string]$Message)
+    Write-Host "[X] " -ForegroundColor Red -NoNewline
+    Write-Host $Message
+}
+
+function Test-GitRepo {
+    return (Test-Path ".git")
+}
+
+function Test-CopilotStructure {
+    return (Test-Path ".github/.copilot-core")
+}
+
+function Get-DefaultProjectName {
+    return (Split-Path -Leaf (Get-Location))
+}
+
+function Test-RemoteBranch {
+    param([string]$BranchName)
+    $result = git ls-remote --heads origin $BranchName 2>$null
+    return -not [string]::IsNullOrEmpty($result)
+}
+
+# ============================================================
+# Main
+# ============================================================
+
+Write-Host ""
+Write-Host "╔═══════════════════════════════════════════════════════════╗" -ForegroundColor Cyan
+Write-Host "║       Copilot Agent Skills - Setup                        ║" -ForegroundColor Cyan
+Write-Host "║       github.com/pdmartins/.copilot-core                  ║" -ForegroundColor Cyan
+Write-Host "╚═══════════════════════════════════════════════════════════╝" -ForegroundColor Cyan
+Write-Host ""
+
+# 1. Verificar pré-requisitos
+Write-Step "Verificando pré-requisitos..."
+
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    Write-Error "Git não está instalado ou não está no PATH."
+    exit 1
+}
+
+if (-not (Test-GitRepo)) {
+    Write-Warning "Diretório atual não é um repositório Git."
+    $init = Read-Host "Deseja inicializar? (S/n)"
+    if ($init -ne 'n' -and $init -ne 'N') {
+        git init
+        Write-Success "Repositório Git inicializado."
+    } else {
+        Write-Error "Git é necessário para continuar."
+        exit 1
+    }
+}
+
+# 2. Verificar estrutura existente
+if (Test-CopilotStructure) {
+    if (-not $Force) {
+        Write-Warning "Estrutura .github/.copilot-core já existe."
+        $overwrite = Read-Host "Deseja sobrescrever? (s/N)"
+        if ($overwrite -ne 's' -and $overwrite -ne 'S') {
+            Write-Host "Operação cancelada. Use -Force para sobrescrever."
+            exit 0
+        }
+    }
+    Write-Step "Removendo estrutura existente..."
+    Remove-Item -Recurse -Force ".github/.copilot-core" -ErrorAction SilentlyContinue
+    Remove-Item -Recurse -Force ".github/.copilot-project" -ErrorAction SilentlyContinue
+    git rm --cached ".github/.copilot-core" 2>$null
+    git rm --cached ".github/.copilot-project" 2>$null
+}
+
+# 3. Determinar nome do projeto
+if ([string]::IsNullOrEmpty($ProjectName)) {
+    $defaultName = Get-DefaultProjectName
+    Write-Host ""
+    Write-Host "Nome do projeto (branch para .copilot-project):"
+    $ProjectName = Read-Host "[$defaultName]"
+    if ([string]::IsNullOrEmpty($ProjectName)) {
+        $ProjectName = $defaultName
+    }
+}
+
+Write-Success "Projeto: $ProjectName"
+
+# 4. Criar diretório .github
+Write-Step "Criando estrutura de diretórios..."
+if (-not (Test-Path ".github")) {
+    New-Item -ItemType Directory -Path ".github" | Out-Null
+}
+
+# 5. Adicionar .copilot-core como submodule
+Write-Step "Adicionando .copilot-core como submodule..."
+git submodule add $CoreUrl ".github/.copilot-core"
+Write-Success ".copilot-core adicionado."
+
+# 6. Adicionar .copilot-project como submodule
+Write-Step "Adicionando .copilot-project como submodule..."
+
+# Verificar se branch existe
+Push-Location
+try {
+    $tempDir = Join-Path $env:TEMP "copilot-project-check-$(Get-Random)"
+    git clone --bare $ProjectUrl $tempDir 2>$null
+    Push-Location $tempDir
+    $branchExists = (git branch --list $ProjectName) -ne $null
+    Pop-Location
+    Remove-Item -Recurse -Force $tempDir
+} catch {
+    $branchExists = $false
+}
+Pop-Location
+
+if ($branchExists) {
+    Write-Success "Branch '$ProjectName' encontrada."
+    git submodule add -b $ProjectName $ProjectUrl ".github/.copilot-project"
+} else {
+    Write-Warning "Branch '$ProjectName' não existe. Criando nova branch..."
+    git submodule add $ProjectUrl ".github/.copilot-project"
+    Push-Location ".github/.copilot-project"
+    git checkout -b $ProjectName
+    
+    # Criar estrutura inicial
+    Write-Step "Criando estrutura inicial do projeto..."
+    
+    # context/project.md
+    if (-not (Test-Path "context")) {
+        New-Item -ItemType Directory -Path "context" | Out-Null
+    }
+    
+    $projectMd = @"
+# Contexto do Projeto: $ProjectName
+
+## Status
+- **Fase**: Inicial
+- **Última atualização**: $(Get-Date -Format "yyyy-MM-dd")
+
+## Resumo
+
+> [Descreva brevemente o projeto aqui]
+
+## Stack
+
+- [ ] Definir stack técnica
+
+## Arquitetura
+
+> [Descreva a arquitetura quando definida]
+
+## Próximos Passos
+
+- [ ] Definir escopo do projeto
+- [ ] Configurar ambiente de desenvolvimento
+- [ ] Criar primeiras funcionalidades
+"@
+    Set-Content -Path "context/project.md" -Value $projectMd -Encoding UTF8
+    
+    # memory/lessons-learned.md
+    if (-not (Test-Path "memory")) {
+        New-Item -ItemType Directory -Path "memory" | Out-Null
+    }
+    
+    $lessonsLearned = @"
+# Lições Aprendidas - $ProjectName
+
+## Sobre este arquivo
+
+Este arquivo registra lições aprendidas durante o desenvolvimento do projeto.
+O Copilot Agent consulta e atualiza este arquivo automaticamente.
+
+---
+
+## Lições
+
+> Nenhuma lição registrada ainda.
+
+"@
+    Set-Content -Path "memory/lessons-learned.md" -Value $lessonsLearned -Encoding UTF8
+    
+    # skills/ (vazio)
+    if (-not (Test-Path "skills")) {
+        New-Item -ItemType Directory -Path "skills" | Out-Null
+    }
+    
+    # README.md
+    $readme = @"
+# Copilot Project - $ProjectName
+
+Branch de configuração do Copilot Agent para o projeto **$ProjectName**.
+
+## Estrutura
+
+```
+.copilot-project/
+├── context/
+│   └── project.md          # Estado atual do projeto
+├── memory/
+│   └── lessons-learned.md  # Lições aprendidas
+└── skills/                 # Skills específicas do projeto
+```
+
+## Skills Disponíveis
+
+| Skill | Descrição |
+|-------|-----------|
+| *nenhum ainda* | Crie skills específicos conforme necessário |
+
+## Padrão
+
+Este projeto segue o padrão [Agent Skills](https://agentskills.io).
+"@
+    Set-Content -Path "README.md" -Value $readme -Encoding UTF8
+    
+    # Commit inicial
+    git add .
+    git commit -m "feat: estrutura inicial do projeto $ProjectName"
+    
+    Write-Success "Estrutura criada e commitada."
+    Write-Warning "Execute 'git push -u origin $ProjectName' para criar branch remota."
+    
+    Pop-Location
+}
+
+Write-Success ".copilot-project adicionado."
+
+# 7. Configurar .gitmodules
+Write-Step "Verificando .gitmodules..."
+if (Test-Path ".gitmodules") {
+    Write-Success ".gitmodules configurado automaticamente."
+}
+
+# 8. Criar/atualizar instructions
+Write-Step "Verificando instructions..."
+$instructionsPath = ".github/instructions"
+if (-not (Test-Path $instructionsPath)) {
+    New-Item -ItemType Directory -Path $instructionsPath | Out-Null
+}
+
+$workspaceInstructions = ".github/.copilot-core/.github/instructions/workspace.instructions.md"
+if (Test-Path $workspaceInstructions) {
+    $destPath = "$instructionsPath/workspace.instructions.md"
+    if (-not (Test-Path $destPath)) {
+        Copy-Item $workspaceInstructions $destPath
+        Write-Success "workspace.instructions.md copiado."
+    }
+}
+
+# 9. Resumo final
+Write-Host ""
+Write-Host "╔═══════════════════════════════════════════════════════════╗" -ForegroundColor Green
+Write-Host "║       Setup Concluído!                                    ║" -ForegroundColor Green
+Write-Host "╚═══════════════════════════════════════════════════════════╝" -ForegroundColor Green
+Write-Host ""
+Write-Host "  Estrutura criada:" -ForegroundColor White
+Write-Host "    .github/" -ForegroundColor Gray
+Write-Host "    ├── .copilot-core/      (submodule: main)" -ForegroundColor Gray
+Write-Host "    ├── .copilot-project/   (submodule: $ProjectName)" -ForegroundColor Gray
+Write-Host "    └── instructions/" -ForegroundColor Gray
+Write-Host ""
+Write-Host "  Próximos passos:" -ForegroundColor White
+Write-Host "    1. git add . && git commit -m 'feat: setup copilot agent'" -ForegroundColor Yellow
+Write-Host "    2. Edite .github/.copilot-project/context/project.md" -ForegroundColor Yellow
+Write-Host "    3. Comece a usar o Copilot Agent!" -ForegroundColor Yellow
+Write-Host ""

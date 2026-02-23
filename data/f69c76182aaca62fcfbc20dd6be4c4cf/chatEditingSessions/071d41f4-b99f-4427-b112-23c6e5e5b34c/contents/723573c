@@ -1,0 +1,35 @@
+# Lessons Learned
+
+Registro de aprendizados e decisões importantes do projeto.
+
+---
+
+## Estrutura
+
+Cada lição segue o formato:
+
+```xml
+<lesson date="YYYY-MM-DD" category="categoria">
+  <context>Contexto do problema</context>
+  <decision>Decisão tomada</decision>
+  <outcome>Resultado/impacto</outcome>
+</lesson>
+```
+
+### Categorias
+
+| Categoria | Descrição |
+|-----------|-----------|
+| arquitetura | Estrutura do projeto |
+| padrões | Convenções de código |
+| tooling | Ferramentas e configs |
+| workflow | Processos |
+| debug | Problemas resolvidos |
+| performance | Otimizações |
+| segurança | Práticas de segurança |
+
+---
+
+## Registro
+
+<!-- Adicionar lições aqui, mais recente primeiro -->

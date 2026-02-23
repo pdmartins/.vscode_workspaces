@@ -1,0 +1,146 @@
+---
+applyTo: '**'
+---
+
+# Workspace Context Instructions
+
+Este workspace gerencia o sistema de instruções do Copilot Agent usando o padrão [Agent Skills](https://agentskills.io).
+
+## Workspace Structure
+
+| Repo | Caminho | Destino Final | Propósito |
+|------|---------|---------------|-----------|
+| **Core** | `.copilot-core/` | `.github/.copilot-core/` | Skills genéricos reutilizáveis |
+| **Project** | `.copilot-project/` | `.github/.copilot-project/` | Skills e dados específicos do projeto |
+
+## Arquitetura do Sistema
+
+```
+{projeto-alvo}/
+└── .github/
+    ├── .copilot-core/              # Submodule - Core compartilhado
+    │   ├── instructions/
+    │   │   └── default.instructions.md
+    │   ├── skills/                 # Core Skills (Agent Skills format)
+    │   │   └── {skill-name}/
+    │   │       └── SKILL.md
+    │   └── templates/
+    │       └── workspace.instructions.md
+    │
+    └── .copilot-project/           # Submodule (branch específica)
+        ├── context/
+        │   ├── project.md          # Estado atual do projeto
+        │   └── code-map/           # Mapa de código estruturado
+        │       ├── index.md        # Índice mestre
+        │       ├── services.md     # Serviços e lógica de negócio
+        │       ├── models.md       # Modelos e entidades
+        │       ├── api.md          # Endpoints e rotas
+        │       ├── components.md   # Componentes de UI
+        │       ├── utils.md        # Utilitários e helpers
+        │       └── config.md       # Constantes e enums
+        ├── memory/
+        │   └── lessons-learned.md  # Lições aprendidas
+        └── skills/                 # Project Skills
+            └── {skill-name}/
+                └── SKILL.md
+```
+
+## Padrão Agent Skills
+
+Cada skill segue o formato:
+
+```
+{contexto}-{funcionalidade}/
+└── SKILL.md
+```
+
+### SKILL.md Structure
+
+```markdown
+---
+name: {contexto}-{funcionalidade}
+description: {descrição completa + triggers}
+metadata:
+  author: {autor}
+  version: "1.0"
+  category: {categoria}
+---
+
+# {Nome do Skill}
+
+{conteúdo em Markdown}
+```
+
+## Skills Core Disponíveis
+
+| Categoria | Skill | Propósito |
+|-----------|-------|-----------|
+| Agent | `agent-memory-query` | Consultar lições aprendidas |
+| Agent | `agent-memory-register` | Registrar novas lições |
+| Agent | `agent-memory-init` | Inicializar estrutura de memória |
+| Agent | `agent-todo` | Gerenciar tarefas complexas |
+| Code Map | `code-map-query` | Consultar mapa de código existente |
+| Code Map | `code-map-update` | Registrar/atualizar artefatos de código |
+| Code Map | `code-map-init` | Inicializar estrutura do mapa de código |
+| Project | `project-context-query` | Consultar contexto do projeto |
+| Project | `project-context-update` | Atualizar contexto |
+| Project | `project-context-init` | Inicializar contexto |
+| Project | `project-analyze` | Analisar projeto e sugerir skills |
+| Project | `project-create` | Criar projeto do workspace core |
+| Project | `project-bootstrap` | Configurar projeto já plugado |
+| Project | `project-init` | Guia manual de inicialização |
+| Project | `project-update` | Atualizar repos |
+| Project | `project-switch-branch` | Trocar branch do project |
+| Skill | `skill-create` | Criar novos skills |
+| Editor | `editor-markdown` | Regras de markdown |
+
+## Fluxo de Carregamento
+
+1. Agente escaneia `skills/` e lê frontmatter de cada `SKILL.md`
+2. Mantém índice com `name` e `description` de todas as skills
+3. Ao receber tarefa, compara com descriptions para decidir qual ativar
+4. Carrega body completo do `SKILL.md` quando skill é ativada
+5. Carrega `references/`, `scripts/`, `assets/` sob demanda
+
+## Estratégia de Branches
+
+### `.copilot-core`
+| Branch | Propósito | Conteúdo |
+|--------|-----------|----------|
+| `main` | Desenvolvimento do core | Tudo (`.github/`, workflows, docs, workspace file) |
+| `core` | **Distribuição para projetos** | Apenas `instructions/`, `skills/`, `templates/` |
+
+- **Projetos consumidores sempre usam a branch `core`** (via submodule `-b core` ou clone `-b core`)
+- Alterações em `main` são sincronizadas automaticamente para `core` via workflow `sync-core.yml`, excluindo a pasta `.github/` do repo de desenvolvimento
+- Para atualizar: `cd .github/.copilot-core && git pull origin core`
+
+### `.copilot-project`
+| Branch | Propósito |
+|--------|-----------|
+| `main` | Template base (agnóstico) |
+| `{nome-projeto}` | Dados específicos de cada projeto |
+
+- Cada projeto tem sua própria branch, criada a partir de `main`
+- Para atualizar: `cd .github/.copilot-project && git pull`
+
+## Regras deste Workspace
+
+1. **Core é genérico**: Nunca referenciar skills específicos de projeto
+2. **Project estende Core**: Adiciona skills, nunca substitui
+3. **Responsabilidade única**: Cada skill faz UMA coisa
+4. **Nomenclatura padronizada**: `{contexto}-{funcionalidade}`
+
+## Referência Rápida
+
+| Quando você disser... | Eu entendo como... |
+|----------------------|-------------------|
+| "no Core" | `.copilot-core/` |
+| "no Project" | `.copilot-project/` |
+| "Core Skill" | `.copilot-core/skills/{name}/SKILL.md` |
+| "Project Skill" | `.copilot-project/skills/{name}/SKILL.md` |
+| "criar skill" | Usar `skill-create` |
+| "analisar projeto" | Usar `project-analyze` |
+| "criar projeto" | Usar `project-create` |
+| "configurar projeto" | Usar `project-bootstrap` |
+| "o que já existe" | Usar `code-map-query` |
+| "mostrar estrutura" | Usar `code-map-query` |

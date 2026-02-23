@@ -1,0 +1,84 @@
+---
+name: agent-memory-register
+description: Registra novas lições aprendidas e decisões importantes no projeto. Use após decisões arquiteturais significativas, correção de erros com aprendizado útil, descoberta de padrões, ou quando usuário pedir para "lembrar" algo. Triggers: "registrar lição", "lembrar isso", "decisão importante", após resolver bug complexo.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: agent
+---
+
+# Agent Memory Register
+
+Registra novas lições aprendidas na memória persistente do projeto.
+
+## Quando Usar
+
+- Após decisão arquitetural que impacta o projeto
+- Erro corrigido com aprendizado útil
+- Novo padrão estabelecido
+- Descoberta importante sobre o projeto
+- Usuário pede para "lembrar" ou "registrar"
+
+## Quando NÃO Usar
+
+- Mudança trivial de código
+- Decisão temporária ou experimental
+- Informação já documentada em README
+- Detalhes de implementação muito específicos
+
+## Workflow
+
+### 1. Avaliar se deve registrar
+
+**Registrar se:**
+- Decisão arquitetural com impacto
+- Erro corrigido com lição aprendida
+- Padrão novo estabelecido
+- Descoberta importante
+
+**Não registrar se:**
+- Mudança trivial
+- Decisão temporária
+- Já documentado em outro lugar
+
+### 2. Determinar categoria
+
+| Categoria | Quando Usar |
+|-----------|-------------|
+| arquitetura | Estrutura do projeto, organização |
+| padrões | Convenções de código, nomenclatura |
+| tooling | Ferramentas, dependências, configs |
+| workflow | Processos, automações |
+| debug | Problemas resolvidos, armadilhas |
+| performance | Otimizações, melhorias |
+| segurança | Práticas de segurança |
+
+### 3. Formatar lição
+
+Usar template:
+
+```xml
+<lesson date="YYYY-MM-DD" category="categoria">
+  <context>Contexto do problema ou situação</context>
+  <decision>Decisão tomada e por quê</decision>
+  <outcome>Resultado e impacto</outcome>
+</lesson>
+```
+
+### 4. Adicionar ao arquivo
+
+- Ler: `{workspace}/.github/.copilot-project/memory/lessons-learned.md`
+- Adicionar nova lição na seção "## Registro"
+- Manter ordem cronológica (mais recente primeiro)
+
+**Se arquivo não existe:**
+→ Usar skill `agent-memory-init` primeiro
+
+### 5. Confirmar registro
+
+**Output**:
+```
+📝 **Lição registrada**
+- Categoria: {categoria}
+- Resumo: {resumo breve}
+```

@@ -1,0 +1,152 @@
+---
+name: config-manage
+description: Gestão dos dicionários centrais de portas e credenciais do docker-framework. Regras de alocação, validação de conflitos e formato YAML. Triggers: "configurar porta", "adicionar porta", "mudar credencial", "conflito de porta", "ports.yml", "credentials.yml", "verificar portas".
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: config
+---
+
+# Config Manage
+
+Gestão dos dicionários centrais de portas e credenciais.
+
+## Quando Usar
+
+- Adicionar ou alterar portas de infra ou projetos
+- Adicionar ou alterar credenciais de recursos
+- Verificar conflitos de portas
+- Entender formato dos arquivos de config
+
+## Arquivos de Configuração
+
+```
+config/
+├── ports.yml           # Dicionário de portas (infra + projetos)
+└── credentials.yml     # Dicionário de credenciais (infra)
+```
+
+Ambos ficam no **repo principal** (docker-framework), não nos submodules.
+
+## config/ports.yml
+
+### Formato
+
+```yaml
+# Portas de infraestrutura (recursos compartilhados)
+sql_server: 1433
+kafka: 9092
+zookeeper: 2181
+mongodb: 27017
+redis: 6379
+rabbitmq: 5672
+rabbitmq_management: 15672
+elasticsearch: 9200
+grafana: 3000
+postgresql: 5432
+
+# Portas de projetos (aplicações)
+projects:
+  autocid: 5100
+  comissao: 5200
+```
+
+### Regras de Alocação de Portas
+
+| Tipo | Range | Regra |
+|------|-------|-------|
+| Infraestrutura | Porta padrão do serviço | Usar a porta convencional (1433, 5432, 27017, etc.) |
+| Infraestrutura (secundária) | Porta padrão | Ex: RabbitMQ Management UI em 15672 |
+| Projetos | 5000-5999 | Incrementar de 100 em 100 (5100, 5200, 5300...) |
+
+### Validação de Conflitos
+
+Antes de adicionar qualquer porta:
+
+1. Verificar que a porta não existe em nenhuma outra entrada do `ports.yml`
+2. Verificar que a porta não conflita com serviços comuns do host (22, 80, 443, 3000, 8080)
+3. Se porta padrão do serviço já está em uso, documentar a mudança
+
+### Como ler portas no CLI
+
+```bash
+# Porta de infra
+port=$(yq ".sql_server" config/ports.yml)
+
+# Porta de projeto
+port=$(yq ".projects.autocid" config/ports.yml)
+```
+
+## config/credentials.yml
+
+### Formato
+
+```yaml
+sql_server:
+  sa_password: "Dev@12345"
+
+postgresql:
+  user: "admin"
+  password: "Dev@12345"
+  database: "postgres"
+
+mongodb:
+  root_user: "admin"
+  root_password: "Dev@12345"
+
+redis:
+  password: "Dev@12345"
+
+rabbitmq:
+  user: "admin"
+  password: "Dev@12345"
+
+elasticsearch:
+  # Sem auth para dev (xpack.security.enabled=false)
+```
+
+### Regras de Credenciais
+
+1. **Apenas para ambiente de desenvolvimento local** — nunca credenciais de produção
+2. **Cada recurso tem sua seção** — nomeada igual ao recurso em `infra/`
+3. **Formato consistente**: usar `user`/`password` como padrão, com exceções documentadas (ex: SQL Server usa `sa_password`)
+4. **Nunca versionado com credenciais reais** — o arquivo no repo contém defaults de dev
+5. **Estrutura flat por recurso** — sem aninhamento profundo
+
+### Como ler credenciais no CLI
+
+```bash
+# Credencial específica
+password=$(yq ".sql_server.sa_password" config/credentials.yml)
+
+# Todas as credenciais de um recurso
+creds=$(yq ".mongodb" config/credentials.yml)
+```
+
+## Workflow: Adicionar Porta
+
+1. Abrir `config/ports.yml`
+2. Verificar conflitos com todas as portas existentes
+3. Adicionar na seção correta (infra ou projects)
+4. Commit com mensagem: `config: add port for {resource/app}`
+
+## Workflow: Adicionar Credencial
+
+1. Abrir `config/credentials.yml`
+2. Adicionar seção do recurso com credenciais de dev
+3. Atualizar o `docker-compose.yml` do recurso em `infra/` para usar as variáveis
+4. Commit com mensagem: `config: add credentials for {resource}`
+
+## Segurança
+
+- `credentials.yml` é para **desenvolvimento local apenas**
+- Se necessário proteger mesmo em dev, usar `.env` local (gitignored) e referênciar no compose
+- O framework pode evoluir para suportar secret managers no futuro
+- **Nunca** fazer commit de credenciais de produção/staging
+
+## Checklist ao modificar configs
+
+- [ ] Porta não conflita com nenhuma entrada existente
+- [ ] Formato YAML válido
+- [ ] Recurso existe em `infra/` (para infra) ou em algum submodule (para projetos)
+- [ ] docker-compose.yml do recurso/app usa variáveis, não valores hardcoded

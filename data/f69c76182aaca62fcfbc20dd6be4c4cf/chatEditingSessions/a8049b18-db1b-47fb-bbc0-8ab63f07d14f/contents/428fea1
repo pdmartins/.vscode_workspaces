@@ -1,0 +1,185 @@
+---
+name: project-create
+description: Cria e configura um novo projeto a partir do workspace do .copilot-core. Faz perguntas sobre o projeto, cria branch no .copilot-project com contexto preenchido e fornece one-liner para o usuário plugar no projeto-alvo. Triggers - criar projeto, novo projeto, onboard projeto, preparar projeto, registrar projeto.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: project
+---
+
+# Project Create
+
+Cria e configura um novo projeto **a partir do workspace .copilot-core/.copilot-project**.
+
+## Quando Usar
+
+- Usuário está neste workspace e quer preparar um novo projeto
+- Diz "criar projeto", "novo projeto", "onboard projeto X"
+- Quer que a branch e contexto já estejam prontos antes de plugar no projeto-alvo
+
+## Fluxo
+
+```
+Workspace .copilot-core            Projeto-alvo
+         ↓                              ↓
+1. Coletar informações             4. Colar one-liner
+2. Criar branch no .copilot-project    5. git add && commit
+3. Gerar one-liner                 → Pronto!
+```
+
+## Workflow
+
+### 1. Coletar informações do projeto
+
+Perguntar de forma conversacional:
+
+1. **Nome do projeto** — será o nome da branch
+   - "Qual o nome do projeto?" (sugerir kebab-case)
+2. **Resumo** — o que o projeto faz
+   - "Me descreva brevemente o que este projeto faz"
+3. **Stack técnica** — linguagens, frameworks, ferramentas
+   - "Quais tecnologias/frameworks ele usa?"
+4. **Fase** — inicial, desenvolvimento, produção
+   - "Em que fase está?"
+5. **Restrições ou padrões** — algo específico que o agente deve saber
+   - "Alguma restrição, padrão ou convenção importante?"
+
+### 2. Verificar se branch já existe
+
+No `.copilot-project/`:
+
+```bash
+git branch --list {nome-projeto}
+git ls-remote --heads origin {nome-projeto}
+```
+
+- **Se existir**: Avisar e perguntar se deseja sobrescrever
+- **Se não existir**: Continuar
+
+### 3. Criar branch no .copilot-project
+
+```bash
+cd .copilot-project
+git checkout main
+git pull origin main
+git checkout -b {nome-projeto}
+```
+
+### 4. Preencher context/project.md
+
+Gerar com as informações coletadas:
+
+```markdown
+# Contexto do Projeto: {nome}
+
+## Status
+- **Fase**: {fase}
+- **Última atualização**: {data}
+
+## Resumo
+
+{resumo do usuário}
+
+## Stack
+
+- **Linguagem**: {linguagem}
+- **Framework**: {framework}
+- **Banco de dados**: {se informado}
+- **Infra**: {se informado}
+
+## Arquitetura
+
+> [Será preenchido após análise do código]
+
+## Restrições e Padrões
+
+{restrições informadas pelo usuário}
+
+## Próximos Passos
+
+- [ ] Plugar submodules no projeto (`one-liner` abaixo)
+- [ ] Analisar estrutura do código (`project-analyze`)
+- [ ] Criar skills específicos conforme necessário
+```
+
+### 5. Inicializar memory/lessons-learned.md
+
+```markdown
+# Lições Aprendidas - {nome}
+
+## Sobre este arquivo
+
+Este arquivo registra lições aprendidas durante o desenvolvimento do projeto.
+O Copilot Agent consulta e atualiza este arquivo automaticamente.
+
+---
+
+## Lições
+
+> Nenhuma lição registrada ainda.
+```
+
+### 6. Commit e push
+
+```bash
+cd .copilot-project   # (se não estiver já)
+git add .
+git commit -m "feat: configuração inicial do projeto {nome}"
+git push -u origin {nome-projeto}
+```
+
+Voltar para branch anterior:
+```bash
+git checkout main
+```
+
+### 7. Gerar one-liner
+
+Gerar o comando para o usuário colar no projeto-alvo.
+
+**Windows (PowerShell):**
+```
+mkdir -p .github/instructions -Force; git submodule add https://github.com/pdmartins/.copilot-core.git .github/.copilot-core; git submodule add -b {nome-projeto} https://github.com/pdmartins/.copilot-project.git .github/.copilot-project; cp .github/.copilot-core/.github/instructions/workspace.instructions.md .github/instructions/
+```
+
+**Linux/Mac:**
+```
+mkdir -p .github/instructions && git submodule add https://github.com/pdmartins/.copilot-core.git .github/.copilot-core && git submodule add -b {nome-projeto} https://github.com/pdmartins/.copilot-project.git .github/.copilot-project && cp .github/.copilot-core/.github/instructions/workspace.instructions.md .github/instructions/
+```
+
+### 8. Output final
+
+```
+✅ Projeto "{nome}" criado!
+
+📋 Branch: {nome-projeto}
+📁 Contexto: .copilot-project/context/project.md
+🧠 Memória: .copilot-project/memory/lessons-learned.md
+
+Para plugar no projeto, rode na raiz dele:
+
+  PowerShell:
+  mkdir .github/instructions -Force; git submodule add https://github.com/pdmartins/.copilot-core.git .github/.copilot-core; git submodule add -b {nome-projeto} https://github.com/pdmartins/.copilot-project.git .github/.copilot-project; cp .github/.copilot-core/.github/instructions/workspace.instructions.md .github/instructions/
+
+  Bash:
+  mkdir -p .github/instructions && git submodule add https://github.com/pdmartins/.copilot-core.git .github/.copilot-core && git submodule add -b {nome-projeto} https://github.com/pdmartins/.copilot-project.git .github/.copilot-project && cp .github/.copilot-core/.github/instructions/workspace.instructions.md .github/instructions/
+
+Depois:
+  git add . && git commit -m "feat: add copilot agent"
+```
+
+## Notas
+
+- Este skill opera **neste workspace** (.copilot-core + .copilot-project), não no projeto-alvo
+- O one-liner assume que o projeto-alvo tem Git inicializado
+- Se o usuário não tiver acesso push ao `.copilot-project`, ele não poderá criar a branch remotamente
+- O `setup.ps1` / `setup.sh` continua disponível como alternativa (faz tudo do projeto-alvo)
+
+## Referência
+
+| Método | Onde roda | O que faz |
+|--------|-----------|-----------|
+| **project-create** | Workspace core | Cria branch + contexto + gera one-liner |
+| **setup** (script) | Projeto-alvo | Adiciona submodules + cria estrutura |
+| **project-bootstrap** | Projeto-alvo (Chat) | Configura contexto após submodules existirem |
+| **project-init** | Qualquer lugar | Guia manual passo a passo |
