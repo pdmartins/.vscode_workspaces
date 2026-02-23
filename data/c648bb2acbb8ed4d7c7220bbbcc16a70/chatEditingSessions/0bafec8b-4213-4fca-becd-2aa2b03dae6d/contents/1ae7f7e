@@ -1,0 +1,84 @@
+"""Validate conversation fixture specifications against real skills."""
+
+import yaml
+import pytest
+from pathlib import Path
+from conftest import CORE_ROOT
+
+FIXTURES_DIR = (
+    Path(__file__).resolve().parent.parent / "fixtures" / "conversations"
+)
+
+
+def load_fixtures() -> list[dict]:
+    """Load all conversation fixture YAML files."""
+    fixtures = []
+    if not FIXTURES_DIR.exists():
+        return fixtures
+    for f in sorted(FIXTURES_DIR.glob("*.yaml")):
+        content = yaml.safe_load(f.read_text(encoding="utf-8"))
+        content["_file"] = f.name
+        fixtures.append(content)
+    return fixtures
+
+
+CONVERSATION_FIXTURES = load_fixtures()
+
+
+@pytest.mark.fixtures
+class TestConversationTriggers:
+    @pytest.mark.parametrize(
+        "fixture",
+        CONVERSATION_FIXTURES,
+        ids=[f["_file"] for f in CONVERSATION_FIXTURES],
+    )
+    def test_expected_skills_exist(self, fixture, all_skills):
+        """All skills referenced in conversation fixtures must exist."""
+        skill_names = {s.name for s in all_skills}
+        for expected in fixture.get("expected_skills", []):
+            name = expected["name"]
+            if expected.get("must_exist", True):
+                assert name in skill_names, (
+                    f"Fixture '{fixture['_file']}': "
+                    f"references non-existent skill '{name}'"
+                )
+
+    @pytest.mark.parametrize(
+        "fixture",
+        CONVERSATION_FIXTURES,
+        ids=[f["_file"] for f in CONVERSATION_FIXTURES],
+    )
+    def test_skill_contains_expected_content(self, fixture, all_skills):
+        """Skills referenced must contain expected content strings."""
+        skills_map = {s.name: s for s in all_skills}
+        for expected in fixture.get("expected_skills", []):
+            name = expected["name"]
+            skill = skills_map.get(name)
+            if not skill:
+                continue
+            for text in expected.get("must_contain", []):
+                assert text in skill.content, (
+                    f"Fixture '{fixture['_file']}': "
+                    f"skill '{name}' missing content '{text}'"
+                )
+
+    @pytest.mark.parametrize(
+        "fixture",
+        CONVERSATION_FIXTURES,
+        ids=[f["_file"] for f in CONVERSATION_FIXTURES],
+    )
+    def test_documentation_references_exist(self, fixture, all_skills):
+        """Files referenced in documented_in must exist with expected text."""
+        for doc_ref in fixture.get("documented_in", []):
+            file_path = CORE_ROOT / doc_ref["file"]
+            assert file_path.exists(), (
+                f"Fixture '{fixture['_file']}': "
+                f"referenced file '{doc_ref['file']}' not found"
+            )
+            if "must_contain" in doc_ref:
+                content = file_path.read_text(encoding="utf-8")
+                assert doc_ref["must_contain"] in content, (
+                    f"Fixture '{fixture['_file']}': "
+                    f"'{doc_ref['file']}' missing "
+                    f"'{doc_ref['must_contain']}'"
+                )

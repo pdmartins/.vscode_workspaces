@@ -1,0 +1,71 @@
+# Lessons Learned
+
+Registro de aprendizados e decisões importantes do projeto Copilot Core.
+
+---
+
+## Estrutura
+
+Cada lição segue o formato:
+
+```xml
+<lesson date="YYYY-MM-DD" category="categoria">
+  <context>Contexto do problema</context>
+  <decision>Decisão tomada</decision>
+  <outcome>Resultado/impacto</outcome>
+</lesson>
+```
+
+### Categorias
+
+| Categoria | Descrição |
+|-----------|-----------|
+| arquitetura | Estrutura do projeto |
+| padrões | Convenções de código |
+| tooling | Ferramentas e configs |
+| workflow | Processos |
+| debug | Problemas resolvidos |
+| performance | Otimizações |
+| segurança | Práticas de segurança |
+| regras | Definições e regras do sistema |
+| estrutura | Organização e estrutura de diretórios |
+
+---
+
+## Registro
+
+<lesson date="2026-02-10" category="estrutura">
+  <context>Arquivos de instructions (.github/instructions/) eram copiados dos templates — workspace.instructions.md era copiado de .copilot-core/templates/ para .github/instructions/. default.instructions.md ficava apenas dentro do submodule sem link.</context>
+  <decision>Usar SEMPRE symlinks, nunca cópias. default.instructions.md tem symlink para .copilot-core/instructions/. workspace.instructions.md é armazenado em .copilot-project/instructions/ (específico do projeto) com symlink para .github/instructions/. Windows: cmd /c mklink. Linux/Mac: ln -s. Paths relativos: ../.copilot-core/instructions/ e ../.copilot-project/instructions/.</decision>
+  <outcome>Alterações nos repos de origem refletem automaticamente no projeto consumidor. workspace.instructions.md passa a ser responsabilidade do .copilot-project (por branch). Atualizados: templates/workspace.instructions.md, .github/instructions/workspace.instructions.md, project-create, project-init, project-bootstrap, QUICK-START.md, context/project.md.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="estrutura">
+  <context>O .copilot-core precisa usar seu próprio sistema de memória e contexto para governar seu desenvolvimento (self-dogfooding), mas o contexto e memória normalmente ficam em .copilot-project.</context>
+  <decision>Excepcionalmente para o projeto core, contexto e memória ficam em .copilot-core/.github/ (context/ e memory/). No workspace de desenvolvimento, um junction link .github → .copilot-core/.github permite que o Copilot descubra os arquivos normalmente.</decision>
+  <outcome>O core usa o próprio sistema para se governar. A pasta .github/ não é distribuída pela branch core (sync-core.yml exclui), então os dados do projeto core não vazam para projetos consumidores.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="estrutura">
+  <context>Projetos consumidores precisam do .copilot-core como submodule. O repo tem branch main (desenvolvimento completo) e branch core (apenas instruções/skills/templates).</context>
+  <decision>Projetos consumidores SEMPRE usam a branch core, nunca main. A branch core é gerada automaticamente pelo workflow sync-core.yml e contém apenas instructions/, skills/ e templates/ — sem .github/ do repo de desenvolvimento.</decision>
+  <outcome>Separação limpa entre desenvolvimento do core e consumo. Projetos não recebem arquivos de infraestrutura do core.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="regras">
+  <context>O agente só registrava automaticamente correções de código gerado. Definições/correções de regras, estruturas e processos do próprio .copilot-core não eram capturadas.</context>
+  <decision>Ampliar o auto-registro para incluir correções de regras, estrutura e processos. O .copilot-core deve fazer self-dogfooding — usar seu próprio sistema de memória para governar seu desenvolvimento.</decision>
+  <outcome>Adicionada seção "Registro automático — Correções de regras, estrutura e processos" no default.instructions.md. Toda definição ou correção do usuário sobre como o sistema funciona agora é registrada automaticamente.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="estrutura">
+  <context>Para projetos cujos repos não podem ter referência a submodules, a abordagem de junction (mklink /J) foi considerada mas rejeitada porque mudanças de branch no source refletem no projeto consumidor.</context>
+  <decision>Para projetos sem submodules, usar clones independentes dentro de uma pasta container {projeto}/.github/. Estrutura: pasta raiz não é git repo, repos do projeto ficam lado a lado, .github/ contém clones separados de .copilot-core e .copilot-project + instructions/. Abrir a pasta raiz no VS Code.</decision>
+  <outcome>Setup funciona sem tocar nos repos originais. Cada projeto tem seus próprios clones com branches independentes. Copilot descobre instructions em .github/instructions/ relativo ao workspace root.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="padrões">
+  <context>Análise profunda revelou inconsistências: workspace.instructions.md (.github/) desatualizado vs template, categorias dos code-map skills divergentes entre frontmatter e tabelas, project-update com nota incorreta sobre branch main, URLs hardcoded nos skills de setup.</context>
+  <decision>Documentar inconsistências no contexto do projeto para rastreamento e correção futura. Priorizar: (1) corrigir workspace.instructions.md, (2) alinhar categorias, (3) corrigir notas incorretas.</decision>
+  <outcome>Inconsistências catalogadas em context/project.md seção "Inconsistências Conhecidas". Pendente correção.</outcome>
+</lesson>

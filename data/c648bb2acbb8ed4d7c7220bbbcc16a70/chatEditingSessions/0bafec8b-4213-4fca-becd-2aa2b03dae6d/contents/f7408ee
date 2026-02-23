@@ -1,0 +1,221 @@
+---
+name: code-skill-evaluate
+description: Avalia a eficácia de skills via cenários estruturados (YAML) usando o próprio GHCP como juiz. Testa routing accuracy (skill correta ativada?), output quality (segue template? é útil?) e anti-hallucination (inventa dados não ancorados?). Lê cenários do test project (_test/llm-judge), simula comportamento, auto-avalia contra rubrics, e registra findings. Triggers: "avaliar skill", "testar skill", "LLM judge", "evaluate skill", "rodar avaliação", "skill evaluation", "validar eficácia".
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: code
+  delegable: orchestrated
+---
+
+# Code Skill Evaluate
+
+Avalia skills do `.copilot-core` usando cenários estruturados e auto-avaliação LLM.
+
+## Quando Usar
+
+- Após criar ou alterar uma skill significativamente
+- Avaliação periódica de qualidade dos prompts
+- Usuário pede "avaliar skill", "testar skill", "LLM judge"
+- Antes de release de novas versões do core
+
+## Quando NÃO Usar
+
+- Para testes estruturais (pytest já cobre: frontmatter, naming, size)
+- Para validar schema dos cenários YAML (pytest `@pytest.mark.evaluation` cobre)
+- Para criar cenários (usar editor normal)
+
+## Config Loading
+
+1. Verificar worktree: `{workspace}/.copilot-project-worktrees/_test/llm-judge/`
+2. Carregar `skills/code-skill-evaluate/config.yml` para thresholds e weights
+3. Listar cenários em `scenarios/{tipo}/` para descobrir disponíveis
+
+## Workflow
+
+### 1. Selecionar cenários
+
+```
+Opções:
+a) Avaliar skill específica → filtrar cenários que referenciam a skill
+b) Avaliar por tipo → routing | quality | hallucination
+c) Avaliar todos → batch completo
+d) Avaliar cenário específico → por nome de arquivo
+```
+
+**Input do usuário**: qual skill ou tipo avaliar.
+
+### 2. Carregar cenário
+
+Para cada cenário YAML selecionado:
+
+```yaml
+# Campos a extrair:
+scenario:          # título
+evaluation_type:   # routing | quality | hallucination
+user_message:      # mensagem simulada do usuário
+context:           # contexto simulado do projeto
+target_skill:      # (quality/hallucination) skill alvo
+expected_skills:   # (routing) skills esperadas
+rubric:            # critérios weighted
+grounding:         # (hallucination) âncoras permitidas e proibidas
+```
+
+### 3. Avaliar — por tipo
+
+#### Routing
+
+Para cada cenário de routing:
+
+1. Ler `user_message` e `context`
+2. Considerar as instructions globais + skills carregados
+3. **Determinar**: qual skill(s) o agente ativaria?
+4. **Comparar** com `expected_skills`:
+   - `must_activate: true` → skill DEVE ser escolhida
+   - `must_activate: false` → skill NÃO deve ser escolhida
+5. **Score**: 5 (match perfeito), 3 (parcial — ativou correta mas também incorreta), 0 (ativou errada)
+
+#### Quality
+
+Para cada cenário de quality:
+
+1. Ler `user_message`, `context`, `target_skill`
+2. Carregar SKILL.md da `target_skill`
+3. **Simular**: que output o agente geraria seguindo este SKILL.md?
+4. **Avaliar** cada critério do `rubric`:
+   - Score 0-5 com justificativa de uma linha
+   - Peso do critério aplicado ao cálculo
+5. **Score**: média ponderada dos critérios
+
+#### Hallucination
+
+Para cada cenário de hallucination:
+
+1. Ler `user_message`, `context`, `target_skill`, `grounding`
+2. Carregar SKILL.md da `target_skill`
+3. **Simular**: que output o agente geraria?
+4. **Verificar cada critério** do rubric (type: hallucination):
+   - O output contém claims NÃO ancoradas nos `allowed_sources`?
+   - O output viola algum `forbidden_claims`?
+5. **Score**: 5 (zero hallucination), 3 (minor — sugestão vs afirmação), 0 (hallucination factual)
+
+### 4. Registrar resultado
+
+Para cada cenário avaliado, registrar em `memory/lessons-learned.md` do test project:
+
+```xml
+<lesson date="{today}" category="{evaluation_type}">
+  <context>Cenário: {scenario} | Skill: {target_skill or expected_skills} | Tipo: {evaluation_type}</context>
+  <decision>Score: {weighted_avg}/5.0 ({PASS|FAIL}) — {resumo dos critérios}</decision>
+  <outcome>{detalhes por critério com scores individuais}</outcome>
+</lesson>
+```
+
+### 5. Resumo da sessão
+
+Após avaliar todos os cenários da sessão:
+
+```
+📊 **Avaliação concluída**
+
+| Tipo | Cenários | Avg Score | Pass Rate |
+|------|----------|-----------|-----------|
+| Routing | N | X.X/5.0 | Y% |
+| Quality | N | X.X/5.0 | Y% |
+| Hallucination | N | X.X/5.0 | Y% |
+| **Total** | **N** | **X.X/5.0** | **Y%** |
+
+Pass threshold: {pass_threshold} (from config.yml)
+
+{lista de cenários que falharam com brief reason}
+```
+
+## Schema dos Cenários
+
+### Routing
+
+```yaml
+scenario: "Human-readable title"
+evaluation_type: routing
+difficulty: easy | medium | hard
+
+user_message: "frase que o usuário diria"
+context:
+  project_stack: ["tech", "version"]
+  existing_files: ["path/to/file"]
+  has_copilot_project: true | false  # optional
+
+expected_skills:
+  - name: skill-name
+    must_activate: true | false
+    reason: "why"
+
+notes: "optional clarification"
+```
+
+### Quality
+
+```yaml
+scenario: "Human-readable title"
+evaluation_type: quality
+difficulty: easy | medium | hard
+
+user_message: "frase que o usuário diria"
+context:
+  project_stack: ["tech", "version"]
+  existing_files: ["path/to/file"]
+
+target_skill: skill-name
+
+rubric:
+  - criterion: "what to evaluate"
+    weight: 1-5
+  - criterion: "another criterion"
+    weight: 1-5
+```
+
+### Hallucination
+
+```yaml
+scenario: "Human-readable title"
+evaluation_type: hallucination
+difficulty: easy | medium | hard
+
+user_message: "frase que o usuário diria"
+context:
+  project_stack: ["tech", "version"]
+  existing_files: ["path/to/file"]
+  code_snippet: |  # optional — actual code to review
+    ...
+
+target_skill: skill-name
+
+grounding:
+  allowed_sources:
+    - "skill-name/SKILL.md"
+    - "Project context description"
+  forbidden_claims:
+    - "Specific fabrication to watch for"
+
+rubric:
+  - criterion: "what to check"
+    weight: 1-5
+    type: hallucination | quality
+```
+
+## Regras
+
+1. **Honestidade**: Avaliar com rigor — não inflar scores
+2. **Justificativa**: Todo score precisa de justificativa de uma linha
+3. **Isolamento**: Registrar findings APENAS no test project (`_test/llm-judge`)
+4. **Reproducibilidade**: Anotar se o resultado pode variar entre runs
+5. **Actionable**: Findings devem sugerir melhorias concretas na skill avaliada
+
+## Checklist
+
+- [ ] Cenário YAML lido e validado
+- [ ] SKILL.md da skill alvo carregado
+- [ ] Avaliação executada por tipo (routing/quality/hallucination)
+- [ ] Score calculado com justificativas
+- [ ] Resultado registrado em `memory/lessons-learned.md` do test project
+- [ ] Resumo da sessão apresentado ao usuário

@@ -1,0 +1,150 @@
+---
+name: lang-bash
+description: Padrões e templates para scripts Bash (.sh). Use ao criar ou editar arquivos *.sh, quando pedir script bash/shell, ou ao verificar conformidade de scripts existentes. Triggers: arquivos .sh, "criar script bash", "script shell", "script linux".
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: lang
+---
+
+# Bash Script Skill
+
+Padrões para criação e edição de scripts Bash.
+
+## Quando Usar
+
+- Criar/editar arquivos `*.sh`
+- Pedido para criar script bash/shell
+- Verificar conformidade de scripts existentes
+
+## Workflow
+
+### 1. Validar estrutura
+
+**Se arquivo novo:**
+→ Aplicar template base completo
+
+**Se arquivo existente:**
+→ Preservar estrutura e estilo
+→ Identificar padrões já utilizados
+
+### 2. Garantir shebang e segurança
+
+Primeira linha DEVE ser:
+```bash
+#!/bin/bash
+set -euo pipefail
+```
+
+### 3. Verificar helpers de cor
+
+**Se script usa output colorido**, garantir:
+
+```bash
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+NC='\033[0m'
+
+# Helpers
+print_info()    { echo -e "${CYAN}🔍 $1${NC}"; }
+print_success() { echo -e "${GREEN}✅ $1${NC}"; }
+print_warning() { echo -e "${YELLOW}⚠️ $1${NC}"; }
+print_error()   { echo -e "${RED}❌ $1${NC}"; }
+print_step()    { echo -e "${WHITE}🚀 $1${NC}"; }
+```
+
+### 4. Aplicar idempotência
+
+- Antes de instalar/criar, verificar se já existe
+- Usar `command -v` para verificar comandos
+- Usar `[[ -f ]]` ou `[[ -d ]]` para verificar paths
+
+### 5. Configurar permissão
+
+Após criar/editar:
+```bash
+git update-index --chmod=+x {arquivo}
+```
+
+## Template Base
+
+```bash
+#!/bin/bash
+set -euo pipefail
+
+# ============================================================================
+# Script: {nome-do-script}.sh
+# Description: {descrição breve}
+# ============================================================================
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+WHITE='\033[1;37m'
+NC='\033[0m'
+
+# Helpers
+print_info()    { echo -e "${CYAN}🔍 $1${NC}"; }
+print_success() { echo -e "${GREEN}✅ $1${NC}"; }
+print_warning() { echo -e "${YELLOW}⚠️ $1${NC}"; }
+print_error()   { echo -e "${RED}❌ $1${NC}"; }
+print_step()    { echo -e "${WHITE}🚀 $1${NC}"; }
+
+# Script directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Error handling
+trap 'print_error "Error on line $LINENO"; exit 1' ERR
+
+# ============================================================================
+# Functions
+# ============================================================================
+
+check_prerequisites() {
+    print_info "Checking prerequisites..."
+    # if ! command -v docker &>/dev/null; then
+    #     print_error "Docker not found"
+    #     exit 1
+    # fi
+}
+
+main() {
+    print_step "Starting {nome-do-script}..."
+    
+    check_prerequisites
+    
+    # Main logic here
+    
+    print_success "Done!"
+}
+
+# ============================================================================
+# Main
+# ============================================================================
+
+main "$@"
+```
+
+## Convenções
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Nome arquivo | `verbo-substantivo.sh` | `install-docker.sh` |
+| Funções | `snake_case` | `check_privileges` |
+| Variáveis locais | `snake_case` | `user_home` |
+| Constantes | `UPPER_CASE` | `RED`, `SCRIPT_DIR` |
+
+## Checklist
+
+- [ ] Shebang + set -euo pipefail
+- [ ] Cores e emojis consistentes
+- [ ] Idempotente (verifica estado antes)
+- [ ] Tratamento de erros (trap)
+- [ ] Feedback de progresso
+- [ ] Sem paths absolutos hardcoded

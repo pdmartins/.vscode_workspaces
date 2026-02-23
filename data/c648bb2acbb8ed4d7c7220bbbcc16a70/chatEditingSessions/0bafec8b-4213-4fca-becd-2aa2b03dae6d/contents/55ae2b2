@@ -1,0 +1,29 @@
+scenario: "User request that could trigger multiple skills"
+evaluation_type: routing
+difficulty: hard
+
+user_message: "refatora o OrderService e cria os testes"
+
+context:
+  project_stack: ["dotnet", "8.0", "xUnit"]
+  existing_files:
+    - "src/Application/Services/OrderService.cs"
+    - "tests/Application.Tests/Application.Tests.csproj"
+
+expected_skills:
+  - name: code-refactor-extract
+    must_activate: true
+    reason: "Explicit refactoring request"
+  - name: code-unittest-generate
+    must_activate: true
+    reason: "Explicit test creation request"
+  - name: code-review-analyze
+    must_activate: false
+    reason: "Not a review — it's a refactor + test request"
+
+notes: |
+  This tests multi-skill activation. The agent should:
+  1. Activate code-refactor-extract for the refactoring
+  2. Activate code-unittest-generate for the test creation
+  3. Execute them in sequence (refactor first, then test the refactored code)
+  Order matters — testing before refactoring would use the old code.

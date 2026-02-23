@@ -1,0 +1,372 @@
+---
+name: code-valueobject-generate
+description: Padrões para Value Objects do Domain Layer. Lê config.yml do project para convenções específicas. Use ao criar tipos imutáveis sem identidade como Email, Money, Address. Triggers: value object, VO, imutável, validação de tipo, pasta ValueObjects/.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: code
+  delegable: full
+---
+
+# Value Object Skill
+
+Padrões para Value Objects do Domain Layer seguindo DDD.
+
+## Quando Usar
+
+- Criar tipos com validação embutida
+- Representar conceitos sem identidade
+- Garantir imutabilidade
+- Encapsular regras de formato
+
+## Config Loading
+
+Antes de gerar código, carregar configurações do projeto:
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/code-valueobject-generate/config.yml`
+2. Se existe, carregar e usar as configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/code-valueobject-generate/SKILL.md`
+4. Se existe, carregar como instruções complementares (extensões específicas do projeto)
+5. Se nenhum existe, usar apenas os padrões genéricos abaixo
+
+## Estrutura
+
+```
+src/{RootNamespace}.Domain/
+└── ValueObjects/
+    ├── EmailVO.cs
+    ├── MoneyVO.cs
+    ├── PhoneNumberVO.cs
+    └── TagsVO.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Value Object | `[Nome]VO` | `EmailVO`, `MoneyVO`, `PhoneNumberVO` |
+
+## Templates
+
+### Value Object Simples
+
+```csharp
+namespace {RootNamespace}.Domain.ValueObjects;
+
+/// <summary>
+/// Represents a phone number in E.164 format.
+/// </summary>
+public sealed record PhoneNumberVO
+{
+    public string Value { get; }
+    
+    public PhoneNumberVO(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException("Phone number cannot be empty", nameof(value));
+            
+        if (!IsValidFormat(value))
+            throw new ArgumentException(
+                "Phone number must be in E.164 format (+1234567890)", 
+                nameof(value));
+        
+        Value = value;
+    }
+    
+    private static bool IsValidFormat(string value)
+    {
+        return System.Text.RegularExpressions.Regex.IsMatch(
+            value, 
+            @"^\+\d{10,15}$");
+    }
+    
+    // Implicit conversion to string
+    public static implicit operator string(PhoneNumberVO phoneNumber) 
+        => phoneNumber.Value;
+    
+    public override string ToString() => Value;
+}
+```
+
+### Value Object com Múltiplas Propriedades
+
+```csharp
+namespace {RootNamespace}.Domain.ValueObjects;
+
+/// <summary>
+/// Represents a monetary amount with currency.
+/// </summary>
+public sealed record MoneyVO
+{
+    public decimal Amount { get; }
+    public string Currency { get; }
+    
+    public MoneyVO(decimal amount, string currency)
+    {
+        if (amount < 0)
+            throw new ArgumentException(
+                "Amount cannot be negative", 
+                nameof(amount));
+                
+        if (string.IsNullOrWhiteSpace(currency) || currency.Length != 3)
+            throw new ArgumentException(
+                "Currency must be a 3-letter ISO code", 
+                nameof(currency));
+        
+        Amount = amount;
+        Currency = currency.ToUpperInvariant();
+    }
+    
+    // Factory methods
+    public static MoneyVO USD(decimal amount) => new(amount, "USD");
+    public static MoneyVO EUR(decimal amount) => new(amount, "EUR");
+    
+    // Operations
+    public MoneyVO Add(MoneyVO other)
+    {
+        if (Currency != other.Currency)
+            throw new InvalidOperationException(
+                "Cannot add money with different currencies");
+        
+        return new MoneyVO(Amount + other.Amount, Currency);
+    }
+    
+    public override string ToString() 
+        => $"{Currency} {Amount:N2}";
+}
+```
+
+### Value Object com Factory Method
+
+```csharp
+namespace {RootNamespace}.Domain.ValueObjects;
+
+/// <summary>
+/// Represents an email address.
+/// </summary>
+public sealed record EmailVO
+{
+    public string Value { get; }
+    public string LocalPart { get; }
+    public string Domain { get; }
+    
+    private EmailVO(string value)
+    {
+        Value = value;
+        var parts = value.Split('@');
+        LocalPart = parts[0];
+        Domain = parts[1];
+    }
+    
+    public static EmailVO Create(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException("Email cannot be empty", nameof(value));
+            
+        if (!IsValidEmail(value))
+            throw new ArgumentException("Invalid email format", nameof(value));
+        
+        return new EmailVO(value.ToLowerInvariant());
+    }
+    
+    public static bool TryCreate(string value, out EmailVO? email)
+    {
+        try
+        {
+            email = Create(value);
+            return true;
+        }
+        catch
+        {
+            email = null;
+            return false;
+        }
+    }
+    
+    private static bool IsValidEmail(string value)
+    {
+        try
+        {
+            var addr = new System.Net.Mail.MailAddress(value);
+            return addr.Address == value;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+    
+    public static implicit operator string(EmailVO email) => email.Value;
+    
+    public override string ToString() => Value;
+}
+```
+
+### Value Object com Validação Rica
+
+```csharp
+namespace {RootNamespace}.Domain.ValueObjects;
+
+/// <summary>
+/// Represents content text with length validation.
+/// </summary>
+public sealed record ContentVO
+{
+    public const int MaxLength = 4096;
+    public const int MinLength = 1;
+    
+    public string Value { get; }
+    public int Length => Value.Length;
+    
+    public ContentVO(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+            throw new ArgumentException(
+                "Content cannot be empty", 
+                nameof(value));
+                
+        if (value.Length > MaxLength)
+            throw new ArgumentException(
+                $"Content cannot exceed {MaxLength} characters", 
+                nameof(value));
+        
+        Value = value.Trim();
+    }
+    
+    public bool ContainsUrl()
+    {
+        return System.Text.RegularExpressions.Regex.IsMatch(
+            Value, 
+            @"https?://\S+");
+    }
+    
+    public ContentVO Truncate(int maxLength)
+    {
+        if (Value.Length <= maxLength)
+            return this;
+            
+        return new ContentVO(
+            Value[..(maxLength - 3)] + "...");
+    }
+    
+    public static implicit operator string(ContentVO content) 
+        => content.Value;
+    
+    public override string ToString() => Value;
+}
+```
+
+### Value Object Enumerable
+
+```csharp
+namespace {RootNamespace}.Domain.ValueObjects;
+
+/// <summary>
+/// Represents a collection of tags.
+/// </summary>
+public sealed record TagsVO
+{
+    private readonly HashSet<string> _tags;
+    
+    public IReadOnlySet<string> Values => _tags;
+    public int Count => _tags.Count;
+    
+    public TagsVO(IEnumerable<string> tags)
+    {
+        _tags = tags
+            .Where(t => !string.IsNullOrWhiteSpace(t))
+            .Select(t => t.Trim().ToLowerInvariant())
+            .ToHashSet();
+    }
+    
+    public TagsVO() : this(Array.Empty<string>()) { }
+    
+    public TagsVO Add(string tag)
+    {
+        var newTags = new HashSet<string>(_tags) { tag.Trim().ToLowerInvariant() };
+        return new TagsVO(newTags);
+    }
+    
+    public TagsVO Remove(string tag)
+    {
+        var newTags = new HashSet<string>(_tags);
+        newTags.Remove(tag.Trim().ToLowerInvariant());
+        return new TagsVO(newTags);
+    }
+    
+    public bool Contains(string tag) 
+        => _tags.Contains(tag.Trim().ToLowerInvariant());
+}
+```
+
+## Regras de Value Objects
+
+1. **Imutabilidade**: Usar `record` ou propriedades `init`
+2. **Validação no construtor**: Garantir estado válido
+3. **Sem identidade**: Igualdade por valor, não por referência
+4. **Auto-validação**: O VO é responsável por sua própria validade
+5. **Conversão implícita**: Para tipo primitivo quando faz sentido
+
+## Comparação com Entidade
+
+| Aspecto | Entity | Value Object |
+|---------|--------|--------------|
+| Identidade | Tem ID único | Sem ID |
+| Igualdade | Por ID | Por valor |
+| Mutabilidade | Pode mudar | Imutável |
+| Ciclo de vida | Independente | Pertence a entidade |
+
+## Persistência (Dapper)
+
+```csharp
+// Type Handler para Dapper
+public class PhoneNumberVOTypeHandler : SqlMapper.TypeHandler<PhoneNumberVO>
+{
+    public override PhoneNumberVO Parse(object value)
+        => new(value.ToString()!);
+
+    public override void SetValue(IDbDataParameter parameter, PhoneNumberVO? value)
+        => parameter.Value = value?.Value;
+}
+
+// Registro
+SqlMapper.AddTypeHandler(new PhoneNumberVOTypeHandler());
+```
+
+## Checklist
+
+- [ ] Pasta: `Domain/ValueObjects/`
+- [ ] Nomenclatura: `[Nome]VO`
+- [ ] Usar `sealed record`
+- [ ] Validação no construtor
+- [ ] Propriedades readonly
+- [ ] Conversão implícita para primitivo
+- [ ] Override de ToString()
+- [ ] Type Handler para Dapper (se necessário)
+
+## Config Schema
+
+```yaml
+# config.yml schema for code-valueobject-generate
+language: csharp
+framework: dotnet-8
+solution: string          # Solution name
+
+project:
+  root_namespace: string  # e.g. "MyCompany.MyApp"
+
+value_objects:
+  suffix: string          # e.g. "VO"
+  namespace: string       # e.g. "{RootNamespace}.Domain.ValueObjects"
+  items:                  # Project-specific VOs
+    - name: string        # e.g. "PhoneNumber"
+      type: string        # simple | multi-property | factory | rich-validation | enumerable
+      properties:         # For multi-property VOs
+        - name: string
+          type: string
+      validation: string  # Regex or description
+
+persistence:
+  orm: string             # dapper | ef-core
+  type_handlers: bool     # Whether to generate type handlers
+```

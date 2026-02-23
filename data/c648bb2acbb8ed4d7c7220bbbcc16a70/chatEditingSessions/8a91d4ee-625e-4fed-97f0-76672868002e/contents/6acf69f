@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+# Setup Instructions - Copilot Agent Skills
+# Corrige symlinks quebrados em .github/instructions/
+# Pode ser executado da raiz do projeto OU de dentro de .copilot-core/config/
+
+set -e
+
+# Detectar se estamos em .copilot-core/config e ajustar o diretório
+if [[ "$PWD" == *".copilot-core/config" ]]; then
+    echo "📍 Detectado execução de dentro de .copilot-core/config"
+    echo "   Mudando para raiz do projeto..."
+    cd ../..
+fi
+
+echo "🔧 Corrigindo symlinks do Copilot Agent..."
+
+# Verificar se estamos na raiz de um projeto com .copilot-core e .copilot-project
+if [ ! -d ".copilot-core" ] || [ ! -d ".copilot-project" ]; then
+    echo "❌ Erro: .copilot-core ou .copilot-project não encontrados"
+    echo "   Execute este script na raiz do projeto que contém os submodules/clones"
+    exit 1
+fi
+
+# Verificar se os arquivos de destino existem
+if [ ! -f ".copilot-core/instructions/agent-skills-core.instructions.md" ]; then
+    echo "❌ Erro: .copilot-core/instructions/agent-skills-core.instructions.md não encontrado"
+    exit 1
+fi
+
+if [ ! -f ".copilot-project/instructions/agent-skills-project.instructions.md" ]; then
+    echo "❌ Erro: .copilot-project/instructions/agent-skills-project.instructions.md não encontrado"
+    exit 1
+fi
+
+# Criar diretório se não existe
+if [ ! -d ".github/instructions" ]; then
+    echo "📁 Criando .github/instructions..."
+    mkdir -p .github/instructions
+fi
+
+# Remover symlinks antigos/quebrados
+echo "🗑️  Removendo symlinks antigos..."
+rm -f .github/instructions/agent-skills-core.instructions.md
+rm -f .github/instructions/agent-skills-project.instructions.md
+
+# Criar novos symlinks com caminhos relativos
+echo "🔗 Criando symlinks corretos..."
+ln -s ../../.copilot-core/instructions/agent-skills-core.instructions.md .github/instructions/agent-skills-core.instructions.md
+ln -s ../../.copilot-project/instructions/agent-skills-project.instructions.md .github/instructions/agent-skills-project.instructions.md
+
+echo "✅ Symlinks criados com sucesso!"
+echo ""
+echo "Verificação:"
+ls -la .github/instructions/
+
+# Testar se os symlinks estão acessíveis
+echo ""
+echo "Testando acessibilidade:"
+if [ -f ".github/instructions/agent-skills-core.instructions.md" ] && [ -f ".github/instructions/agent-skills-project.instructions.md" ]; then
+    echo "✅ Ambos os symlinks estão acessíveis"
+else
+    echo "⚠️  Alguns symlinks podem não estar acessíveis:"
+    [ -f ".github/instructions/agent-skills-core.instructions.md" ] && echo "   agent-skills-core.instructions.md: ✅" || echo "   agent-skills-core.instructions.md: ❌"
+    [ -f ".github/instructions/agent-skills-project.instructions.md" ] && echo "   agent-skills-project.instructions.md: ✅" || echo "   agent-skills-project.instructions.md: ❌"
+fi

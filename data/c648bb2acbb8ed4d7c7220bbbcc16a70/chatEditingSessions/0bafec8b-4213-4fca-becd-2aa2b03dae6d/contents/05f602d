@@ -1,0 +1,21 @@
+scenario: "User asks to sync lessons with MCP"
+evaluation_type: routing
+difficulty: easy
+
+user_message: "Sincroniza todas as nossas lições aprendidas com o MCP memory service."
+
+context:
+  project_stack: ["dotnet", "8.0"]
+  existing_files:
+  has_copilot_project: true
+
+expected_skills:
+  - name: agent-memory-sync
+    must_activate: true
+    reason: "Direct request matching agent-memory-sync triggers"
+  - name: agent-memory-register
+    must_activate: false
+    reason: "Not registering a new lesson, syncing to MCP"
+  - name: agent-memory-query
+    must_activate: false
+    reason: "Not querying lessons, syncing them to external service"

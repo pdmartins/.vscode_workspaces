@@ -1,0 +1,228 @@
+# Project Context — Copilot Core
+
+Estado atual do projeto para referência do Copilot.
+
+---
+
+## Objetivo
+
+Sistema de instruções e skills reutilizáveis para o Copilot Agent, seguindo o padrão [Agent Skills](https://agentskills.io). Fornece um core genérico (`.copilot-core`) que é plugado via git submodule ou clone na **raiz** de qualquer projeto, junto com um repositório de dados por projeto (`.copilot-project`) com branch por projeto. Suporta dois modos de instalação: **aberto** (submodule visível) e **stealth** (clone + gitignore, invisível).
+
+## Repos
+
+| Repo | URL | Propósito |
+|------|-----|-----------|
+| `.copilot-core` | `https://github.com/pdmartins/.copilot-core.git` | Skills genéricos, instruções globais, templates |
+| `.copilot-project` | `https://github.com/pdmartins/.copilot-project.git` | Contexto, memória e skills específicos por projeto (branch por projeto) |
+
+## Stack
+
+| Componente | Tecnologia |
+|------------|------------|
+| Formato | Markdown (Agent Skills pattern) |
+| Versionamento | Git (submodules ou clones para distribuição) |
+| Padrão | [Agent Skills](https://agentskills.io) |
+| Commit | Conventional Commits |
+| Linting | markdownlint (via extensão VS Code) |
+
+## Arquitetura
+
+**Workspace de desenvolvimento** com dois repos lado a lado, seguindo o padrão standard de projetos consumidores:
+
+```
+copilot/                          # Pasta raiz do workspace
+├── .github/
+│   └── instructions/
+│       ├── default.instructions.md      → symlink → ../../.copilot-core/instructions/default.instructions.md
+│       └── workspace.instructions.md    → symlink → ../../.copilot-project/instructions/workspace.instructions.md
+│
+├── .copilot-core/                # Repo principal (branch main)
+│   ├── .source-control/
+│   │   └── commit-prompt.md
+│   ├── instructions/
+│   │   └── default.instructions.md
+│   ├── skills/                   # Skills organizados por tipo
+│   │   ├── agent/
+│   │   ├── code/
+│   │   ├── editor/
+│   │   ├── infra/
+│   │   ├── project/
+│   │   └── skill/
+│   │       └── {skill-name}/SKILL.md
+│   ├── templates/
+│   │   └── workspace.instructions.md
+│   └── QUICK-START.md
+│
+├── .copilot-project/             # Repo auxiliar — branch: _pm/copilot-core
+│   ├── context/
+│   │   └── project.md
+│   ├── instructions/
+│   │   └── workspace.instructions.md
+│   ├── memory/
+│   │   └── lessons-learned.md
+│   └── skills/
+│
+└── .copilot-project-worktrees/   # Worktrees do .copilot-project (nomes = branches)
+    ├── main/
+    ├── _bw/bewiser.assistant.api/
+    ├── _hv/STT/
+    ├── _pm/docker-framework/
+    ├── _pm/everyday_queries/
+    └── _pm/scripts/
+```
+
+### Estratégia de Branches
+
+#### `.copilot-core`
+
+- Branch única: `main` (fonte de verdade e distribuição)
+- Projetos consumidores usam `main` (via submodule ou clone)
+
+#### `.copilot-project`
+
+| Branch | Propósito |
+|--------|-----------|
+| `main` | Template base agnóstico |
+| `_pm/copilot-core` | Dados deste projeto (workspace de desenvolvimento do core) |
+| `{nome-projeto}` | Dados específicos de cada projeto plugado |
+
+### Projetos Consumidores
+
+Nos projetos-alvo, a estrutura final é:
+
+```
+{projeto}/
+├── .github/
+│   └── instructions/
+│       ├── default.instructions.md      → symlink → ../../.copilot-core/instructions/default.instructions.md
+│       └── workspace.instructions.md    → symlink → ../../.copilot-project/instructions/workspace.instructions.md
+│
+├── .copilot-core/                  # Submodule ou clone (branch main)
+└── .copilot-project/               # Submodule ou clone (branch do projeto)
+    └── instructions/
+        └── workspace.instructions.md   # Arquivo real específico do projeto
+```
+
+**Modo aberto** (submodule): visível no `.gitmodules`, onboarding via `git clone --recursive`.
+**Modo stealth** (clone): `.copilot-core/`, `.copilot-project/` e symlinks no `.gitignore`, onboarding via script manual.
+
+Os arquivos em `.github/instructions/` são **symlinks**, nunca cópias. Isso garante sincronização automática com os repos de origem.
+
+## Skills Core (56)
+
+| Tipo | Skill | Propósito |
+|------|-------|-----------|
+| agent | `agent-catalog-query` | **Catálogo** — índice de skills agent |
+| agent | `agent-memory-query` | Consultar lições aprendidas |
+| agent | `agent-memory-register` | Registrar novas lições |
+| agent | `agent-task-manage` | Gerenciar tarefas complexas |
+| agent | `agent-subagent-delegate` | Regras de delegação a subagents |
+| agent | `agent-chat-save` | Salvar sessão de chat para retomada cross-machine |
+| agent | `agent-chat-resume` | Retomar sessão de chat anterior |
+| agent | `agent-action-review` | Validar completude e consistência pós-ação |
+| code | `code-catalog-query` | **Catálogo** — índice de skills code |
+| code | `code-review-analyze` | Análise de qualidade, segurança e performance |
+| code | `code-refactor-extract` | Extração de métodos/classes, SRP |
+| code | `code-pattern-enforce` | Verificação e enforcement de padrões |
+| code | `code-dotnet-service` | Geração de serviços/handlers .NET |
+| code | `code-dotnet-test` | Geração de testes unitários .NET |
+| code | `code-bash-write` | Padrões para scripts Bash |
+| code | `code-powershell-write` | Padrões para scripts PowerShell |
+| code | `code-crossplatform-sync` | Sincronização Bash ↔ PowerShell |
+| code | `code-api-validate` | Validação de aderência a padrões de API |
+| code | `code-command-generate` | Commands MediatR / CQRS |
+| code | `code-contracts-generate` | Requests/Responses de API |
+| code | `code-controller-generate` | Controllers RESTful |
+| code | `code-entity-generate` | Entities e Aggregates DDD |
+| code | `code-event-generate` | Domain Events |
+| code | `code-integrationtest-generate` | Testes de integração |
+| code | `code-mapping-generate` | DTOs e Mapping Extensions |
+| code | `code-program-configure` | Clean Program.cs / DI |
+| code | `code-query-generate` | Queries MediatR / CQRS |
+| code | `code-unittest-generate` | Testes unitários (xUnit, builders) |
+| code | `code-valueobject-generate` | Value Objects imutáveis DDD |
+| code | `code-webhook-generate` | Webhooks e integrações callback |
+| project | `project-context-query` | Consultar contexto do projeto |
+| project | `project-context-update` | Atualizar contexto |
+| project | `project-codemap-query` | Consultar mapa de código |
+| project | `project-codemap-update` | Registrar/atualizar artefatos |
+| project | `project-structure-analyze` | Analisar projeto e sugerir skills |
+| project | `project-workspace-create` | Criar projeto completo (Plan mode) |
+| project | `project-setup-bootstrap` | Configurar projeto (automático + manual) |
+| project | `project-repo-update` | Atualizar repos core e project |
+| project | `project-branch-switch` | Trocar branch do .copilot-project |
+| project | `project-catalog-query` | **Catálogo** — índice de skills project |
+| skill | `skill-template-create` | Criar novos skills |
+| skill | `skill-output-validate` | Validar estrutura e qualidade de artefatos de metadata |
+| editor | `editor-markdown-lint` | Regras de formatação Markdown |
+| editor | `editor-readme-generate` | Criação e atualização de READMEs |
+| infra | `infra-catalog-query` | **Catálogo** — índice de skills infra |
+| infra | `infra-docker-build` | Geração de Dockerfile multi-stage |
+| infra | `infra-redis-cache` | Padrão cache-aside com Redis |
+| infra | `infra-bigquery-query` | Queries BigQuery parametrizadas |
+| infra | `infra-gcp-integrate` | Integração com serviços GCP |
+| infra | `infra-k8s-deploy` | Manifests Kubernetes |
+| infra | `infra-pipeline-deploy` | Pipelines CI/CD |
+| infra | `infra-vertexai-prompt` | Gestão de prompts Vertex AI |
+| infra | `infra-jwt-configure` | Autenticação JWT |
+| infra | `infra-messaging-configure` | Mensageria (MassTransit, Service Bus) |
+| infra | `infra-repository-generate` | Repositories (Dapper + SQL) |
+| infra | `infra-service-integrate` | Integração com serviços externos |
+
+### Padrões dos Skills
+
+- **Naming**: `{tipo}-{feature}-{ação}` — sempre 3 segmentos, kebab-case
+- **Tipos**: `agent`, `code`, `project`, `skill`, `editor`, `infra`
+- **category = tipo**: Primeiro segmento do nome no frontmatter
+- **Estrutura**: `skills/{tipo}/{name}/SKILL.md` (organizados em subpastas por tipo)
+- **Config pattern**: Skills `infra` e `code` carregam `config.yml` do project
+- **Frontmatter**: YAML com `name`, `description`, `metadata` (`author`, `version`, `category`)
+- **Seções**: `## Quando Usar` → `## Workflow` com steps numerados
+- **Output**: Confirmações com emojis (`✅`, `📝`, `📚`, `🔄`, `🗺️`, `📋`)
+- **Auto-Init**: Skills de query/update inicializam estrutura automaticamente se não existe
+- **Core = lógica**: Regras genéricas ficam no core
+- **Project = config**: Dados específicos ficam em `config.yml` no project
+
+## Convenções
+
+1. **Português para chat, inglês para código**: Variáveis, nomes de arquivo, paths em inglês
+2. **Core é genérico**: Nunca referenciar projetos específicos nos skills core
+3. **Responsabilidade única**: Cada skill faz UMA coisa
+4. **Conventional Commits**: `<type>(<scope>): <description>` (single-line, ≤250 chars)
+5. **Instructions via symlink**: Arquivos em `.github/instructions/` são sempre symlinks, nunca cópias
+6. **Worktrees**: `.copilot-project` usa git worktrees em `.copilot-project-worktrees/` com nomes espelhando exatamente os nomes das branches
+
+## Estado Atual
+
+**Fase**: Ativo
+**Status**: Core estável com 56 skills organizados em subpastas por tipo (nomenclatura `{tipo}-{feature}-{ação}`), sistema em uso em projetos reais. Suporte a dual-mode (aberto/stealth) para instalação em projetos. Projetos estendem core via `config.yml` (dados estruturados) + `SKILL.md` opcional (extensões provider-specific).
+
+## Projetos Plugados
+
+| Branch (.copilot-project) | Projeto | Status |
+|---------------------------|---------|--------|
+| `main` | Template base | — |
+| `_pm/copilot-core` | Workspace de desenvolvimento do core | Ativo |
+| `_bw/bewiser.assistant.api` | BeWiser Assistant API | Ativo |
+| `_hv/STT` | VoiceTranscription.AI (Hapvida) | Ativo |
+| `_pm/docker-framework` | Docker Framework | — |
+| `_pm/everyday_queries` | Everyday Queries | Ativo |
+| `_pm/scripts` | Scripts de automação | Ativo |
+
+## Inconsistências Conhecidas
+
+| # | Issue | Local | Detalhe |
+|---|-------|-------|---------|
+| 1 | URLs hardcoded | `project-workspace-create` | `github.com/pdmartins/` não parametrizado |
+| 2 | `references/`, `scripts/`, `assets/` não usados | `workspace.instructions.md` loading flow | Documentado mas nenhum skill implementa |
+
+## Regras deste Workspace
+
+1. **Branch ativa**: `.copilot-project/` deve sempre ter a branch `_pm/copilot-core` ativa (checkout direto)
+2. **main como worktree**: A branch `main` (template) deve sempre existir como worktree em `.copilot-project-worktrees/main/`
+3. **Naming de branches**: Branches de projetos pessoais usam prefixo `_pm/`, orgs usam `_{org}/`
+
+## Última Atualização
+
+**Data**: 2026-02-15
+**Motivo**: Atualização completa — 56 skills core, worktrees renomeadas para padrão _pm/, main como worktree, branch _pm/copilot-core como ativa

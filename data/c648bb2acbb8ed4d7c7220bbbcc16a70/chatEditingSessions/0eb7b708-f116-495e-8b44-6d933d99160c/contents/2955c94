@@ -1,0 +1,29 @@
+# Context Index
+
+Catálogo de contexto do projeto. O agente lê este índice primeiro e carrega subpastas sob demanda.
+
+---
+
+## Subtipos
+
+| Tipo | Pasta | Descrição | Status |
+|------|-------|-----------|--------|
+| Architecture | `architecture/` | Decisões arquiteturais, estrutura do sistema, padrões adotados | — |
+| Business Rules | `business-rules/` | Regras de domínio, restrições de negócio, requisitos | — |
+| Code Map | `code-map/` | Inventário de artefatos, módulos, dependências | — |
+| Conventions | `conventions/` | Nomenclatura, estilo, processos de desenvolvimento | — |
+| Infrastructure | `infrastructure/` | Stack tecnológico, ferramentas, integrações, deploy | — |
+| Team Process | `team-process/` | SDLC, normas da equipe, workflows (opt-in) | — |
+
+## Resumo do Projeto
+
+<!-- Preencher com 2-3 frases descrevendo o projeto. O agente usa isto para decisões rápidas sem carregar subpastas. -->
+
+**Objetivo**: {descrição do objetivo principal}
+**Stack principal**: {linguagem/framework}
+**Fase**: {MVP/Beta/Produção/Manutenção}
+
+## Última Atualização
+
+**Data**: {YYYY-MM-DD}
+**Motivo**: Criação inicial

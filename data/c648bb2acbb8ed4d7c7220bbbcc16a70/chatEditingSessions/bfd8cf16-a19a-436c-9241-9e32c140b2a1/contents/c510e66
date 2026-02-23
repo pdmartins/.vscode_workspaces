@@ -1,0 +1,64 @@
+# infra-docker-build — STT Project Configuration
+# Consumed by core skill: .copilot-core/skills/infra-docker-build/SKILL.md
+
+language: csharp
+framework: dotnet-8
+
+images:
+  runtime: hapvidacorp.azurecr.io/hap/golden-image/dotnet-8-aspnet
+  sdk: hapvidacorp.azurecr.io/hap/golden-image/dotnet-8-sdk
+  # NEVER use mcr.microsoft.com images — always Hapvida golden images
+
+stages:
+  - name: base
+    image: runtime
+    purpose: Runtime base
+  - name: build
+    image: sdk
+    purpose: SDK build + NuGet restore
+  - name: test
+    label: "test=true"
+    purpose: Unit tests with coverlet
+  - name: build-continued
+    purpose: Application build (Release)
+  - name: publish
+    purpose: dotnet publish
+  - name: final
+    image: base
+    purpose: Final runtime image
+
+nuget:
+  config_file: nuget-production.config
+  build_args:
+    - NUGET_USER
+    - NUGET_KEY
+  private_feed:
+    name: Hapvida.Core
+    url: https://pkgs.dev.azure.com/hapvidalabs/_packaging/Hapvida.Core/nuget/v3/index.json
+    user_placeholder: ___NUGET_USER___
+    key_placeholder: ___NUGET_KEY___
+
+coverage:
+  tool: coverlet
+  format: cobertura
+  report_tool: dotnet-reportgenerator-globaltool
+  report_type: HtmlInline_AzurePipelines
+  runsettings:
+    include: "[*.Domain?]*"
+    exclude:
+      - "[*.Api]*"
+      - "[*.Tests]*"
+    exclude_by_attribute: ExcludeFromCodeCoverage
+
+projects:
+  api:
+    entrypoint: Project.Api.dll
+    port: 80
+    infra_projects:
+      - Infra.Data.Queries
+      - Infra.Cache
+  consumer:
+    entrypoint: Project.Consumer.dll
+    port: null  # worker, no port
+    infra_projects:
+      - Infra.Cache

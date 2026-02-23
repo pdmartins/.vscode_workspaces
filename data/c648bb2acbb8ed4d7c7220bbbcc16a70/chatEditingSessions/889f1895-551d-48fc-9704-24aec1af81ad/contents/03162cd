@@ -1,0 +1,274 @@
+---
+name: infra-messaging-configure
+description: Extensões específicas do projeto BeWiser Assistant para infra-messaging-configure.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: infra
+---
+
+# Messaging — BeWiser Assistant (Azure Service Bus)
+
+> Este arquivo complementa o skill core `.copilot-core/skills/infra/infra-messaging-configure/SKILL.md`.
+> Contém apenas especificidades do projeto BeWiser Assistant API.
+
+## Messages do Projeto
+
+```csharp
+namespace BeWiser.Assistant.Infrastructure.Messaging.Messages;
+
+/// <summary>
+/// Message to process an incoming WhatsApp message.
+/// </summary>
+public record ProcessMessageMessage
+{
+    public Guid MessageId { get; init; }
+    public Guid ConversationId { get; init; }
+    public DateTime QueuedAt { get; init; } = DateTime.UtcNow;
+}
+
+/// <summary>
+/// Message to send a reply via WhatsApp.
+/// </summary>
+public record SendReplyMessage
+{
+    public Guid ConversationId { get; init; }
+    public required string PhoneNumber { get; init; }
+    public required string Content { get; init; }
+    public DateTime QueuedAt { get; init; } = DateTime.UtcNow;
+}
+```
+
+## ProcessMessageMessageConsumer
+
+Consome `ProcessMessageMessage`, integra com `IAiService` para gerar resposta e publica `SendReplyMessage`:
+
+```csharp
+using MassTransit;
+using Microsoft.Extensions.Logging;
+
+namespace BeWiser.Assistant.Infrastructure.Messaging.Consumers;
+
+public class ProcessMessageMessageConsumer 
+    : IConsumer<ProcessMessageMessage>
+{
+    private readonly IAiService _aiService;
+    private readonly IConversationRepository _repository;
+    private readonly IMessagePublisher _publisher;
+    private readonly ILogger<ProcessMessageMessageConsumer> _logger;
+
+    public ProcessMessageMessageConsumer(
+        IAiService aiService,
+        IConversationRepository repository,
+        IMessagePublisher publisher,
+        ILogger<ProcessMessageMessageConsumer> logger)
+    {
+        _aiService = aiService;
+        _repository = repository;
+        _publisher = publisher;
+        _logger = logger;
+    }
+
+    public async Task Consume(ConsumeContext<ProcessMessageMessage> context)
+    {
+        var message = context.Message;
+        
+        _logger.LogInformation(
+            "Processing message {MessageId} from conversation {ConversationId}",
+            message.MessageId,
+            message.ConversationId);
+
+        try
+        {
+            // 1. Load conversation with messages
+            var conversation = await _repository.GetByIdWithMessagesAsync(
+                message.ConversationId,
+                context.CancellationToken);
+
+            if (conversation is null)
+            {
+                _logger.LogWarning(
+                    "Conversation {ConversationId} not found",
+                    message.ConversationId);
+                return;
+            }
+
+            // 2. Generate AI response
+            var response = await _aiService.GenerateResponseAsync(
+                conversation,
+                context.CancellationToken);
+
+            // 3. Publish reply message
+            await _publisher.PublishSendReplyAsync(
+                new SendReplyMessage
+                {
+                    ConversationId = conversation.Id,
+                    PhoneNumber = conversation.PhoneNumber.Value,
+                    Content = response
+                },
+                context.CancellationToken);
+
+            _logger.LogInformation(
+                "Message {MessageId} processed successfully",
+                message.MessageId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Error processing message {MessageId}",
+                message.MessageId);
+            throw; // Re-throw for retry
+        }
+    }
+}
+```
+
+## SendReplyMessageConsumer
+
+Consome `SendReplyMessage`, envia via `IWhatsAppService` (Twilio) e salva mensagem de saída:
+
+```csharp
+using MassTransit;
+
+namespace BeWiser.Assistant.Infrastructure.Messaging.Consumers;
+
+public class SendReplyMessageConsumer : IConsumer<SendReplyMessage>
+{
+    private readonly IWhatsAppService _whatsAppService;
+    private readonly IMessageRepository _repository;
+    private readonly ILogger<SendReplyMessageConsumer> _logger;
+
+    public SendReplyMessageConsumer(
+        IWhatsAppService whatsAppService,
+        IMessageRepository repository,
+        ILogger<SendReplyMessageConsumer> logger)
+    {
+        _whatsAppService = whatsAppService;
+        _repository = repository;
+        _logger = logger;
+    }
+
+    public async Task Consume(ConsumeContext<SendReplyMessage> context)
+    {
+        var message = context.Message;
+
+        // Send via WhatsApp
+        var externalId = await _whatsAppService.SendMessageAsync(
+            message.PhoneNumber,
+            message.Content,
+            context.CancellationToken);
+
+        // Save outgoing message
+        await _repository.AddAsync(new Message
+        {
+            Id = Guid.NewGuid(),
+            ConversationId = message.ConversationId,
+            Content = new MessageContentVO(message.Content),
+            Direction = MessageDirection.Outgoing,
+            ExternalId = externalId,
+            Status = MessageStatus.Sent
+        }, context.CancellationToken);
+    }
+}
+```
+
+## MessagePublisher do Projeto
+
+```csharp
+using MassTransit;
+
+namespace BeWiser.Assistant.Infrastructure.Messaging.Publishers;
+
+public interface IMessagePublisher
+{
+    Task PublishProcessMessageAsync(
+        ProcessMessageMessage message,
+        CancellationToken cancellationToken = default);
+
+    Task PublishSendReplyAsync(
+        SendReplyMessage message,
+        CancellationToken cancellationToken = default);
+}
+
+public class MessagePublisher : IMessagePublisher
+{
+    private readonly IPublishEndpoint _publishEndpoint;
+    private readonly ILogger<MessagePublisher> _logger;
+
+    public MessagePublisher(
+        IPublishEndpoint publishEndpoint,
+        ILogger<MessagePublisher> logger)
+    {
+        _publishEndpoint = publishEndpoint;
+        _logger = logger;
+    }
+
+    public async Task PublishProcessMessageAsync(
+        ProcessMessageMessage message,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug(
+            "Publishing ProcessMessageMessage for {MessageId}",
+            message.MessageId);
+
+        await _publishEndpoint.Publish(message, cancellationToken);
+    }
+
+    public async Task PublishSendReplyAsync(
+        SendReplyMessage message,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug(
+            "Publishing SendReplyMessage for conversation {ConversationId}",
+            message.ConversationId);
+
+        await _publishEndpoint.Publish(message, cancellationToken);
+    }
+}
+```
+
+## Configuração MassTransit (Azure Service Bus)
+
+```csharp
+using MassTransit;
+
+namespace BeWiser.Assistant.Infrastructure.Extensions;
+
+public static class MessagingExtensions
+{
+    public static IServiceCollection AddMessaging(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var options = configuration
+            .GetSection(ServiceBusOptions.SectionName)
+            .Get<ServiceBusOptions>()!;
+
+        services.AddMassTransit(x =>
+        {
+            x.AddConsumer<ProcessMessageMessageConsumer>();
+            x.AddConsumer<SendReplyMessageConsumer, SendReplyMessageConsumerDefinition>();
+
+            x.UsingAzureServiceBus((context, cfg) =>
+            {
+                cfg.Host(options.ConnectionString);
+
+                cfg.ReceiveEndpoint("process-message", e =>
+                {
+                    e.ConfigureConsumer<ProcessMessageMessageConsumer>(context);
+                });
+
+                cfg.ReceiveEndpoint("send-reply", e =>
+                {
+                    e.ConfigureConsumer<SendReplyMessageConsumer>(context);
+                });
+            });
+        });
+
+        services.AddScoped<IMessagePublisher, MessagePublisher>();
+
+        return services;
+    }
+}
+```

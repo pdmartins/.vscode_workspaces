@@ -1,0 +1,81 @@
+---
+name: infra-catalog-query
+description: Catálogo de 11 skills do tipo infra — Docker, Kubernetes, CI/CD, cache, repositórios, cloud GCP, autenticação JWT, mensageria e integração de serviços. Consulte este catálogo quando a tarefa envolver infraestrutura, deploy, containerização, pipelines, serviços cloud, repositórios, autenticação, mensageria, ou integração com IA/ML. Triggers: qual skill de infra usar, listar skills infra, Docker, k8s, pipeline, cache, GCP, BigQuery, Vertex AI, JWT, messaging, repository, service bus.
+metadata:
+  author: copilot-core
+  version: "2.0"
+  category: infra
+---
+
+# Infrastructure Skills Catalog
+
+Catálogo de skills do tipo `infra` para descoberta rápida. **11 skills** organizados em 5 grupos.
+
+## Skills Disponíveis
+
+### Containerização & Deploy (3)
+
+| Skill | Ação | Quando Usar | Keywords |
+|-------|------|-------------|----------|
+| `infra-docker-build` | Gerar | Dockerfile, containerização, multi-stage build | Docker, container, Dockerfile, build image |
+| `infra-k8s-deploy` | Gerar | Manifests Kubernetes, deployment, services | k8s, kubernetes, deploy, replicas, health check |
+| `infra-pipeline-deploy` | Gerar | CI/CD pipelines (Azure Pipelines, GitHub Actions) | pipeline, CI/CD, build, deploy, SonarQube |
+
+### Cache & Dados (2)
+
+| Skill | Ação | Quando Usar | Keywords |
+|-------|------|-------------|----------|
+| `infra-redis-cache` | Gerar | Cache distribuído com IDistributedCache | cache, Redis, TTL, CacheService |
+| `infra-repository-generate` | Gerar | Repositories (Dapper, SQL, data access) | repository, Dapper, SQL, data access, persistência |
+
+### Cloud GCP (3)
+
+| Skill | Ação | Quando Usar | Keywords |
+|-------|------|-------------|----------|
+| `infra-bigquery-query` | Gerar | Queries BigQuery parametrizadas | BigQuery, consulta, persistência, query |
+| `infra-gcp-integrate` | Configurar | Integração GCP (auth, DI, credential provider) | GCP, Google Cloud, Pub/Sub, GCS, service account |
+| `infra-vertexai-prompt` | Gerenciar | Prompts Vertex AI/Gemini, structured output | Vertex AI, Gemini, prompt, IA, ML, transcrição |
+
+### Authentication (1)
+
+| Skill | Ação | Quando Usar | Keywords |
+|-------|------|-------------|----------|
+| `infra-jwt-configure` | Configurar | JWT authentication, token validation, auth middleware | JWT, token, autenticação, Bearer, auth |
+
+### Mensageria & Integração (2)
+
+| Skill | Ação | Quando Usar | Keywords |
+|-------|------|-------------|----------|
+| `infra-messaging-configure` | Configurar | Message bus, filas, tópicos (MassTransit, Service Bus) | messaging, fila, tópico, MassTransit, Service Bus, Pub/Sub |
+| `infra-service-integrate` | Integrar | Services externos, HTTP clients, resilience | serviço externo, HTTP client, integração, Polly, resilience |
+
+## Roteamento Rápido
+
+| Situação | Skill |
+|----------|-------|
+| Criar/editar Dockerfile | `infra-docker-build` |
+| Manifests Kubernetes | `infra-k8s-deploy` |
+| Pipeline CI/CD | `infra-pipeline-deploy` |
+| Cache Redis/distributed | `infra-redis-cache` |
+| Repository / data access | `infra-repository-generate` |
+| Queries BigQuery | `infra-bigquery-query` |
+| Integração GCP (auth, serviços) | `infra-gcp-integrate` |
+| Prompts IA / Vertex AI | `infra-vertexai-prompt` |
+| Autenticação JWT | `infra-jwt-configure` |
+| Mensageria / filas / tópicos | `infra-messaging-configure` |
+| Integrar serviço externo | `infra-service-integrate` |
+
+## Project Config
+
+Todas as 11 skills carregam `config.yml` do project para configuração específica:
+- `infra-docker-build` → imagens base, feeds privados, tools de coverage
+- `infra-k8s-deploy` → labels, sidecars, resources, health probes
+- `infra-pipeline-deploy` → templates de pipeline, registries, análise estática
+- `infra-redis-cache` → TTL policies, error handling, Settings classes
+- `infra-repository-generate` → connection strings, conventions, base classes
+- `infra-bigquery-query` → tabelas, mapeamento, convenções BigQuery
+- `infra-gcp-integrate` → auth method, serviços habilitados, DI lifetimes
+- `infra-vertexai-prompt` → modelos, temperatura, schemas, prompt templates
+- `infra-jwt-configure` → issuer, audience, policies, claims
+- `infra-messaging-configure` → connection, queues, topics, consumers
+- `infra-service-integrate` → endpoints, retry policies, circuit breaker

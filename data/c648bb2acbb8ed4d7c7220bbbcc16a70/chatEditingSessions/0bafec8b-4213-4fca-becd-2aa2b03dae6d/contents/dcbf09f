@@ -1,0 +1,7 @@
+# Skill Quality Standard
+
+- **date**: 2026-02-16
+- **status**: active
+- **context**: Skills podiam ser criadas com qualquer complexidade — sem limite prático de tamanho ou steps
+- **decision**: Padrão: (1) máximo ~150 linhas por SKILL.md, (2) máximo 7 steps no workflow, (3) linguagem imperativa sem narrativa, (4) tabelas para lógica condicional, (5) obrigatório sync com context database, (6) dividir em múltiplas skills quando 2+ responsabilidades
+- **outcome**: Skills compactas e focadas. Threshold de split de 500 para 150 linhas. Sync com context database obrigatório

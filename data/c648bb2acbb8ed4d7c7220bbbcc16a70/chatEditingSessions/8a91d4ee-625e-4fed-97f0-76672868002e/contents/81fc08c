@@ -1,0 +1,148 @@
+# Setup Scripts — Copilot Agent Skills
+
+Scripts para plugar o sistema de skills em projetos-alvo. Referenciado por `project-workspace-create` e `project-setup-bootstrap`.
+
+## Variáveis
+
+| Variável | Descrição | Exemplo |
+|----------|-----------|---------|
+| `{nome-projeto}` | Nome/branch do projeto | `_bw/bewiser.assistant.api` |
+| `{repo-core}` | URL do repo core | `https://github.com/pdmartins/.copilot-core.git` |
+| `{repo-project}` | URL do repo project | `https://github.com/pdmartins/.copilot-project.git` |
+
+---
+
+## Modo Aberto (submodule — visível no repo)
+
+### Windows (PowerShell)
+
+```powershell
+# Copilot Agent Skills - Setup (Modo Aberto)
+mkdir .github\instructions -Force
+git submodule add -b main {repo-core} .copilot-core
+git submodule add -b {nome-projeto} {repo-project} .copilot-project
+# Criar symlinks para instructions
+cmd /c mklink ".github\instructions\agent-skills-core.instructions.md" "..\../.copilot-core\instructions\agent-skills-core.instructions.md"
+cmd /c mklink ".github\instructions\agent-skills-project.instructions.md" "..\../.copilot-project\instructions\agent-skills-project.instructions.md"
+# Instalar mcp-memory-service
+python -m pip install mcp-memory-service
+git add .
+git commit -m "feat: add copilot agent"
+# MCP: .vscode/mcp.json será gerado automaticamente pelo Copilot na primeira sessão
+# (lê credenciais de .copilot-project/skills/agent-memory-sync/config.yml)
+```
+
+### Linux/Mac (Bash)
+
+```bash
+# Copilot Agent Skills - Setup (Modo Aberto)
+mkdir -p .github/instructions
+git submodule add -b main {repo-core} .copilot-core
+git submodule add -b {nome-projeto} {repo-project} .copilot-project
+# Criar symlinks para instructions
+ln -s ../../.copilot-core/instructions/agent-skills-core.instructions.md .github/instructions/agent-skills-core.instructions.md
+ln -s ../../.copilot-project/instructions/agent-skills-project.instructions.md .github/instructions/agent-skills-project.instructions.md
+# Instalar mcp-memory-service
+pip install mcp-memory-service
+git add .
+git commit -m "feat: add copilot agent"
+# MCP: .vscode/mcp.json será gerado automaticamente pelo Copilot na primeira sessão
+# (lê credenciais de .copilot-project/skills/agent-memory-sync/config.yml)
+```
+
+---
+
+## Modo Stealth (clone + gitignore — invisível no repo)
+
+### Windows (PowerShell)
+
+```powershell
+# Copilot Agent Skills - Setup (Modo Stealth)
+git clone -b main {repo-core} .copilot-core
+git clone -b {nome-projeto} {repo-project} .copilot-project
+mkdir .github\instructions -Force
+cmd /c mklink ".github\instructions\agent-skills-core.instructions.md" "..\../.copilot-core\instructions\agent-skills-core.instructions.md"
+cmd /c mklink ".github\instructions\agent-skills-project.instructions.md" "..\../.copilot-project\instructions\agent-skills-project.instructions.md"
+# Instalar mcp-memory-service
+python -m pip install mcp-memory-service
+# Adicionar ao .gitignore
+Add-Content .gitignore "`n# Copilot Agent Skills (local only)`n.copilot-core/`n.copilot-project/`n.github/instructions/agent-skills-core.instructions.md`n.github/instructions/agent-skills-project.instructions.md`n.vscode/mcp.json"
+git add .gitignore
+git commit -m "chore: gitignore copilot agent local files"
+# MCP: .vscode/mcp.json será gerado automaticamente pelo Copilot na primeira sessão
+# (lê credenciais de .copilot-project/skills/agent-memory-sync/config.yml)
+```
+
+### Linux/Mac (Bash)
+
+```bash
+# Copilot Agent Skills - Setup (Modo Stealth)
+git clone -b main {repo-core} .copilot-core
+git clone -b {nome-projeto} {repo-project} .copilot-project
+mkdir -p .github/instructions
+ln -s ../../.copilot-core/instructions/agent-skills-core.instructions.md .github/instructions/agent-skills-core.instructions.md
+ln -s ../../.copilot-project/instructions/agent-skills-project.instructions.md .github/instructions/agent-skills-project.instructions.md
+# Instalar mcp-memory-service
+pip install mcp-memory-service
+# Adicionar ao .gitignore
+cat >> .gitignore << 'EOF'
+
+# Copilot Agent Skills (local only)
+.copilot-core/
+.copilot-project/
+.github/instructions/agent-skills-core.instructions.md
+.github/instructions/agent-skills-project.instructions.md
+.vscode/mcp.json
+EOF
+git add .gitignore
+git commit -m "chore: gitignore copilot agent local files"
+# MCP: .vscode/mcp.json será gerado automaticamente pelo Copilot na primeira sessão
+# (lê credenciais de .copilot-project/skills/agent-memory-sync/config.yml)
+```
+
+---
+
+## Onboarding de novo dev (Modo Stealth)
+
+Cada dev precisa rodar os passos de clone + symlinks após clonar o projeto. Recomenda-se criar um script `setup-copilot.sh` / `setup-copilot.ps1`.
+
+## Clonando em nova máquina (Modo Aberto)
+
+```bash
+# Opção 1: Clone recursivo (recomendado — traz submodules)
+git clone --recursive https://github.com/seu/projeto.git
+cd projeto
+
+# Opção 2: Clone normal + inicializar submodules
+git clone https://github.com/seu/projeto.git
+cd projeto
+git submodule update --init --recursive
+```
+
+> **Nota:** O MCP memory-service usa Cloudflare como backend. As credenciais estão centralizadas em `.copilot-project/skills/agent-memory-sync/config.yml` — o agente lê este ficheiro para gerar o `.vscode/mcp.json` automaticamente (via bootstrap ou MCP Auto-Setup). Além disso, instalar o pacote: `pip install mcp-memory-service`.
+
+---
+
+## Pré-requisitos por Máquina
+
+Antes de rodar os scripts, cada máquina precisa:
+
+| Requisito | Comando (Windows) | Comando (Linux/Mac) |
+|-----------|-------------------|---------------------|
+| Python 3.12+ | `winget install Python.Python.3.12` | `apt install python3` / `brew install python@3.12` |
+| mcp-memory-service | `python -m pip install mcp-memory-service` | `pip install mcp-memory-service` |
+
+> As credenciais Cloudflare estão centralizadas em `.copilot-project/skills/agent-memory-sync/config.yml` — não é necessário configurar env vars por máquina.
+
+> **⚠️ Windows PATH**: O alias `python.exe` da Microsoft Store pode interceptar o comando `python`. Se o servidor MCP não iniciar, verificar com `python -c "import sys; print(sys.executable)"`. Se apontar para `WindowsApps`, desativar o alias em **Settings → Apps → Advanced app settings → App execution aliases** ou usar o caminho completo do Python no `mcp.json`.
+
+---
+
+## Notas
+
+- Symlinks usam nomes `agent-skills-*` para evitar conflitos com outros instruction files
+- A estrutura final é idêntica em ambos os modos (aberto e stealth)
+- O `.copilot-project` deve ter a branch correta do projeto antes de criar symlinks
+- **MCP memory-service** requer Python 3.12+ (`pip install mcp-memory-service`). O `.vscode/mcp.json` é gerado automaticamente pelo Copilot (bootstrap ou MCP Auto-Setup) a partir de `.copilot-project/skills/agent-memory-sync/config.yml`
+- No modo stealth, `.vscode/mcp.json` é adicionado ao `.gitignore` para não poluir o repo alvo
+- O índice Cloudflare é **partilhado entre projetos** — cada projeto é identificado por tags (branch name)

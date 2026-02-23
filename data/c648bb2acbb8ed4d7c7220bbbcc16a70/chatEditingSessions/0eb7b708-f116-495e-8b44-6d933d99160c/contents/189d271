@@ -1,0 +1,20 @@
+# Stack — SHY HubAI
+
+## Linguagem e Framework
+
+| Componente | Tecnologia |
+|-----------|-----------|
+| **Linguagem** | C# (.NET) |
+| **Tipo** | Backend API |
+| **Arquitetura** | Microserviços + Clean Architecture |
+
+## Infraestrutura
+
+| Componente | Tecnologia |
+|-----------|-----------|
+| **Hosting** | Azure App Service |
+| **DB** | N/A |
+
+## Integrações
+
+- Serviços de AI (detalhes a mapear com `project-structure-analyze`)

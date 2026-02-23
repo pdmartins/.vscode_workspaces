@@ -1,0 +1,128 @@
+---
+name: skill-template-create
+description: Cria novos skills seguindo o padrão Agent Skills. Use quando precisar criar skill para novo tipo de arquivo, novo padrão de código, nova integração, ou quando extensão/contexto não tem skill mapeado. Triggers: "criar skill", "novo skill", "skill para", detectar necessidade de regras específicas.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: skill
+---
+
+# Skill Template Create
+
+Guia a criação de novos skills seguindo o padrão Agent Skills.
+
+## Quando Usar
+
+- Novo tipo de arquivo precisa de regras
+- Novo padrão de código a ser enforçado
+- Nova integração requer workflow específico
+- Extensão/contexto sem skill mapeado
+- Usuário pede para "criar skill"
+
+## Padrão Agent Skills
+
+Cada skill é um diretório com `SKILL.md`:
+
+```
+{contexto}-{funcionalidade}/
+└── SKILL.md
+```
+
+### Nomenclatura
+
+Formato: `{contexto}-{funcionalidade}`
+
+| Contexto | Exemplos |
+|----------|----------|
+| agent | agent-memory, agent-todo |
+| project | project-init, project-context |
+| editor | editor-markdown, editor-yaml |
+| lang | lang-typescript, lang-python |
+| framework | framework-react, framework-nest |
+
+## Workflow
+
+### 1. Coletar informações
+
+Perguntar ao usuário:
+
+1. Qual é o nome do skill? (ex: lang-python, editor-yaml)
+2. Qual contexto ativa este skill? (ex: arquivos *.py, Dockerfile)
+3. Quais padrões devem ser enforçados?
+4. Existem templates obrigatórios?
+5. Quais validações são necessárias?
+
+### 2. Determinar localização
+
+**Se skill é genérico (reutilizável):**
+→ Criar em `.github/.copilot-core/skills/`
+
+**Se skill é específico do projeto:**
+→ Criar em `.github/.copilot-project/skills/`
+
+### 3. Criar diretório e SKILL.md
+
+Usar template:
+
+```markdown
+---
+name: {nome-do-skill}
+description: {descrição completa incluindo quando usar e triggers}
+metadata:
+  author: {autor}
+  version: "1.0"
+  category: {categoria}
+---
+
+# {Nome do Skill}
+
+{Descrição breve do propósito}
+
+## Quando Usar
+
+- {trigger 1}
+- {trigger 2}
+
+## Workflow
+
+### 1. {Primeiro passo}
+
+{descrição e ações}
+
+### 2. {Segundo passo}
+
+{descrição e ações}
+
+## Padrões
+
+{padrões específicos a seguir}
+
+## Exemplos
+
+{exemplos de uso}
+```
+
+### 4. Testar skill
+
+- Criar arquivo de teste com a extensão/contexto
+- Verificar se skill é descoberto pelo agente
+- Verificar se regras são aplicadas corretamente
+
+### 5. Confirmar criação
+
+**Output**:
+```
+✅ **Skill criado**
+- Nome: {nome}
+- Local: {caminho}
+- Pronto para uso
+```
+
+## Boas Práticas
+
+| Prática | Descrição |
+|---------|-----------|
+| Descrição rica | Incluir todos os triggers no campo description |
+| Responsabilidade única | Cada skill faz UMA coisa bem |
+| Progressive disclosure | SKILL.md < 500 linhas, usar references/ |
+| Nomes descritivos | `{contexto}-{funcionalidade}` sempre |

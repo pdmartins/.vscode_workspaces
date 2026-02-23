@@ -1,0 +1,47 @@
+# Configurações específicas do projeto BeWiser Assistant API para infra-service-integrate
+root_namespace: "BeWiser.Assistant"
+
+services:
+  - domain: "Ai"
+    interface: "IAiService"
+    provider: "AzureOpenAi"
+    implementation: "AzureOpenAiService"
+    category: "AI"
+    options_class: "AzureOpenAiOptions"
+    options_section: "AzureOpenAi"
+    uses_http_client: false
+    options_properties:
+      - "Endpoint: string"
+      - "ApiKey: string"
+      - "DeploymentName: string"
+      - "Temperature: float = 0.7"
+      - "MaxTokens: int = 1000"
+
+  - domain: "WhatsApp"
+    interface: "IWhatsAppService"
+    provider: "Twilio"
+    implementation: "TwilioWhatsAppService"
+    category: "WhatsApp"
+    options_class: "TwilioOptions"
+    options_section: "Twilio"
+    uses_http_client: false
+    options_properties:
+      - "AccountSid: string"
+      - "AuthToken: string"
+      - "WhatsAppNumber: string"
+      - "Templates: Dictionary<string, string>"
+
+  - domain: "Search"
+    interface: "ISearchService"
+    provider: "AzureSearch"
+    implementation: "AzureSearchService"
+    category: "AI"
+    options_class: "AzureSearchOptions"
+    options_section: "AzureSearch"
+    uses_http_client: false
+    options_properties:
+      - "Endpoint: string"
+      - "ApiKey: string"
+      - "IndexName: string"
+
+http_clients: []

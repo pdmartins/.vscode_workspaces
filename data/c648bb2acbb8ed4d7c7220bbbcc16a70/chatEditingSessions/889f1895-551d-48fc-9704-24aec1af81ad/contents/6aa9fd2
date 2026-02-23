@@ -1,0 +1,69 @@
+# Project Skills — BeWiser.Assistant API
+
+Skills específicos deste projeto seguindo o padrão [Agent Skills](https://agentskills.io).
+
+## Nomenclatura
+
+Formato obrigatório: **`{tipo}-{feature}-{ação}`** — sempre 3 segmentos, kebab-case.
+
+| Tipo | Propósito |
+|------|-----------|
+| `code` | Análise, validação de código e padrões .NET / ASP.NET Core |
+| `infra` | Infraestrutura, deploy, serviços externos |
+| `project` | Gestão de projeto e escopo |
+
+## Skills Disponíveis (19)
+
+### ⚠️ Validação
+
+| Tipo | Skill | Propósito |
+|------|-------|-----------|
+| project | `project-scope-validate` | Validar escopo ANTES de implementar |
+| code | `code-api-validate` | Validar aderência DEPOIS de implementar |
+
+### API Layer
+
+| Tipo | Skill | Propósito |
+|------|-------|-----------|
+| code | `code-controller-generate` | Controllers RESTful |
+| code | `code-webhook-generate` | Webhooks Twilio |
+| code | `code-contracts-generate` | Requests/Responses |
+
+### Application Layer (CQRS)
+
+| Tipo | Skill | Propósito |
+|------|-------|-----------|
+| code | `code-command-generate` | Commands MediatR |
+| code | `code-query-generate` | Queries MediatR |
+| code | `code-mapping-generate` | DTOs e Mapping Extensions |
+
+### Domain Layer (DDD)
+
+| Tipo | Skill | Propósito |
+|------|-------|-----------|
+| code | `code-entity-generate` | Entities e Aggregates |
+| code | `code-valueobject-generate` | Value Objects imutáveis |
+| code | `code-event-generate` | Domain Events |
+
+### Infrastructure Layer
+
+| Tipo | Skill | Propósito |
+|------|-------|-----------|
+| infra | `infra-repository-generate` | Repositories (Dapper + SQL) |
+| infra | `infra-messaging-configure` | Azure Service Bus (MassTransit) |
+| infra | `infra-service-integrate` | Services externos |
+
+### Cross-cutting
+
+| Tipo | Skill | Propósito |
+|------|-------|-----------|
+| code | `code-program-configure` | Clean Program.cs |
+| infra | `infra-jwt-configure` | JWT Authentication |
+| infra | `infra-docker-deploy` | Docker + CI/CD |
+
+### Testes
+
+| Tipo | Skill | Propósito |
+|------|-------|-----------|
+| code | `code-unittest-generate` | xUnit, NSubstitute, Builders |
+| code | `code-integrationtest-generate` | WebApplicationFactory, TestContainers |

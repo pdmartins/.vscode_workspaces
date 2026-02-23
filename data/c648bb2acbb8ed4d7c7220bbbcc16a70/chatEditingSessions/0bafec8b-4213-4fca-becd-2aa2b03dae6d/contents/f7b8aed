@@ -1,0 +1,51 @@
+name: Validate Skills
+
+on:
+  push:
+    paths:
+      - '.copilot-core/**'
+  pull_request:
+    paths:
+      - '.copilot-core/**'
+  workflow_dispatch:
+
+jobs:
+  validate:
+    name: Skills Validation
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.12']
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: pip install -r .copilot-core/requirements-test.txt
+
+      - name: Run structural tests
+        working-directory: .copilot-core
+        run: python -m pytest -m structural --junitxml=reports/structural.xml
+
+      - name: Run behavioral tests
+        working-directory: .copilot-core
+        run: python -m pytest -m behavioral --junitxml=reports/behavioral.xml
+
+      - name: Run fixture tests
+        working-directory: .copilot-core
+        run: python -m pytest -m fixtures --junitxml=reports/fixtures.xml
+
+      - name: Upload test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: .copilot-core/reports/

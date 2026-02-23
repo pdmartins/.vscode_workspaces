@@ -1,0 +1,43 @@
+"""Validate SKILL.md frontmatter schema across all skills."""
+
+import pytest
+from conftest import VALID_TYPES, VALID_DELEGABLE
+
+
+@pytest.mark.structural
+class TestFrontmatter:
+    def test_has_name(self, skill):
+        assert skill.name, f"{skill.path}: missing 'name' in frontmatter"
+
+    def test_has_description(self, skill):
+        assert skill.description, f"{skill.path}: missing 'description'"
+
+    def test_description_min_length(self, skill):
+        assert len(skill.description) >= 20, (
+            f"{skill.path}: description too short "
+            f"({len(skill.description)} chars, min 20)"
+        )
+
+    def test_has_author(self, skill):
+        assert skill.author, f"{skill.path}: missing 'metadata.author'"
+
+    def test_has_version(self, skill):
+        assert skill.version, f"{skill.path}: missing 'metadata.version'"
+
+    def test_has_category(self, skill):
+        assert skill.category, f"{skill.path}: missing 'metadata.category'"
+
+    def test_category_valid_type(self, skill):
+        assert skill.category in VALID_TYPES, (
+            f"{skill.path}: category '{skill.category}' not in {VALID_TYPES}"
+        )
+
+    def test_has_delegable(self, skill):
+        assert skill.delegable, f"{skill.path}: missing 'metadata.delegable'"
+
+    def test_delegable_valid_value(self, skill):
+        if skill.delegable:
+            assert skill.delegable in VALID_DELEGABLE, (
+                f"{skill.path}: delegable '{skill.delegable}' "
+                f"not in {VALID_DELEGABLE}"
+            )

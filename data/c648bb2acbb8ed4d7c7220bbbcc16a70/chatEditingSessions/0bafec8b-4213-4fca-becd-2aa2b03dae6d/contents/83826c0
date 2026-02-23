@@ -1,0 +1,7 @@
+# Deep Restructuring (2026-02-16)
+
+- **date**: 2026-02-16
+- **status**: active
+- **context**: Auditoria revelou: tabela 56-skill triplicada (~3,200 tokens), symlinks genéricos com conflitos potenciais, scripts de setup duplicados (~130 linhas cada), sem validação de impacto em cascata, sem busca semântica
+- **decision**: Reestruturação em 5 fases: (1) Capability Manifest compacto, (2) Symlinks renomeados para `agent-skills-*`, (3) Scripts extraídos para template compartilhado, (4) Novas skills impact-validate e memory-sync, (5) MCP memory-service com SQLite-vec
+- **outcome**: Token efficiency ~50% nos instruction files. Sistema cresceu de 56 para 58 skills. Cadeia de finalização expandida. Memory skills com dual-write (.md + MCP)

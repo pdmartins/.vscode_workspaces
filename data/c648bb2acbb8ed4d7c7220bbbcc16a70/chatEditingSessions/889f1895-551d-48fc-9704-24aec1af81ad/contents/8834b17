@@ -1,0 +1,141 @@
+---
+name: code-powershell-write
+description: Padrões e templates para scripts PowerShell (.ps1). Use ao criar ou editar arquivos *.ps1, quando pedir script PowerShell, ou ao verificar conformidade de scripts existentes. Triggers: arquivos .ps1, "criar script powershell", "script windows", "script ps1".
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: code
+---
+
+# PowerShell Script Skill
+
+Padrões para criação e edição de scripts PowerShell.
+
+## Quando Usar
+
+- Criar/editar arquivos `*.ps1`
+- Pedido para criar script PowerShell
+- Verificar conformidade de scripts existentes
+
+## Workflow
+
+### 1. Validar estrutura
+
+**Se arquivo novo:**
+→ Aplicar template base completo
+
+**Se arquivo existente:**
+→ Preservar estrutura e estilo
+→ Identificar padrões já utilizados
+
+### 2. Verificar bloco param
+
+**Se script aceita parâmetros:**
+→ Garantir bloco `param()` no topo com tipos adequados
+
+### 3. Verificar funções helper
+
+Garantir funções de output:
+
+```powershell
+function Write-Step    { param([string]$Message) Write-Host "🚀 $Message" -ForegroundColor White }
+function Write-Info    { param([string]$Message) Write-Host "🔍 $Message" -ForegroundColor Cyan }
+function Write-Success { param([string]$Message) Write-Host "✅ $Message" -ForegroundColor Green }
+function Write-Warning { param([string]$Message) Write-Host "⚠️ $Message" -ForegroundColor Yellow }
+function Write-Error   { param([string]$Message) Write-Host "❌ $Message" -ForegroundColor Red }
+```
+
+### 4. Aplicar idempotência
+
+- Antes de instalar/criar, verificar se já existe
+- Usar `Get-Command` para verificar comandos
+- Usar `Test-Path` para verificar paths
+
+### 5. Garantir tratamento de erros
+
+Envolver operações críticas em try/catch:
+
+```powershell
+try {
+    # operação
+} catch {
+    Write-Error "Failed: $_"
+    exit 1
+}
+```
+
+## Template Base
+
+```powershell
+# ============================================================================
+# Script: {Nome-Do-Script}.ps1
+# Description: {descrição breve}
+# ============================================================================
+
+param(
+    [string]$Param1,
+    [switch]$Force
+)
+
+# ============================================================================
+# Helper Functions
+# ============================================================================
+
+function Test-Administrator {
+    $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+    $principal = [Security.Principal.WindowsPrincipal]$identity
+    $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+}
+
+function Write-Step    { param([string]$Message) Write-Host "🚀 $Message" -ForegroundColor White }
+function Write-Info    { param([string]$Message) Write-Host "🔍 $Message" -ForegroundColor Cyan }
+function Write-Success { param([string]$Message) Write-Host "✅ $Message" -ForegroundColor Green }
+function Write-Warning { param([string]$Message) Write-Host "⚠️ $Message" -ForegroundColor Yellow }
+function Write-Error   { param([string]$Message) Write-Host "❌ $Message" -ForegroundColor Red }
+
+# ============================================================================
+# Main Functions
+# ============================================================================
+
+function Test-Prerequisites {
+    Write-Info "Checking prerequisites..."
+    # if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+    #     Write-Error "Docker not found"
+    #     exit 1
+    # }
+}
+
+function Main {
+    Write-Step "Starting {Nome-Do-Script}..."
+    
+    Test-Prerequisites
+    
+    # Main logic here
+    
+    Write-Success "Done!"
+}
+
+# ============================================================================
+# Entry Point
+# ============================================================================
+
+Main
+```
+
+## Convenções
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Nome arquivo | `Verbo-Substantivo.ps1` | `Install-Docker.ps1` |
+| Funções | `Verb-Noun` | `Test-Administrator` |
+| Variáveis | `$PascalCase` | `$UserProfile` |
+| Parâmetros | `$PascalCase` | `$Force`, `$Path` |
+
+## Checklist
+
+- [ ] Bloco param() se aceita parâmetros
+- [ ] Funções helper de output
+- [ ] Idempotente (verifica estado antes)
+- [ ] try/catch em operações críticas
+- [ ] Feedback de progresso
+- [ ] Sem paths absolutos hardcoded

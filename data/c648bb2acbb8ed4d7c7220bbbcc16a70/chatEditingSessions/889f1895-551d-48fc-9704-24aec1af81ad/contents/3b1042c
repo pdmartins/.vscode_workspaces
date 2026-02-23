@@ -1,0 +1,295 @@
+---
+name: code-mapping-generate
+description: Padrões para DTOs e Mapping Extensions na Application Layer. Lê config.yml do project para convenções específicas. Use ao criar DTOs internos ou extensões de mapeamento entre entidades, commands, queries e responses. Triggers: DTO, mapping, ToDto, ToEntity, ToCommandResult, pasta DTOs/ ou Mappings/.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: code
+---
+
+# Mapping Extensions Skill
+
+Padrões para DTOs e Mapping Extensions na Application Layer.
+
+## Quando Usar
+
+- Criar DTOs para transferência entre camadas
+- Mapear Entity → DTO
+- Mapear Command → Entity
+- Mapear Entity → CommandResult/QueryResult
+
+## Config Loading
+
+Antes de gerar código, carregar configurações do projeto:
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/code-mapping-generate/config.yml`
+2. Se existe, carregar e usar as configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/code-mapping-generate/SKILL.md`
+4. Se existe, carregar como instruções complementares (extensões específicas do projeto)
+5. Se nenhum existe, usar apenas os padrões genéricos abaixo
+
+## Estrutura
+
+```
+src/{RootNamespace}.Application/
+├── DTOs/
+│   ├── OrderDto.cs
+│   ├── ProductDto.cs
+│   └── CustomerDto.cs
+└── Mappings/
+    ├── OrderMappingExtensions.cs
+    ├── ProductMappingExtensions.cs
+    └── CustomerMappingExtensions.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| DTO | `[Domínio]Dto` | `OrderDto`, `ProductDto` |
+| Mapping Extension | `[Entidade]MappingExtensions` | `OrderMappingExtensions` |
+
+> ⚠️ **IMPORTANTE**: Apenas contratos de API usam sufixo `Request`/`Response`. DTOs internos usam sufixo `Dto`.
+
+## Templates
+
+### DTO
+
+```csharp
+namespace {RootNamespace}.Application.DTOs;
+
+/// <summary>
+/// Data transfer object for Product.
+/// </summary>
+public record ProductDto
+{
+    public Guid Id { get; init; }
+    public Guid CategoryId { get; init; }
+    public required string Name { get; init; }
+    public required string Status { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public string? ExternalId { get; init; }
+}
+```
+
+### DTO com Sub-objetos
+
+```csharp
+namespace {RootNamespace}.Application.DTOs;
+
+/// <summary>
+/// Data transfer object for Order with items.
+/// </summary>
+public record OrderDto
+{
+    public Guid Id { get; init; }
+    public required string CustomerEmail { get; init; }
+    public required string ShippingAddress { get; init; }
+    public required string Status { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public DateTime? CompletedAt { get; init; }
+    
+    // Nested collection
+    public IReadOnlyList<OrderItemDto> Items { get; init; } = [];
+}
+```
+
+### Mapping Extensions
+
+```csharp
+namespace {RootNamespace}.Application.Mappings;
+
+/// <summary>
+/// Extension methods for mapping Order entities.
+/// </summary>
+public static class OrderMappingExtensions
+{
+    /// <summary>
+    /// Maps Order entity to DTO.
+    /// </summary>
+    public static OrderDto ToDto(this Order entity) => new()
+    {
+        Id = entity.Id,
+        CustomerEmail = entity.CustomerEmail.Value,
+        ShippingAddress = entity.ShippingAddress.Value,
+        Status = entity.Status.ToString(),
+        CreatedAt = entity.CreatedAt,
+        CompletedAt = entity.CompletedAt,
+        Items = entity.Items.Select(i => i.ToDto()).ToList()
+    };
+
+    /// <summary>
+    /// Maps CreateOrderCommand to Entity.
+    /// </summary>
+    public static Order ToEntity(this CreateOrderCommand command) => new()
+    {
+        Id = Guid.NewGuid(),
+        CustomerEmail = new EmailVO(command.CustomerEmail),
+        ShippingAddress = new AddressVO(command.ShippingAddress),
+        Status = OrderStatus.Active
+    };
+
+    /// <summary>
+    /// Maps Order entity to QueryResult.
+    /// </summary>
+    public static GetOrderQueryResult ToQueryResult(
+        this Order entity) => new()
+    {
+        Id = entity.Id,
+        CustomerEmail = entity.CustomerEmail.Value,
+        ShippingAddress = entity.ShippingAddress.Value,
+        Status = entity.Status.ToString(),
+        CreatedAt = entity.CreatedAt,
+        CompletedAt = entity.CompletedAt,
+        Items = entity.Items.Select(i => i.ToDto()).ToList()
+    };
+
+    /// <summary>
+    /// Maps Order entity to CommandResult.
+    /// </summary>
+    public static CreateOrderCommandResult ToCommandResult(
+        this Order entity) => new()
+    {
+        Id = entity.Id,
+        CustomerEmail = entity.CustomerEmail.Value,
+        CreatedAt = entity.CreatedAt
+    };
+}
+```
+
+### Child Entity Mapping Extensions
+
+```csharp
+namespace {RootNamespace}.Application.Mappings;
+
+/// <summary>
+/// Extension methods for mapping OrderItem entities.
+/// </summary>
+public static class OrderItemMappingExtensions
+{
+    /// <summary>
+    /// Maps OrderItem entity to DTO.
+    /// </summary>
+    public static OrderItemDto ToDto(this OrderItem entity) => new()
+    {
+        Id = entity.Id,
+        OrderId = entity.OrderId,
+        ProductName = entity.ProductName,
+        Quantity = entity.Quantity,
+        UnitPrice = entity.UnitPrice.Amount,
+        CreatedAt = entity.CreatedAt
+    };
+
+    /// <summary>
+    /// Maps AddOrderItemCommand to Entity.
+    /// </summary>
+    public static OrderItem ToEntity(
+        this AddOrderItemCommand command, 
+        Guid orderId) => new()
+    {
+        Id = Guid.NewGuid(),
+        OrderId = orderId,
+        ProductName = command.ProductName,
+        Quantity = command.Quantity,
+        UnitPrice = new MoneyVO(command.UnitPrice, command.Currency)
+    };
+
+    /// <summary>
+    /// Maps OrderItem entity to AddOrderItemCommandResult.
+    /// </summary>
+    public static AddOrderItemCommandResult ToCommandResult(
+        this OrderItem entity) => new()
+    {
+        OrderId = entity.OrderId,
+        ItemId = entity.Id,
+        Success = true
+    };
+}
+```
+
+## Mapeamento entre Camadas
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        API Layer                             │
+│  Request ──────────────────────────────────────▶ Response   │
+└─────────────┬───────────────────────────────────────┬───────┘
+              │                                       │
+              │ Request → Command/Query               │ Result → Response
+              │                                       │
+┌─────────────▼───────────────────────────────────────▼───────┐
+│                    Application Layer                         │
+│  Command/Query ─────────────────────────────▶ Result        │
+│                                                              │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              Mapping Extensions                      │   │
+│  │  • ToEntity()        • ToDto()                       │   │
+│  │  • ToCommandResult() • ToQueryResult()               │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────┬───────────────────────────────────────┬───────┘
+              │                                       │
+              │ ToEntity()                            │ ToDto/ToResult()
+              │                                       │
+┌─────────────▼───────────────────────────────────────▼───────┐
+│                      Domain Layer                            │
+│                       Entity                                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Convenções de Métodos
+
+| Método | Origem | Destino | Uso |
+|--------|--------|---------|-----|
+| `ToDto()` | Entity | DTO | Transfer entre camadas |
+| `ToEntity()` | Command | Entity | Criar entidade |
+| `ToEntity()` | DTO | Entity | Restaurar de DTO |
+| `ToCommandResult()` | Entity | Result | Resultado de command |
+| `ToQueryResult()` | Entity | Result | Resultado de query |
+
+## Regras
+
+1. **Mapping Extensions** são `static class` com métodos de extensão
+2. **DTOs** são `record` imutáveis
+3. **Sem lógica de negócio** em mappings - apenas transformação
+4. **Value Objects** extraem valor primitivo no DTO
+5. **Enums** convertem para string no DTO
+6. **Collections** usam `IReadOnlyList<T>`
+
+## Checklist
+
+- [ ] DTOs em `Application/DTOs/`
+- [ ] Mappings em `Application/Mappings/`
+- [ ] Nomenclatura: `[Domínio]Dto`, `[Entidade]MappingExtensions`
+- [ ] DTOs são records imutáveis
+- [ ] Value Objects extraídos para tipos primitivos
+- [ ] Collections como `IReadOnlyList<T>`
+- [ ] Métodos de extensão organizados por tipo
+
+## Config Schema
+
+```yaml
+# config.yml schema for code-mapping-generate
+language: csharp
+framework: dotnet-8
+solution: string          # Solution name
+
+project:
+  root_namespace: string  # e.g. "MyCompany.MyApp"
+
+mappings:
+  dto_namespace: string       # e.g. "{RootNamespace}.Application.DTOs"
+  mapping_namespace: string   # e.g. "{RootNamespace}.Application.Mappings"
+  entities:                   # Project-specific entity mappings
+    - name: string            # e.g. "Order"
+      dto_properties:         # Properties exposed in DTO
+        - name: string
+          type: string
+          source: string      # e.g. "entity.Email.Value" (for VOs)
+      has_children: bool      # Whether entity has child collections
+      children:
+        - name: string        # e.g. "OrderItem"
+      commands:               # Commands that map to this entity
+        - name: string        # e.g. "CreateOrder"
+      queries:                # Queries that return this entity
+        - name: string        # e.g. "GetOrder"
+```

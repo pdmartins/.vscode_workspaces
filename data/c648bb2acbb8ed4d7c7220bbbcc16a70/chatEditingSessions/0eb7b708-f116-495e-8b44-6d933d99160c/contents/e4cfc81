@@ -1,0 +1,24 @@
+# Convenções — SHY HubAI
+
+## Naming
+
+| Elemento | Padrão |
+|----------|--------|
+| **Classes** | PascalCase |
+| **Métodos** | PascalCase |
+| **Variáveis locais** | camelCase |
+| **Interfaces** | IPrefixo (ex: `IRepository`) |
+| **Propriedades** | PascalCase |
+| **Constantes** | PascalCase |
+| **Parâmetros** | camelCase |
+| **Async methods** | Sufixo Async (ex: `ProcessAsync()`) |
+
+## Estrutura
+
+- Clean Architecture com separação por camadas
+- Convenções .NET padrão
+- Uma classe por arquivo, nome do arquivo = nome da classe
+
+## Notas
+
+- Detalhes adicionais a refinar após `project-structure-analyze`

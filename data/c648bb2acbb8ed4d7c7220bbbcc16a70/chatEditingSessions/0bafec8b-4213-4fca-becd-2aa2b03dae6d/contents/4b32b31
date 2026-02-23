@@ -1,0 +1,33 @@
+# Lessons Learned — LLM-as-Judge
+
+Registro de findings e decisões do projeto de teste LLM-as-Judge.
+
+---
+
+## Estrutura
+
+Cada lição segue o formato:
+
+```xml
+<lesson date="YYYY-MM-DD" category="categoria">
+  <context>Contexto do problema</context>
+  <decision>Decisão tomada</decision>
+  <outcome>Resultado/impacto</outcome>
+</lesson>
+```
+
+### Categorias
+
+| Categoria | Descrição |
+|-----------|-----------|
+| avaliação | Resultados de avaliações LLM |
+| routing | Findings sobre routing accuracy |
+| quality | Findings sobre output quality |
+| hallucination | Findings sobre anti-hallucination |
+| metodologia | Decisões sobre o processo de avaliação |
+
+---
+
+## Registro
+
+<!-- Findings serão adicionados aqui pelo skill code-skill-evaluate -->

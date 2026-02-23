@@ -1,0 +1,77 @@
+# Lessons Learned
+
+Registro de aprendizados e decisões importantes do projeto Copilot Core.
+
+---
+
+## Estrutura
+
+Cada lição segue o formato:
+
+```xml
+<lesson date="YYYY-MM-DD" category="categoria">
+  <context>Contexto do problema</context>
+  <decision>Decisão tomada</decision>
+  <outcome>Resultado/impacto</outcome>
+</lesson>
+```
+
+### Categorias
+
+| Categoria | Descrição |
+|-----------|-----------|
+| arquitetura | Estrutura do projeto |
+| padrões | Convenções de código |
+| tooling | Ferramentas e configs |
+| workflow | Processos |
+| debug | Problemas resolvidos |
+| performance | Otimizações |
+| segurança | Práticas de segurança |
+| regras | Definições e regras do sistema |
+| estrutura | Organização e estrutura de diretórios |
+
+---
+
+## Registro
+
+<lesson date="2026-02-10" category="estrutura">
+  <context>Arquivos de instructions (.github/instructions/) eram copiados dos templates — workspace.instructions.md era copiado de .copilot-core/templates/ para .github/instructions/. default.instructions.md ficava apenas dentro do submodule sem link.</context>
+  <decision>Usar SEMPRE symlinks, nunca cópias. default.instructions.md tem symlink para .copilot-core/instructions/. workspace.instructions.md é armazenado em .copilot-project/instructions/ (específico do projeto) com symlink para .github/instructions/. Windows: cmd /c mklink. Linux/Mac: ln -s. Paths relativos: ../../.copilot-core/instructions/ e ../../.copilot-project/instructions/.</decision>
+  <outcome>Alterações nos repos de origem refletem automaticamente no projeto consumidor. workspace.instructions.md passa a ser responsabilidade do .copilot-project (por branch). Atualizados: templates/workspace.instructions.md, .github/instructions/workspace.instructions.md, project-create, project-init, project-bootstrap, QUICK-START.md, context/project.md.</outcome>
+</lesson>
+
+<lesson date="2026-02-14" category="estrutura" supersedes="L002-self-dogfooding">
+  <context>O .copilot-core usava um padrão excepcional de self-dogfooding: contexto e memória ficavam em .copilot-core/.github/ (em vez de .copilot-project) e um junction link .github → .copilot-core/.github/ na raiz do workspace permitia que o Copilot descobrisse os arquivos. Isso criava uma exceção arquitetural que complicava a documentação e tornava o workspace de desenvolvimento diferente dos projetos consumidores.</context>
+  <decision>Migrar para o padrão standard: criar branch _pm/copilot-core no .copilot-project com context/, memory/ e instructions/. Substituir o junction por symlinks individuais em .github/instructions/ (mesmo padrão que projetos consumidores). Eliminar completamente a pasta .copilot-core/.github/.</decision>
+  <outcome>O workspace de desenvolvimento do core agora segue exatamente o mesmo padrão dos projetos consumidores. Eliminadas as seções "Self-Dogfooding" e "Desambiguação de Caminhos" do workspace.instructions.md. Removida a necessidade de explicar o padrão excepcional em documentação e skills.</outcome>
+</lesson>
+
+<lesson date="2026-02-15" category="estrutura" supersedes="L003-branch-core">
+  <context>Existiam duas branches no .copilot-core: main (desenvolvimento completo) e core (distribuição limpa). O workflow sync-core.yml em .copilot-core/.github/workflows/ sincronizava main → core. Com a migração do self-dogfooding para .copilot-project, a branch core perdeu sua razão de existir — todo o conteúdo de .copilot-core/main já é distribuível.</context>
+  <decision>Eliminar a branch core e o workflow sync-core.yml. Remover completamente a pasta .copilot-core/.github/. O .copilot-core passa a ter apenas a branch main como fonte de verdade e distribuição. Projetos consumidores usam exclusivamente branch main.</decision>
+  <outcome>Simplificação: sem branch core, sem workflow de sincronização, sem pasta .github/ no .copilot-core. Atualizados: templates/workspace.instructions.md, .copilot-project instructions e context, skills project-repo-update e project-setup-bootstrap, default.instructions.md.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="regras">
+  <context>O agente só registrava automaticamente correções de código gerado. Definições/correções de regras, estruturas e processos do próprio .copilot-core não eram capturadas.</context>
+  <decision>Ampliar o auto-registro para incluir correções de regras, estrutura e processos. Usar o sistema de memória do .copilot-project para governar o desenvolvimento do core.</decision>
+  <outcome>Adicionada seção "Registro automático — Correções de regras, estrutura e processos" no default.instructions.md. Toda definição ou correção do usuário sobre como o sistema funciona agora é registrada automaticamente.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="estrutura">
+  <context>Para projetos cujos repos não podem ter referência a submodules, a abordagem de junction (mklink /J) foi considerada mas rejeitada porque mudanças de branch no source refletem no projeto consumidor.</context>
+  <decision>Para projetos sem submodules, usar clones independentes na raiz do projeto. Estrutura: .copilot-core/ e .copilot-project/ na raiz, adicionados ao .gitignore junto com os symlinks de instructions. Cada dev roda um script de setup após clonar o projeto.</decision>
+  <outcome>Setup funciona sem tocar nos repos originais. Cada projeto tem seus próprios clones com branches independentes. Copilot descobre instructions em .github/instructions/ relativo ao workspace root. Modo stealth é completamente invisível no repositório remoto.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="padrões">
+  <context>Análise profunda revelou inconsistências: workspace.instructions.md desatualizado vs template, categorias dos code-map skills divergentes entre frontmatter e tabelas, project-update com nota incorreta sobre branch main, URLs hardcoded nos skills de setup.</context>
+  <decision>Documentar inconsistências no contexto do projeto para rastreamento e correção futura. Priorizar: (1) corrigir workspace.instructions.md, (2) alinhar categorias, (3) corrigir notas incorretas.</decision>
+  <outcome>Inconsistências catalogadas em context/project.md seção "Inconsistências Conhecidas". Algumas resolvidas na migração de 2026-02-14.</outcome>
+</lesson>
+
+<lesson date="2026-02-15" category="estrutura">
+  <context>Skills em projetos específicos (bw/bewiser.assistant.api, scripts) continham padrões genéricos reutilizáveis misturados com dados específicos do projeto. 21 skills de projeto eram na verdade padrões universais (.NET CQRS, DDD, testes, infra) com namespaces e exemplos hardcoded para BeWiser.</context>
+  <decision>Migração massiva de skills: (1) 4 skills genéricos movidos as-is de scripts/ para core (code-bash-write, code-powershell-write, code-crossplatform-sync, editor-readme-generate). (2) 13 skills refatorados de bw/api para core — genericizados com {RootNamespace} placeholders + Config Loading + Config Schema sections; projeto mantém apenas config.yml. (3) 4 skills split — padrões genéricos para core, conteúdo provider-specific (Twilio, MassTransit, Dapper, HTTP clients) como SKILL.md complementar no projeto. (4) 1 skill redundante eliminado (infra-docker-deploy). Core cresceu de 30 para 51 skills.</decision>
+  <outcome>Core agora contém todos os padrões genéricos .NET/CQRS/DDD/testes/infra. Projetos estendem via config.yml (dados estruturados) + SKILL.md opcional (extensões provider-specific). Atualizados: ambos catálogos, default.instructions.md, workspace.instructions.md (template + project), READMEs de bw/api e scripts.</outcome>
+</lesson>

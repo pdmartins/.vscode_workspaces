@@ -1,0 +1,107 @@
+---
+name: infra-docker-build
+description: Gera Dockerfiles multi-stage para projetos .NET e outras stacks. Padrões genéricos de stages, lê config.yml do project para imagens base, feeds privados, coverage tools. Triggers: "Dockerfile", "Docker", "container", "build image", ao configurar containerização.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: infra
+---
+
+# Infra Docker Build
+
+Gera Dockerfiles multi-stage seguindo padrões configuráveis por projeto.
+
+## Quando Usar
+
+- Criar Dockerfile para novo projeto
+- Modificar stages existentes
+- Atualizar configuração de package feeds ou testes
+
+## Config Loading
+
+1. Verificar se existe `{workspace}/.github/.copilot-project/skills/infra-docker-build/config.yml`
+2. Se existe, carregar configurações do projeto
+3. Verificar se existe `{workspace}/.github/.copilot-project/skills/infra-docker-build/SKILL.md`
+4. Se existe, carregar instruções complementares
+5. Se nenhum existe, usar padrões genéricos
+
+## Padrões Genéricos — Multi-Stage Build
+
+### Stage Structure
+
+| Stage | Propósito |
+|-------|-----------|
+| base | Runtime image (slim) |
+| build | SDK image — restore + build |
+| test | Run tests + coverage (label `test=true`) |
+| publish | `dotnet publish` / build final |
+| final | COPY from publish + ENTRYPOINT |
+
+### Best Practices
+
+1. **COPY csproj separado** — cache de layers no restore
+2. **Multi-stage** — image final só tem runtime
+3. **Build args** — para credenciais de feeds privados (nunca hardcode)
+4. **Test stage** — label `test=true` para CI/CD extrair resultados
+5. **Coverage** — coverlet/cobertura format no test stage
+
+### .NET Specifics
+
+```dockerfile
+# Restore
+COPY ["src/Project.Api/Project.Api.csproj", "src/Project.Api/"]
+RUN dotnet restore "src/Project.Api/Project.Api.csproj"
+
+# Build
+COPY . .
+RUN dotnet build -c Release --no-restore
+
+# Publish
+RUN dotnet publish -c Release --no-build -o /app/publish
+
+# Final
+ENTRYPOINT ["dotnet", "Project.Api.dll"]
+```
+
+### Private Package Feeds
+
+```dockerfile
+ARG NUGET_USER
+ARG NUGET_KEY
+COPY nuget-production.config ./nuget.config
+RUN sed -i "s/___NUGET_USER___/$NUGET_USER/g" nuget.config \
+ && sed -i "s/___NUGET_KEY___/$NUGET_KEY/g" nuget.config
+```
+
+## Checklist
+
+- [ ] Base images conforme config (nunca hardcoded de registry público sem aprovação)
+- [ ] Private feed credentials via build args
+- [ ] Multi-stage build (mínimo: build, publish, final)
+- [ ] COPY csproj separado para cache de layers
+- [ ] Test stage com label `test=true`
+- [ ] ENTRYPOINT correto para o projeto
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/infra-docker-build/config.yml
+images:
+  runtime: "mcr.microsoft.com/dotnet/aspnet:8.0"     # or golden image
+  sdk: "mcr.microsoft.com/dotnet/sdk:8.0"
+stages: [base, build, test, build-continued, publish, final]
+feeds:
+  private: true
+  config-file: nuget-production.config
+  placeholders: { user: "___NUGET_USER___", key: "___NUGET_KEY___" }
+test:
+  coverage-tool: coverlet
+  coverage-format: cobertura
+  coverage-settings: CodeCoverage.runsettings
+projects:
+  api:
+    entrypoint: "Project.Api.dll"
+    port: 80
+  worker:
+    entrypoint: "Project.Consumer.dll"
+```

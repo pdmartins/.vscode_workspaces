@@ -1,0 +1,104 @@
+---
+name: agent-turn-reflect
+description: Reflexão automática ao final de cada turno do agente. Analisa o conteúdo da conversa para detectar atualizações necessárias em contexto do projeto (6 subtipos), memória do agente (4 categorias), skills e chat-memory. Comportamento adaptativo — triage rápido em todos os turnos, aprofunda apenas quando detecta algo relevante. Silencioso quando nada há a fazer. Triggers: automático no final de cada turno do agente.
+metadata:
+  author: copilot-core
+  version: "2.0"
+  category: agent
+  delegable: none
+---
+
+# Agent Turn Reflect
+
+Reflexão automática per-turn. Analisa a conversa e atualiza contexto, memórias e chat-memory incrementalmente.
+
+## Quando Usar
+
+- **Automaticamente** ao final de cada turno do agente
+- É a ÚLTIMA coisa que o agente faz antes de entregar a resposta
+
+## Quando NÃO Usar
+
+- Nunca pular — o triage rápido (Fase 0) é quem decide se há algo a fazer
+- Não usar como substituto de `agent-action-review` (que valida completude pós-task-manage)
+
+## Workflow
+
+### Fase 0 — Triage Rápido
+
+Checklist mental (NÃO exibir ao usuário):
+
+| Pergunta | Se "sim" → prosseguir para |
+|----------|---------------------------|
+| Houve decisão arquitetural, técnica ou de processo? | Fase 3 (Memória) |
+| Houve mudança de stack, restrição, integração ou estado do projeto? | Fase 1 (Contexto) |
+| Houve gap, erro ou melhoria identificada em alguma skill? | Fase 2 (Skills) |
+| Houve progresso reportável (arquivos criados/editados, tarefas concluídas)? | Fase 4 (Chat Memory) |
+| Houve criação/alteração de artefatos de código? | Fase 0.5 (Code Map) |
+
+**Se TODAS "não"** → skip silencioso, sem output algum.
+
+### Fase 0.5 — Code Map (se detectado)
+
+Se artefatos foram criados ou alterados → executar `project-codemap-update` automaticamente.
+
+### Fase 1 — Contexto do Projeto
+
+Analisar se a conversa revelou mudanças em algum subtipo de contexto:
+
+| Subtipo | Pasta | Exemplos |
+|---------|-------|----------|
+| Architecture | `context/architecture/` | Decisão de estrutura, padrão de design |
+| Business Rules | `context/business-rules/` | Nova restrição, regra de domínio |
+| Conventions | `context/conventions/` | Nova convenção de naming, processo |
+| Infrastructure | `context/infrastructure/` | Mudança de stack, nova integração |
+| Team Process | `context/team-process/` | Mudança de workflow SDLC |
+
+**Se detectar** → executar `project-context-update` com o subtipo correto (sem perguntar).
+
+### Fase 2 — Skills
+
+Analisar se a conversa revelou gap ou melhoria em skill.
+
+**Se detectar** → **PERGUNTAR ao usuário** antes de qualquer alteração:
+
+```
+❓ **Preciso de clarificação**: Detectei que {descrição} no skill `{nome}`. Faz sentido atualizar?
+```
+
+### Fase 3 — Memória do Agente
+
+Analisar se a conversa contém decisões/padrões não capturados pelos auto-registers reativos:
+
+| Categoria | Pasta | Exemplos |
+|-----------|-------|----------|
+| Preferences | `memory/preferences/` | Estilo escolhido, abordagem preferida |
+| Patterns | `memory/patterns/` | Padrão aprendido, convenção descoberta |
+| Decisions | `memory/decisions/` | Decisão técnica com rationale |
+| Concepts | `memory/concepts/` | Conceito relevante aprendido |
+
+**Se detectar** → executar `agent-memory-update` com a categoria correta (automático).
+
+### Fase 4 — Chat Memory Incremental
+
+Fazer append ao arquivo de chat-memory da sessão atual.
+
+**Primeiro turno substantivo:** Criar `YYYY-MM-DD_{topico}.md` em `chat-memory/`.
+**Turnos seguintes:** Append seção `## Turn: HH:MM` com 2-3 frases.
+**Turnos triviais:** NÃO fazer append.
+
+## Output
+
+- **Nada detecta**: Silêncio total
+- **Atualiza algo**: `🔄 {tipo}: {descrição curta}`
+- **Propõe skill**: Formato de pergunta (Fase 2)
+
+## Interação com Outros Skills
+
+| Skill | Relação |
+|-------|---------|
+| `agent-memory-update` | Delegado pela Fase 3 |
+| `project-context-update` | Delegado pela Fase 1 |
+| `project-codemap-update` | Delegado pela Fase 0.5 |
+| `agent-chat-save` | Fase 4 usa modo incremental |
+| `agent-action-review` | Independente — action-review é pós-task-manage |

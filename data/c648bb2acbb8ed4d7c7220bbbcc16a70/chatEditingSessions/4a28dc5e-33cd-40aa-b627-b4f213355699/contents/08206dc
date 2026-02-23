@@ -1,0 +1,201 @@
+---
+name: project-setup-bootstrap
+description: Configura o projeto via Copilot Chat quando submodules já existem. Preenche context/index.md e subpastas, inicializa memória, analisa stack. Inclui modo manual para ambientes com restrições. Se submodules não existem, orienta a usar project-workspace-create no workspace core. Triggers - configurar projeto, configurar copilot, setup do projeto, bootstrap, inicializar contexto do projeto, configure este projeto, inicializar projeto manualmente, passo a passo.
+metadata:
+  author: copilot-core
+  version: "6.0"
+  category: project
+  delegable: orchestrated
+---
+
+# Project Setup Bootstrap
+
+Configura o projeto via Copilot Chat quando os submodules já existem.
+
+## Fluxo Geral
+
+```
+project-workspace-create (workspace core)  →  script no projeto-alvo  →  project-setup-bootstrap
+         ↓                              ↓                          ↓
+  cria branch                     pluga submodules            analisa stack
+  preenche contexto               cria symlinks               ajusta contexto
+  gera script
+```
+
+## Pré-condição
+
+Os submodules devem existir em `.copilot-core/` e `.copilot-project/`.
+
+**Se não existirem**, orientar o usuário:
+
+1. Abrir o workspace `.copilot-core` + `.copilot-project`
+2. No Copilot Chat, dizer: "criar projeto {nome}"
+3. O agente vai gerar um script para colar no projeto-alvo
+
+## Quando Usar
+
+- Submodules já existem, mas contexto precisa ser configurado/atualizado
+- Usuário diz "configurar projeto", "setup", "bootstrap", "configurar copilot"
+- `context/index.md` ainda está com template padrão
+
+## Workflow
+
+### 1. Verificar submodules
+
+Verificar se `.copilot-core/` e `.copilot-project/` existem.
+
+- **Se não existirem:** Orientar a usar `project-workspace-create` no workspace core (ver Pré-condição acima).
+- **Se existirem:** Continuar para configuração.
+
+### 2. Analisar o projeto
+
+Identificar automaticamente:
+
+- **Stack técnica**: Examinar arquivos como `package.json`, `*.csproj`, `Cargo.toml`, `pyproject.toml`, `go.mod`, `pom.xml`, etc.
+- **Frameworks**: React, Next.js, Django, FastAPI, ASP.NET, etc.
+- **Ferramentas**: Docker, CI/CD, linters, formatters
+- **Estrutura de pastas**: src/, lib/, tests/, etc.
+
+### 3. Coletar informações do usuário
+
+Perguntar de forma conversacional:
+
+1. **Resumo do projeto** — "Me descreva brevemente o que este projeto faz"
+2. **Fase atual** — "Em que fase está? (inicial, desenvolvimento, produção)"
+3. **Algo específico** — "Alguma restrição ou padrão que devo saber?"
+
+### 4. Preencher context/
+
+Combinar análise automática + respostas do usuário para popular subpastas:
+
+- `context/index.md` — Resumo, stack principal, fase
+- `context/infrastructure/{slug}.md` — Stack detectada (linguagem, framework, DB, infra)
+- `context/architecture/{slug}.md` — Estrutura do projeto (se detectável)
+- `context/conventions/{slug}.md` — Padrões e restrições do usuário
+
+### 5. Inicializar memória
+
+Se `memory/index.md` ainda está com template padrão, manter como está.
+Se não existe, criar automaticamente a estrutura (ver Auto-Init em `agent-memory-query`).
+
+### 6. Push da branch (se nova)
+
+Se a branch do `.copilot-project` é nova e ainda não tem remote:
+
+```bash
+cd .copilot-project
+git add .
+git commit -m "feat: configuração inicial do projeto"
+git push -u origin {branch}
+```
+
+### 7. Confirmar configuração
+
+**Output:**
+```
+✅ Projeto configurado!
+
+📋 Stack detectada: {stack}
+📁 Contexto: .copilot-project/context/index.md
+🧠 Memória: .copilot-project/memory/index.md
+
+Agora você pode:
+- Pedir para analisar código
+- Registrar lições aprendidas
+- Criar skills específicos para o projeto
+```
+
+## Diferença dos outros métodos
+
+| Método | Onde roda | Propósito |
+|--------|-----------|----------|
+| **project-workspace-create** | Workspace core | Cria branch + contexto + gera script |
+| **project-setup-bootstrap** | Projeto-alvo (Chat) | Configura contexto após submodules existirem |
+
+## Modo Manual
+
+> Para ambientes com restrições especiais ou quando se precisa entender o processo em detalhe.
+
+### Pré-requisitos
+
+- Git inicializado no workspace
+- Acesso aos repositórios `.copilot-core` e `.copilot-project`
+
+### Modos de Instalação
+
+O sistema suporta dois modos de instalação:
+
+| Modo | Quando usar | Visibilidade |
+|------|-------------|-------------|
+| **Aberto** | Submodules podem ser comitados no repo | `.gitmodules` visível, clone recursivo funciona |
+| **Stealth** | Submodules NÃO podem ser expostos | Tudo no `.gitignore`, setup manual por dev |
+
+### Arquitetura e Scripts de Setup
+
+> 📋 **Scripts de setup completos**: ver `.copilot-core/.internal/templates/setup-scripts.md`
+>
+> Contém scripts PowerShell + Bash para ambos os modos (aberto e stealth), com variáveis `{nome-projeto}`, `{repo-core}`, `{repo-project}`.
+
+Para o modo manual, consultar o template acima. Os scripts criam a estrutura:
+
+```
+{projeto}/
+├── .github/
+│   └── instructions/
+│       ├── agent-skills-core.instructions.md      → symlink
+│       └── agent-skills-project.instructions.md   → symlink
+├── .copilot-core/              # Submodule ou clone (branch main)
+└── .copilot-project/           # Submodule ou clone (branch específica)
+```
+
+## Troubleshooting
+
+### Submodules/clones não existem
+
+Orientar o usuário a usar `project-workspace-create` no workspace core (seção Pré-condição acima).
+
+### Erro ao fazer push da branch
+
+```bash
+cd .copilot-project
+git push -u origin {branch}
+```
+
+### Contexto já preenchido
+
+Perguntar ao usuário se deseja sobrescrever ou atualizar.
+
+## Referência
+
+- Skill de criação: `project-workspace-create`
+- Documentação: `.copilot-core/QUICK-START.md`
+
+## Subagent Pattern
+
+**Tipo**: `orchestrated` — pre-collect (3 perguntas → execução)
+
+### Coleta (main agent)
+
+Main agent coleta do usuário:
+1. Objetivo principal do projeto
+2. Padrões de código a seguir
+3. Regras de negócio mais importantes
+
+Também decide: sobrescrever contexto existente? (se aplicável)
+
+### Execução (subagent)
+
+Subagent recebe respostas e executa:
+- Auto-detect de stack (filesystem analysis)
+- Preencher context/ (index.md + subpastas)
+- Inicializar memória
+- Push da branch (se instruído)
+
+### Prompt Exemplo
+
+```
+runSubagent({
+  description: "Bootstrap project setup",
+  prompt: "Leia .copilot-core/skills/project/project-setup-bootstrap/SKILL.md. Respostas do usuário: 1) Objetivo: {objetivo}. 2) Padrões: {padrões}. 3) Regras: {regras}. Sobrescrever contexto existente: {sim/não}. Execute o setup completo. Retorne: resumo do que foi configurado."
+})
+```

@@ -1,0 +1,167 @@
+---
+name: project-bootstrap
+description: Configura o projeto após os submodules já estarem plugados. Preenche context/project.md, inicializa memória, analisa stack. Triggers - configurar projeto, configurar copilot, setup do projeto, bootstrap, inicializar contexto do projeto, configure este projeto.
+metadata:
+  author: copilot-core
+  version: "2.0"
+  category: project
+---
+
+# Project Bootstrap
+
+Configura o projeto **após os submodules já estarem adicionados**.
+
+## Fluxo Geral
+
+```
+plug (script remoto)  →  configure (este skill)
+         ↓                        ↓
+  adiciona submodules      preenche context/
+  copia instructions       inicializa memory/
+                           analisa stack
+                           cria skills iniciais
+```
+
+## Pré-condição
+
+Os submodules devem existir em `.github/.copilot-core/` e `.github/.copilot-project/`.
+
+**Se não existirem**, orientar o usuário a rodar o one-liner:
+
+**Windows (PowerShell):**
+```
+irm https://raw.githubusercontent.com/pdmartins/.copilot-core/main/.github/scripts/plug.ps1 -OutFile plug.ps1; .\plug.ps1; Remove-Item plug.ps1
+```
+
+**Linux/Mac:**
+```
+curl -fsSL https://raw.githubusercontent.com/pdmartins/.copilot-core/main/.github/scripts/plug.sh | bash
+```
+
+Depois o usuário volta ao Chat e diz "configure este projeto".
+
+## Quando Usar
+
+- Submodules já estão plugados, mas projeto não foi configurado
+- Usuário diz "configurar projeto", "setup", "bootstrap", "configurar copilot"
+- `context/project.md` ainda está com template padrão
+
+## Workflow
+
+### 1. Verificar submodules
+
+Verificar se `.github/.copilot-core/` e `.github/.copilot-project/` existem.
+
+- **Se não existirem:** Mostrar one-liner do plug e parar.
+- **Se existirem:** Continuar para configuração.
+
+### 2. Analisar o projeto
+
+Identificar automaticamente:
+
+- **Stack técnica**: Examinar arquivos como `package.json`, `*.csproj`, `Cargo.toml`, `pyproject.toml`, `go.mod`, `pom.xml`, etc.
+- **Frameworks**: React, Next.js, Django, FastAPI, ASP.NET, etc.
+- **Ferramentas**: Docker, CI/CD, linters, formatters
+- **Estrutura de pastas**: src/, lib/, tests/, etc.
+
+### 3. Coletar informações do usuário
+
+Perguntar de forma conversacional:
+
+1. **Resumo do projeto** — "Me descreva brevemente o que este projeto faz"
+2. **Fase atual** — "Em que fase está? (inicial, desenvolvimento, produção)"
+3. **Algo específico** — "Alguma restrição ou padrão que devo saber?"
+
+### 4. Preencher context/project.md
+
+Combinar análise automática + respostas do usuário para gerar:
+
+```markdown
+# Contexto do Projeto: {nome}
+
+## Status
+- **Fase**: {fase}
+- **Última atualização**: {data}
+
+## Resumo
+{resumo do usuário}
+
+## Stack
+- **Linguagem**: {detectada}
+- **Framework**: {detectado}
+- **Banco de dados**: {se detectado}
+- **Infra**: {se detectado}
+
+## Arquitetura
+{estrutura detectada}
+
+## Restrições e Padrões
+{respostas do usuário}
+
+## Próximos Passos
+- [ ] {baseado na fase}
+```
+
+### 5. Inicializar memória
+
+Se `memory/lessons-learned.md` ainda está com template padrão, manter como está.
+Se não existe, criar via skill `agent-memory-init`.
+
+### 6. Push da branch (se nova)
+
+Se a branch do `.copilot-project` é nova e ainda não tem remote:
+
+```bash
+cd .github/.copilot-project
+git add .
+git commit -m "feat: configuração inicial do projeto"
+git push -u origin {branch}
+```
+
+### 7. Confirmar configuração
+
+**Output:**
+```
+✅ Projeto configurado!
+
+📋 Stack detectada: {stack}
+📁 Contexto: .github/.copilot-project/context/project.md
+🧠 Memória: .github/.copilot-project/memory/lessons-learned.md
+
+Agora você pode:
+- Pedir para analisar código
+- Registrar lições aprendidas
+- Criar skills específicos para o projeto
+```
+
+## Diferença dos outros métodos
+
+| Método | Propósito | Pré-requisito |
+|--------|-----------|---------------|
+| **plug** (script) | Adiciona submodules | Nenhum — one-liner remoto |
+| **project-bootstrap** | Configura o projeto | Submodules já plugados |
+| **project-init** | Guia manual passo a passo | Nenhum — referência/debug |
+| **setup** (script) | Faz tudo (plug + configure) | Nenhum — via terminal |
+
+## Troubleshooting
+
+### Submodules não existem
+
+Mostrar one-liner do plug (seção Pré-condição acima).
+
+### Erro ao fazer push da branch
+
+```bash
+cd .github/.copilot-project
+git push -u origin {branch}
+```
+
+### Contexto já preenchido
+
+Perguntar ao usuário se deseja sobrescrever ou atualizar.
+
+## Referência
+
+- Script plug: `.github/scripts/plug.ps1` / `plug.sh`
+- Script full setup: `.github/scripts/setup.ps1` / `setup.sh`
+- Documentação: `.github/docs/QUICK-START.md`

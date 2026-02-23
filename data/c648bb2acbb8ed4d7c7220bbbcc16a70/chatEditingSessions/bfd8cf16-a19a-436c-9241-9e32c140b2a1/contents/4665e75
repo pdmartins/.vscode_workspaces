@@ -1,0 +1,31 @@
+# code-review-analyze — STT Project Configuration
+# Consumed by core skill: .copilot-core/skills/code-review-analyze/SKILL.md
+
+language: csharp
+framework: dotnet-8
+
+focus_areas:
+  - null_guards: "ArgumentNullException.ThrowIfNull in all constructors"
+  - cancellation_token: "Always propagated and checked"
+  - structured_logging: "ILogger<T> with LogsTemplate/LogTemplate"
+  - options_pattern: "IOptions<T> for all settings"
+  - wrapper_pattern: "External SDKs wrapped for testability"
+  - fail_fast: "Config validated in Bootstrapper"
+  - async_suffix: "All async methods end with Async"
+
+security:
+  - never_log_credentials: true
+  - base64_service_account: "Never decode to file, always in-memory"
+  - sql_injection: "BigQuery always parameterized, never concatenation"
+  - secrets_in_env: "Never hardcode secrets, use K8s env vars"
+
+performance:
+  - singleton_clients: "GCP clients as Singleton"
+  - cache_aside: "Redis cache-aside pattern for reads"
+  - cancellation: "CancellationToken checked at start of handlers"
+
+naming:
+  code: english
+  logs: portuguese
+  display_names: portuguese
+  namespaces: "{RootNamespace}.{Layer}.{Feature}.v1"

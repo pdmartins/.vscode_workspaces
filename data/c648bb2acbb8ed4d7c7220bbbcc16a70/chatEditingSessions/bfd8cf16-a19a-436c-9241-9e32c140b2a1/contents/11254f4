@@ -1,0 +1,79 @@
+---
+name: project-context-update
+description: Atualiza o contexto do projeto quando há mudanças significativas na estrutura, stack ou estado do projeto. Use após adicionar nova integração, alterar stack tecnológico, estabelecer nova restrição, mudar fase do projeto, ou quando o usuário pedir para guardar/registrar informação sobre o projeto (stack, restrições, integrações, estado). Triggers: "atualizar contexto", "mudamos para", "nova integração", "nova restrição", "agora usamos", "trocamos de", "adicionamos", "removemos", "projeto mudou".
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: project
+---
+
+# Project Context Update
+
+Atualiza o contexto do projeto após mudanças significativas.
+
+## Quando Usar
+
+- Nova integração adicionada
+- Stack tecnológico alterado
+- Nova restrição estabelecida
+- Objetivo do projeto mudou
+- Fase do projeto avançou
+
+## Quando NÃO Usar
+
+- Mudanças triviais de código
+- Atualizações de dependências menores
+- Informações temporárias
+
+## Workflow
+
+### 1. Identificar mudança
+
+Determinar tipo de atualização:
+
+| Tipo | Seção a Atualizar |
+|------|-------------------|
+| Nova tecnologia | Stack |
+| Nova limitação | Restrições |
+| Novo serviço externo | Integrações |
+| Mudança de objetivo | Objetivo |
+| Nova fase | Estado Atual |
+
+### 2. Carregar contexto atual
+
+Ler: `{workspace}/.github/.copilot-project/context/project.md`
+
+**Se arquivo não existe:**
+→ Criar automaticamente a estrutura de contexto (ver seção "Auto-Init" abaixo)
+→ Depois prosseguir com a atualização
+
+### 3. Aplicar atualização
+
+- Localizar seção relevante
+- Atualizar informação mantendo estrutura
+- Atualizar campo "Última Atualização" com data e motivo
+
+### 4. Salvar alterações
+
+Escrever arquivo atualizado
+
+### 5. Confirmar atualização
+
+**Output**:
+```
+🔄 **Contexto atualizado**
+- Seção: {seção modificada}
+- Mudança: {resumo da mudança}
+- Data: {YYYY-MM-DD}
+```
+
+## Template de Atualização
+
+Para "Última Atualização":
+
+```markdown
+## Última Atualização
+
+**Data**: YYYY-MM-DD
+**Motivo**: {descrição breve da mudança}
+```

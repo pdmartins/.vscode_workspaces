@@ -1,0 +1,32 @@
+---
+applyTo: '**'
+---
+
+# Workspace Context — Scripts
+
+Scripts utilitários de automação para setup de ambiente de desenvolvimento. Foco em idempotência, portabilidade e bilinguismo (PT/EN).
+
+## Sobre o Projeto
+
+- **Stack**: Bash + PowerShell (versões pareadas)
+- **Plataformas**: Linux/macOS (Bash) + Windows (PowerShell)
+- **Bilinguismo**: `.english-version/` espelha raiz em inglês
+
+## Convenções
+
+- **Idioma chat**: Português brasileiro
+- **Idioma código**: Inglês
+- **Portabilidade**: Todo script deve ter versão Linux E Windows
+- **Idempotência**: Scripts devem verificar estado antes de alterar
+- **Segurança**: Sem senhas, tokens, paths absolutos
+
+## Skills Core Relevantes
+
+| Skill | Uso |
+|-------|-----|
+| `code-bash-write` | Padrões para scripts Bash |
+| `code-powershell-write` | Padrões para scripts PowerShell |
+| `code-crossplatform-sync` | Sincronização Bash ↔ PowerShell |
+| `code-review-analyze` | Análise de qualidade e segurança |
+| `agent-memory-query` | Consultar lições aprendidas |
+| `project-context-query` | Consultar contexto do projeto |

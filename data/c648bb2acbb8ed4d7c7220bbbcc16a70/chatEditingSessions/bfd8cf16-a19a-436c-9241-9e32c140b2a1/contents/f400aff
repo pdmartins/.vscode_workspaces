@@ -1,0 +1,121 @@
+---
+name: code-review-analyze
+description: Analisa código existente identificando problemas de qualidade, segurança, performance e aderência aos padrões do projeto. Lê config.yml do project para regras e checklist customizado. Triggers: "code review", "revisar código", "analisar qualidade", "review", "PR review", antes de merge, "está bom esse código?", "o que pode melhorar?".
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: code
+---
+
+# Code Review Analyze
+
+Analisa código para qualidade, segurança, performance e aderência a padrões.
+
+## Quando Usar
+
+- Code review de PR ou changeset
+- Análise de qualidade de código existente
+- Antes de merge
+- Usuário pergunta "está bom esse código?"
+
+## Config Loading
+
+1. Verificar se existe `{workspace}/.github/.copilot-project/skills/code-review-analyze/config.yml`
+2. Se existe, carregar regras e checklist do projeto
+3. Verificar se existe `{workspace}/.github/.copilot-project/skills/code-review-analyze/SKILL.md`
+4. Se existe, carregar instruções complementares
+5. Se nenhum existe, usar padrões genéricos
+
+## Workflow
+
+### 1. Identificar escopo
+
+- Quais arquivos/métodos analisar
+- Contexto do changeset (propósito da mudança)
+
+### 2. Carregar padrões do projeto
+
+- Ler config.yml para regras específicas
+- Consultar `project-context-query` para stack e restrições
+- Consultar `project-codemap-query` para entender dependências
+
+### 3. Analisar por categoria
+
+| Categoria | O que verificar |
+|-----------|----------------|
+| **Correção** | Lógica correta, edge cases, null handling |
+| **Segurança** | Injection, auth bypass, secrets expostos, OWASP |
+| **Performance** | N+1 queries, alocações desnecessárias, async/await |
+| **Manutenção** | Naming, SRP, DRY, complexidade ciclomática |
+| **Testes** | Cobertura dos cenários, mocks corretos |
+| **Padrões** | Aderência às convenções do projeto (conforme config) |
+
+### 4. Classificar severidade
+
+| Severidade | Quando usar |
+|------------|-------------|
+| 🔴 **Crítico** | Bug, segurança, data loss |
+| 🟠 **Alto** | Performance, violação de padrão obrigatório |
+| 🟡 **Médio** | Manutenção, naming, DRY |
+| 🔵 **Baixo** | Estilo, sugestões de melhoria |
+
+### 5. Apresentar resultados
+
+```
+📝 **Code Review**
+
+🔴 **Crítico** (X issues)
+- [arquivo:linha] Descrição do problema → Sugestão
+
+🟠 **Alto** (X issues)
+- [arquivo:linha] Descrição → Sugestão
+
+🟡 **Médio** (X issues)
+- [arquivo:linha] Descrição → Sugestão
+
+🔵 **Baixo** (X issues)
+- [arquivo:linha] Descrição → Sugestão
+
+✅ **Pontos positivos**
+- Bom uso de X
+- Padrão Y bem aplicado
+```
+
+## Checklist
+
+- [ ] Lógica correta e edge cases cobertos
+- [ ] Sem vulnerabilidades de segurança
+- [ ] Performance adequada
+- [ ] Naming e organização seguem padrões
+- [ ] Testes acompanham as mudanças
+- [ ] CancellationToken propagado (se async)
+- [ ] Logging adequado
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/code-review-analyze/config.yml
+severity-levels: [critical, high, medium, low]
+categories:
+  - correctness
+  - security
+  - performance
+  - maintainability
+  - testing
+  - patterns
+rules:
+  require-cancellation-token: true
+  require-null-guards: true
+  require-logging: true
+  max-method-lines: 30
+  max-class-lines: 300
+  max-parameters: 5
+checklist:
+  - "Null guards em parâmetros do construtor"
+  - "CancellationToken em métodos async"
+  - "Structured logging"
+  - "Error handling adequado"
+ignore:
+  files: ["*.generated.cs", "Migrations/*"]
+  rules: []
+```

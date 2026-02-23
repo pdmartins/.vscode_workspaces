@@ -1,0 +1,125 @@
+# Copilot Project - BeWiser.Assistant API
+
+Branch de configuração do Copilot Agent para o projeto BeWiser.Assistant API.
+
+## Sobre o Projeto
+
+**BeWiser.Assistant** é um assistente de IA para WhatsApp que:
+- Recebe mensagens via webhook do Twilio
+- Processa via Azure OpenAI
+- Devolve respostas ao usuário
+
+Características: Multi-tenant, múltiplos assistentes, RAG, Function Calling, processamento assíncrono.
+
+## Estrutura
+
+```
+.copilot-project/
+├── context/
+│   ├── index.md            # Catálogo de contexto
+│   └── {subpastas}/        # architecture, infrastructure, etc.
+├── memory/
+│   ├── index.md            # Catálogo de memória
+│   └── {categorias}/       # preferences, patterns, decisions, concepts
+└── skills/                 # Skills por camada ({tipo}-{feature}-{ação})
+    │
+    ├── project-scope-validate/        # ⚠️ Validação ANTES
+    ├── code-api-validate/             # ⚠️ Validação DEPOIS
+    │
+    ├── code-controller-generate/      # API - Controllers
+    ├── code-webhook-generate/         # API - Webhooks
+    ├── code-contracts-generate/       # API - Requests/Responses
+    │
+    ├── code-command-generate/         # Application - Commands CQRS
+    ├── code-query-generate/           # Application - Queries CQRS
+    ├── code-mapping-generate/         # Application - DTOs e Mappings
+    │
+    ├── code-entity-generate/          # Domain - Entities
+    ├── code-valueobject-generate/     # Domain - Value Objects
+    ├── code-event-generate/           # Domain - Events
+    │
+    ├── infra-repository-generate/     # Infrastructure - Dapper + SQL
+    ├── infra-messaging-configure/     # Infrastructure - Service Bus
+    ├── infra-service-integrate/       # Infrastructure - External Services
+    │
+    ├── code-program-configure/        # Clean Program.cs
+    ├── infra-jwt-configure/           # JWT Authentication
+    │
+    ├── code-unittest-generate/        # Unit Tests + Builders
+    ├── code-integrationtest-generate/ # Integration + Architecture Tests
+    │
+    └── infra-docker-deploy/           # Docker + CI/CD
+```
+
+## Skills por Categoria
+
+### ⚠️ Validação (Usar Sempre!)
+
+| Skill | Quando |
+|-------|--------|
+| `project-scope-validate` | **ANTES** de implementar qualquer feature |
+| `code-api-validate` | **DEPOIS** de implementar, para validar aderência |
+
+### API Layer
+
+| Skill | Descrição |
+|-------|-----------|
+| `code-controller-generate` | Controllers RESTful, rotas, status codes |
+| `code-webhook-generate` | Webhooks Twilio, validação de assinatura |
+| `code-contracts-generate` | `[Verbo][Domínio]Request/Response` em `Contracts/` |
+
+### Application Layer (CQRS)
+
+| Skill | Descrição |
+|-------|-----------|
+| `code-command-generate` | Commands + Handlers + Validators (Mediator) |
+| `code-query-generate` | Queries + Handlers + Validators (Mediator) |
+| `code-mapping-generate` | DTOs e Mapping Extensions |
+
+### Domain Layer (DDD)
+
+| Skill | Descrição |
+|-------|-----------|
+| `code-entity-generate` | Entities, Aggregates, Exceptions |
+| `code-valueobject-generate` | Value Objects imutáveis |
+| `code-event-generate` | Domain Events com Mediator |
+
+### Infrastructure Layer
+
+| Skill | Descrição |
+|-------|-----------|
+| `infra-repository-generate` | Repositories com ADO.NET + Dapper |
+| `infra-messaging-configure` | Azure Service Bus com MassTransit |
+| `infra-service-integrate` | Twilio, Azure OpenAI, Search |
+
+### Testes
+
+| Skill | Descrição |
+|-------|-----------|
+| `code-unittest-generate` | xUnit, NSubstitute, Builders |
+| `code-integrationtest-generate` | WebApplicationFactory, TestContainers, NetArchTest |
+
+### Cross-cutting
+
+| Skill | Descrição |
+|-------|-----------|
+| `code-program-configure` | Clean Program.cs com layer extensions |
+| `infra-jwt-configure` | JWT via Infrastructure layer |
+| `infra-docker-deploy` | Docker, docker-compose, GitHub Actions |
+
+## Stack
+
+| Categoria | Tecnologia |
+|-----------|------------|
+| Runtime | .NET 8 |
+| CQRS | Mediator (Source Generator) |
+| Validação | FluentValidation |
+| ORM | ADO.NET + Dapper |
+| Mensageria | Azure Service Bus (MassTransit) |
+| IA | Azure OpenAI |
+| WhatsApp | Twilio |
+| Testes | xUnit, FluentAssertions, NSubstitute |
+
+## Padrão
+
+Este projeto segue o padrão [Agent Skills](https://agentskills.io).

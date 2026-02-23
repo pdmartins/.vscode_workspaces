@@ -1,0 +1,33 @@
+---
+applyTo: '**'
+---
+
+# Workspace Context — BeWiser.Assistant.Api
+
+Assistente de IA para WhatsApp — API multi-tenant com Azure OpenAI, RAG e Function Calling.
+
+## Sobre o Projeto
+
+- **Stack**: .NET, Azure OpenAI, Azure Service Bus, Azure AI Search, Twilio
+- **Arquitetura**: Multi-tenant, processamento assíncrono via filas
+- **Foco**: Webhook Twilio → Azure OpenAI → resposta WhatsApp
+
+## Convenções
+
+- **Idioma chat**: Português brasileiro
+- **Idioma código**: Inglês
+- **Padrões**: CQRS/DDD, Clean Architecture
+
+## Skills Core Relevantes
+
+| Skill | Uso |
+|-------|-----|
+| `code-dotnet-service` | Geração de serviços/handlers .NET |
+| `code-dotnet-test` | Testes unitários .NET |
+| `code-command-generate` | Commands MediatR / CQRS |
+| `code-query-generate` | Queries MediatR / CQRS |
+| `infra-messaging-configure` | Mensageria (Service Bus) |
+| `infra-jwt-configure` | Autenticação JWT |
+| `code-webhook-generate` | Webhooks e integrações callback |
+| `agent-memory-query` | Consultar lições aprendidas |
+| `project-context-query` | Consultar contexto do projeto |

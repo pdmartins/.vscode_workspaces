@@ -1,0 +1,284 @@
+"""Heuristic prompt quality analysis for SKILL.md files.
+
+Evaluates prompt engineering best practices that correlate with
+effective agent behavior: clarity, actionability, specificity,
+and self-verification patterns.
+
+Hard tests (assert) = minimum quality bar.
+Soft tests (warn) = improvement opportunities.
+"""
+
+import re
+import warnings
+import pytest
+from conftest import SkillInfo
+
+# --- Skill archetypes ---
+# Different skill types have different quality profiles.
+# Catalog skills are routing tables — minimal prose is expected.
+
+CATALOG_SKILLS = {
+    "agent-catalog-query",
+    "code-catalog-query",
+    "infra-catalog-query",
+    "project-catalog-query",
+}
+
+# --- Helpers ---
+
+
+def count_code_blocks(content: str) -> int:
+    """Count fenced code blocks (``` ... ```)."""
+    return len(re.findall(r"^```", content, re.MULTILINE)) // 2
+
+
+def count_imperative_starts(content: str) -> int:
+    """Count numbered steps or bullet items starting with imperative verbs."""
+    # Match lines like "1. Verificar...", "- Criar...", "### 1. Ler..."
+    imperative_pattern = re.compile(
+        r"^(?:#{1,4}\s+)?\d+\.\s+"  # numbered steps (optional heading prefix)
+        r"(?:Verificar|Criar|Gerar|Ler|Executar|Usar|Definir|Aplicar|"
+        r"Configurar|Instalar|Atualizar|Remover|Validar|Buscar|Extrair|"
+        r"Identificar|Analisar|Detectar|Registrar|Salvar|Carregar|"
+        r"Consultar|Localizar|Montar|Construir|Escrever|Retornar|"
+        r"Chamar|Incluir|Adicionar|Copiar|Mover|"
+        r"Check|Create|Generate|Read|Run|Use|Set|Apply|"
+        r"Configure|Install|Update|Remove|Validate|Search|Extract|"
+        r"Identify|Analyze|Detect|Register|Save|Load|Build|Write|Return|"
+        r"Se |If )"  # conditional steps count too
+        r"",
+        re.MULTILINE,
+    )
+    return len(imperative_pattern.findall(content))
+
+
+def has_decision_logic(content: str) -> bool:
+    """Check for decision tables, if/then patterns, or flowcharts."""
+    has_table_with_conditions = bool(
+        re.search(
+            r"\|\s*(?:Quando|Se |If |Situação|Condição|Pergunta|Tipo)",
+            content,
+        )
+    )
+    has_arrow_logic = bool(re.search(r"→|⇒|=>", content))
+    has_conditional_steps = bool(
+        re.search(r"^(?:#{1,4}\s+)?\d+\.\s*Se\b", content, re.MULTILINE)
+    )
+    return has_table_with_conditions or has_arrow_logic or has_conditional_steps
+
+
+def has_output_format(content: str) -> bool:
+    """Check for explicit output/template/format sections."""
+    heading_pattern = re.compile(
+        r"^##\s+(?:Output|Template|Formato|Estrutura|Checklist|Config Schema)",
+        re.MULTILINE,
+    )
+    return bool(heading_pattern.search(content))
+
+
+def get_trigger_count(description: str) -> int:
+    """Count trigger phrases in description."""
+    triggers_match = re.search(
+        r'Triggers?[:\s]+["\']?(.+?)(?:["\']?\s*$)',
+        description,
+        re.DOTALL,
+    )
+    if not triggers_match:
+        return 0
+    triggers_text = triggers_match.group(1)
+    # Count quoted items or comma-separated items
+    quoted = re.findall(r'"[^"]+"', triggers_text)
+    return len(quoted) if quoted else len(triggers_text.split(","))
+
+
+# --- Hard tests (must pass) ---
+
+
+@pytest.mark.structural
+class TestPromptQuality:
+    """Minimum prompt quality requirements."""
+
+    def test_description_has_triggers(self, skill):
+        """Description should declare trigger phrases for routing."""
+        if skill.name in CATALOG_SKILLS:
+            pytest.skip("Catalog skills don't need triggers")
+        has_triggers = bool(
+            re.search(
+                r"Triggers?[\s:]+",
+                skill.description,
+                re.IGNORECASE,
+            )
+        )
+        assert has_triggers, (
+            f"{skill.name}: description missing 'Triggers:' section — "
+            f"agent routing depends on trigger phrases"
+        )
+
+    def test_has_actionable_content(self, skill):
+        """Skills must have code blocks, decision tables, or imperative steps."""
+        if skill.name in CATALOG_SKILLS:
+            # Catalogs need decision tables instead of code blocks
+            assert has_decision_logic(skill.content), (
+                f"{skill.name}: catalog skill needs decision/routing tables"
+            )
+            return
+
+        code_blocks = count_code_blocks(skill.content)
+        imperative_steps = count_imperative_starts(skill.content)
+        decision = has_decision_logic(skill.content)
+        output_fmt = has_output_format(skill.content)
+
+        actionable = (
+            code_blocks >= 1
+            or imperative_steps >= 2
+            or decision
+            or output_fmt
+        )
+        assert actionable, (
+            f"{skill.name}: not actionable enough — "
+            f"needs code blocks ({code_blocks}), "
+            f"imperative steps ({imperative_steps}), "
+            f"decision logic ({decision}), "
+            f"or output format ({output_fmt})"
+        )
+
+    def test_description_min_specificity(self, skill):
+        """Description must be specific enough for accurate routing.
+
+        Checks that description contains at least 3 domain-specific
+        terms beyond the generic structure words.
+        """
+        if not skill.description:
+            pytest.skip("No description - covered by frontmatter test")
+
+        # Strip trigger phrases from analysis (they're routing words, not specificity)
+        desc = re.sub(r"Triggers?:.+$", "", skill.description, flags=re.DOTALL)
+
+        # Generic words that don't add specificity
+        generic = {
+            "skill", "agent", "copilot", "projeto", "project", "usar",
+            "quando", "como", "para", "que", "com", "sem", "mais",
+            "não", "sim", "por", "uma", "este", "esse", "cada",
+            "the", "and", "for", "with", "from", "this", "that",
+        }
+        words = set(re.findall(r"\b[a-záéíóúãõâêôçà]{4,}\b", desc.lower()))
+        specific_words = words - generic
+        assert len(specific_words) >= 3, (
+            f"{skill.name}: description too generic — "
+            f"only {len(specific_words)} specific words: {specific_words}"
+        )
+
+
+# --- Soft tests (warnings for improvement) ---
+
+
+@pytest.mark.structural
+class TestPromptQualityAdvisory:
+    """Advisory checks — emit warnings, don't fail."""
+
+    def test_has_concrete_examples(self, skill):
+        """Skills benefit from concrete examples."""
+        if skill.name in CATALOG_SKILLS:
+            return  # Catalogs are tables, not examples
+
+        heading_texts = [h[1] for h in skill.headings]
+        has_example_section = any(
+            kw in h for h in heading_texts for kw in ("Exemplo", "Example")
+        )
+        code_blocks = count_code_blocks(skill.content)
+
+        if not has_example_section and code_blocks < 2:
+            warnings.warn(
+                f"{skill.name}: no example section and "
+                f"only {code_blocks} code block(s) — "
+                f"concrete examples improve generation accuracy",
+                UserWarning,
+                stacklevel=1,
+            )
+
+    def test_has_success_criteria(self, skill):
+        """Skills should define what 'done right' looks like."""
+        if skill.name in CATALOG_SKILLS:
+            return
+
+        heading_texts = [h[1] for h in skill.headings]
+        has_checklist = any(
+            kw in h
+            for h in heading_texts
+            for kw in ("Checklist", "Validação", "Critérios", "Regras")
+        )
+        if not has_checklist:
+            warnings.warn(
+                f"{skill.name}: no Checklist/Validação section — "
+                f"self-verification criteria improve output quality",
+                UserWarning,
+                stacklevel=1,
+            )
+
+    def test_has_anti_patterns(self, skill):
+        """Skills benefit from 'when NOT to use' guidance."""
+        if skill.name in CATALOG_SKILLS:
+            return
+
+        has_negative = bool(
+            re.search(
+                r"(?:NÃO|Não|NOT)\s+(?:usar|fazer|gerar|use|do|generate)",
+                skill.content,
+            )
+        )
+        heading_texts = [h[1] for h in skill.headings]
+        has_negative_section = any("NÃO" in h for h in heading_texts)
+
+        if not has_negative and not has_negative_section:
+            warnings.warn(
+                f"{skill.name}: no anti-pattern guidance — "
+                f"'when NOT to use' reduces false activations",
+                UserWarning,
+                stacklevel=1,
+            )
+
+    def test_trigger_count_adequate(self, skill):
+        """Skills should have multiple trigger phrases for robust routing."""
+        if skill.name in CATALOG_SKILLS:
+            return
+
+        trigger_count = get_trigger_count(skill.description)
+        if trigger_count < 3:
+            warnings.warn(
+                f"{skill.name}: only {trigger_count} trigger phrase(s) — "
+                f"3+ triggers improve routing accuracy",
+                UserWarning,
+                stacklevel=1,
+            )
+
+    def test_has_interaction_map(self, skill):
+        """Skills that call other skills should document the chain."""
+        # Check if skill references other skill names
+        other_skill_refs = re.findall(
+            r"`((?:agent|code|infra|project|skill|editor)-[a-z0-9]+-[a-z0-9]+)`",
+            skill.content,
+        )
+        # Exclude self-references
+        other_refs = [r for r in other_skill_refs if r != skill.name]
+
+        if len(other_refs) >= 2:
+            # Skills that reference 2+ other skills should have clear flow
+            heading_texts = [h[1] for h in skill.headings]
+            has_flow_section = any(
+                kw in h
+                for h in heading_texts
+                for kw in (
+                    "Interação", "Interaction", "Cadeia", "Chain",
+                    "Workflow", "Fluxo", "Delegação",
+                )
+            )
+            has_flow_indicators = bool(
+                re.search(r"→.*→|chain|cadeia|delega", skill.content, re.IGNORECASE)
+            )
+            if not has_flow_section and not has_flow_indicators:
+                warnings.warn(
+                    f"{skill.name}: references {len(other_refs)} other skills "
+                    f"({', '.join(other_refs[:3])}) but no interaction flow documented",
+                    UserWarning,
+                    stacklevel=1,
+                )

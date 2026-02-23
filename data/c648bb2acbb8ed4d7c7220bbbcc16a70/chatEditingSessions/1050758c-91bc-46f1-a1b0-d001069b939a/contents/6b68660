@@ -1,0 +1,15 @@
+# Chat Memory
+
+Persistent storage for chat session state across machines.
+
+Each file represents a chat session with its working context, progress, and next steps. Files are synced via git, enabling seamless handoff between machines.
+
+## File Naming
+
+`YYYY-MM-DD_{topic-in-kebab-case}.md`
+
+## Lifecycle
+
+- Sessions are saved manually (`agent-chat-save`) or auto-saved after `agent-task-manage` completes all tasks
+- Sessions are resumed manually (`agent-chat-resume`) — "retoma sessão"
+- All sessions are kept as permanent history

@@ -1,0 +1,62 @@
+"""Verify workflow chain definitions are consistent across artifacts."""
+
+import re
+import pytest
+
+
+@pytest.mark.behavioral
+class TestWorkflowChains:
+    def test_finalization_chain_in_instructions(self, core_instructions):
+        """task-manage -> action-review -> impact-validate -> chat-save chain."""
+        chain_skills = [
+            "agent-task-manage",
+            "agent-action-review",
+            "agent-impact-validate",
+            "agent-chat-save",
+        ]
+        for skill_name in chain_skills:
+            assert skill_name in core_instructions, (
+                f"Finalization chain: '{skill_name}' missing from instructions"
+            )
+
+    def test_turn_reflect_in_instructions(self, core_instructions):
+        """agent-turn-reflect must be referenced in core instructions."""
+        assert "agent-turn-reflect" in core_instructions
+
+    def test_turn_reflect_in_always_known(self, core_instructions):
+        """agent-turn-reflect must be in Always-Known list."""
+        section = re.search(
+            r"Always-Known.*?(?=###|\Z)", core_instructions, re.DOTALL
+        )
+        assert section, "Always-Known section not found"
+        assert "agent-turn-reflect" in section.group(), (
+            "agent-turn-reflect not in Always-Known section"
+        )
+
+    def test_reflexao_per_turn_section(self, core_instructions):
+        """Instructions must have 'Reflexao Per-Turn' section."""
+        assert "Reflexão Per-Turn" in core_instructions
+
+    def test_turn_reflect_phases_in_instructions(self, core_instructions):
+        """Instructions must document the 4 phases."""
+        expected = ["Fase 1", "Fase 2", "Fase 3", "Fase 4"]
+        for phase in expected:
+            assert phase in core_instructions, (
+                f"Instructions missing '{phase}' in Reflexao Per-Turn"
+            )
+
+    def test_phase2_requires_confirmation(self, core_instructions):
+        """Phase 2 (Skills) must require user confirmation."""
+        # The section must mention asking the user
+        section = re.search(
+            r"Reflexão Per-Turn.*?(?=^## |\Z)",
+            core_instructions,
+            re.DOTALL | re.MULTILINE,
+        )
+        if not section:
+            pytest.fail("Reflexao Per-Turn section not found")
+
+        text = section.group()
+        assert "pergunta" in text.lower() or "confirma" in text.lower(), (
+            "Phase 2 should mention user confirmation for skill changes"
+        )

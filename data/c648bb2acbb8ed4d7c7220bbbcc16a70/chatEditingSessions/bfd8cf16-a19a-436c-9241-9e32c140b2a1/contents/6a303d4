@@ -1,0 +1,212 @@
+# Project Context
+
+Estado atual do projeto para referência do Copilot.
+
+---
+
+## Objetivo
+
+**BeWiser.Assistant** é um assistente de IA para WhatsApp que:
+- Recebe mensagens via webhook do Twilio
+- Processa via Azure OpenAI (com suporte a múltiplos modelos)
+- Devolve respostas ao usuário
+
+### Características Principais
+
+- **Multi-tenant:** Suporte a múltiplos clientes
+- **Múltiplos assistentes/personas:** Configuráveis por tenant
+- **RAG:** Busca em documentos para respostas contextualizadas
+- **Function Calling:** Integração com ações externas
+- **Processamento assíncrono:** Filas via Azure Service Bus
+
+### Exemplos de Assistentes
+
+| Tipo | Descrição | Capacidades |
+|------|-----------|-------------|
+| **Agenda Dentista** | Gerencia agenda de consultório | Marcar/remarcar consultas, lembretes |
+| **Representante Comercial** | Auxilia vendas | Pedidos, ordens de compra |
+| **Assistente Pessoal** | Organização pessoal | Agenda, atividades, lembretes |
+| **Especialista** | Tira dúvidas | Responder perguntas do domínio |
+
+## Escopo do Projeto
+
+> **IMPORTANTE**: Se solicitada funcionalidade fora do escopo, questionar antes de implementar.
+
+### ✅ Dentro do Escopo
+
+- API para gerenciar assistentes e tenants
+- Integração com WhatsApp (Twilio)
+- Configuração de capacidades por assistente
+- Gerenciamento de conversas
+- Processamento de linguagem natural (Azure OpenAI)
+- Multi-tenancy
+- RAG com Azure AI Search
+
+### ❌ Fora do Escopo
+
+- Interface web para usuários finais
+- Outros canais (Telegram, SMS)
+- Pagamentos diretos
+- Integrações com ERPs específicos
+
+## Stack
+
+| Componente | Tecnologia |
+|------------|------------|
+| Runtime | .NET 8 |
+| API | ASP.NET Core Controllers |
+| CQRS/Mediator | MediatR |
+| Validação | FluentValidation |
+| ORM | ADO.NET + Dapper |
+| Banco | SQL Server / PostgreSQL |
+| Mensageria | Azure Service Bus (MassTransit) |
+| IA | Azure OpenAI (Foundry) |
+| WhatsApp | Twilio |
+| Testes | xUnit, FluentAssertions, NSubstitute |
+
+## Estrutura do Projeto
+
+```
+src/
+├── BeWiser.Assistant.Api/              # Apresentação
+│   ├── Controllers/
+│   ├── Webhooks/
+│   └── Contracts/Requests|Responses/
+│
+├── BeWiser.Assistant.Application/      # Casos de Uso (CQRS)
+│   ├── Commands/[Domínio]/
+│   ├── Queries/[Domínio]/
+│   ├── DTOs/
+│   └── Mappings/
+│
+├── BeWiser.Assistant.Domain/           # Núcleo
+│   ├── Entities/
+│   ├── ValueObjects/
+│   ├── Events/
+│   └── Interfaces/Repositories/
+│
+└── BeWiser.Assistant.Infrastructure/   # Implementações
+    ├── Persistence/Repositories/
+    ├── Messaging/Consumers|Publishers/
+    └── Services/AI|WhatsApp/
+
+tests/
+├── BeWiser.Assistant.UnitTests/
+├── BeWiser.Assistant.IntegrationTests/
+└── BeWiser.Assistant.ArchitectureTests/
+```
+
+## Skills Disponíveis
+
+### Validação (usar sempre!)
+
+| Skill | Quando Usar |
+|-------|-------------|
+| `scope-validate` | ⚠️ **ANTES de implementar** - Validar escopo |
+| `api-validate` | ⚠️ **DEPOIS de implementar** - Validar aderência |
+
+### API Layer (Apresentação)
+
+| Skill | Descrição |
+|-------|-----------|
+| `api-controller` | Controllers RESTful |
+| `api-webhook` | Webhooks (Twilio) |
+| `api-contracts` | Requests/Responses |
+
+### Application Layer (CQRS)
+
+| Skill | Descrição |
+|-------|-----------|
+| `app-command` | Commands com MediatR |
+| `app-query` | Queries com MediatR |
+| `app-mapping` | DTOs e Mapping Extensions |
+
+### Domain Layer (DDD)
+
+| Skill | Descrição |
+|-------|-----------|
+| `domain-entity` | Entities e Aggregates |
+| `domain-valueobject` | Value Objects |
+| `domain-event` | Domain Events |
+
+### Infrastructure Layer
+
+| Skill | Descrição |
+|-------|-----------|
+| `infra-repository` | Repositories (Dapper + SQL Scripts) |
+| `infra-messaging` | Azure Service Bus (MassTransit) |
+| `infra-service` | Services externos (Twilio, OpenAI) |
+
+### Cross-cutting
+
+| Skill | Descrição |
+|-------|-----------|
+| `arch-program` | Estrutura limpa do Program.cs |
+| `auth-jwt` | Autenticação JWT |
+
+### Testes
+
+| Skill | Descrição |
+|-------|-----------|
+| `test-unit` | Testes unitários + Builders |
+| `test-integration` | Testes de integração + Arquitetura |
+
+### Deploy
+
+| Skill | Descrição |
+|-------|-----------|
+| `deploy-docker` | Docker e CI/CD |
+
+## Padrões de Nomenclatura
+
+### API Layer
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Request | `[Verbo][Domínio]Request` | `CreateAssistantRequest` |
+| Response | `[Verbo][Domínio]Response` | `GetConversationResponse` |
+| Controller | `[Domínio]Controller` | `AssistantController` |
+| Webhook | `[Provedor]WebhookController` | `TwilioWebhookController` |
+
+### Application Layer
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Command | `[Verbo][Domínio]Command` | `ProcessMessageCommand` |
+| Query | `Get[Domínio]Query` | `GetConversationQuery` |
+| DTO | `[Domínio]Dto` | `MessageDto` |
+
+### Domain Layer
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Entity | `[Nome]` | `Conversation`, `Message` |
+| Value Object | `[Nome]VO` | `PhoneNumberVO` |
+| Event | `[Domínio][Ação]Event` | `MessageReceivedEvent` |
+
+### Infrastructure Layer
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Repository | `[Entidade]Repository` | `ConversationRepository` |
+| Service | `[Provedor][Domínio]Service` | `TwilioWhatsAppService` |
+| Message | `[Domínio][Ação]Message` | `ProcessMessageMessage` |
+| Consumer | `[Message]Consumer` | `ProcessMessageMessageConsumer` |
+
+### Testes
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Classe | `[Classe]Tests` | `ProcessMessageCommandHandlerTests` |
+| Método | `[Método]_[Cenário]_[Esperado]` | `Handle_ValidMessage_ReturnsSuccess` |
+| Builder | `[Entidade]Builder` | `ConversationBuilder` |
+
+## Estado Atual
+
+**Fase**: Configuração de padrões
+**Status**: Skills completas para desenvolvimento
+
+## Última Atualização
+
+**Data**: 2026-02-06
+**Motivo**: Criação completa de skills para todas as camadas (API, Application, Domain, Infrastructure, Tests)

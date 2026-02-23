@@ -1,0 +1,20 @@
+# Memory Index
+
+Catálogo de memória do agente. O agente lê este índice primeiro e carrega subpastas sob demanda.
+
+---
+
+## Categorias
+
+| Categoria | Pasta | Descrição | Entradas |
+|-----------|-------|-----------|----------|
+| Preferences | `preferences/` | Preferências do usuário sobre estilo de código, padrões e abordagens | 0 |
+| Patterns | `patterns/` | Padrões descobertos, aprendidos ou corrigidos durante o trabalho | 0 |
+| Decisions | `decisions/` | Decisões arquiteturais, técnicas ou de processo com rationale | 0 |
+| Concepts | `concepts/` | Conhecimentos, conceitos e definições relevantes ao projeto | 0 |
+
+## Consulta Rápida
+
+<!-- O agente usa esta seção para resumos de alta prioridade. Itens aqui são os mais consultados. -->
+
+_Nenhuma entrada registrada ainda._

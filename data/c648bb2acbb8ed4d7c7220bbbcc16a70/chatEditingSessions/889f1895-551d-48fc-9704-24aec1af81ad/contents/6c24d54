@@ -1,0 +1,32 @@
+# code-command-generate — BeWiser Assistant API Configuration
+# Consumed by core skill: .copilot-core/skills/code/code-command-generate/SKILL.md
+
+language: csharp
+framework: dotnet-8
+solution: BeWiser.Assistant
+
+project:
+  root_namespace: BeWiser.Assistant
+  api_namespace: Bewiser.Assistant.Api
+
+commands:
+  base_path: src/BeWiser.Assistant.Application/Commands
+  domain_examples:
+    - domain: Message
+      verbs: [Process, Send]
+      example_command: ProcessMessageCommand
+    - domain: Tenant
+      verbs: [Create, Update, Delete]
+      example_command: CreateTenantCommand
+    - domain: Conversation
+      verbs: [Create, End]
+      example_command: EndConversationCommand
+    - domain: Assistant
+      verbs: [Create, Update]
+      example_command: CreateAssistantCommand
+
+  validation:
+    library: FluentValidation
+    pipeline_behavior: true
+    behavior_class: ValidationBehavior
+    behavior_namespace: BeWiser.Assistant.Application.Behaviors

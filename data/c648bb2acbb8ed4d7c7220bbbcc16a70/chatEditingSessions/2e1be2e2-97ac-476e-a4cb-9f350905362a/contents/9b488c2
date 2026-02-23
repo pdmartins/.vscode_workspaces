@@ -1,0 +1,27 @@
+# Context Index — vscode_workspaces
+
+Catálogo de contexto do projeto. O agente lê este índice primeiro e carrega subpastas sob demanda.
+
+---
+
+## Subtipos
+
+| Tipo | Pasta | Descrição | Status |
+|------|-------|-----------|--------|
+| Architecture | `architecture/` | Estrutura dos scripts e fluxo de sincronização | `system.md` |
+| Business Rules | `business-rules/` | — | (vazio) |
+| Conventions | `conventions/` | Naming, estilo de scripts | `standards.md` |
+| Infrastructure | `infrastructure/` | Stack e ferramentas | `stack.md` |
+| Team Process | `team-process/` | — | (vazio) |
+
+## Resumo do Projeto
+
+**Objetivo**: Scripts para sincronizar sessões de chat do GitHub Copilot (VS Code workspaceStorage/chatSessions) entre computadores, permitindo continuidade de contexto entre diferentes máquinas.
+**Stack principal**: PowerShell + Bash
+**Fase**: Inicial
+**Repo**: `https://github.com/pdmartins/.vscode_workspaces`
+
+## Última Atualização
+
+**Data**: 2026-02-22
+**Motivo**: Criação inicial

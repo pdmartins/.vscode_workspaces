@@ -1,0 +1,7 @@
+# Self-Dogfooding Migration
+
+- **date**: 2026-02-14
+- **status**: active
+- **context**: .copilot-core usava padrão excepcional: contexto/memória em .copilot-core/.github/ com junction link. Exceção arquitetural complicava documentação
+- **decision**: Migrar para padrão standard: branch `_pm/copilot-core` no .copilot-project com context/, memory/ e instructions/. Symlinks individuais em .github/instructions/. Eliminar .copilot-core/.github/
+- **outcome**: Workspace agora segue o mesmo padrão dos projetos consumidores. Eliminadas seções "Self-Dogfooding" e "Desambiguação de Caminhos"

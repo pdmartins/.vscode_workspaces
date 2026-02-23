@@ -1,0 +1,7 @@
+# Auto-Register Expansion
+
+- **date**: 2026-02-10
+- **status**: active
+- **context**: Agente só registrava automaticamente correções de código gerado. Definições/correções de regras, estrutura e processos não eram capturadas
+- **decision**: Ampliar auto-registro para incluir correções de regras, estrutura e processos. Usar memória do .copilot-project para governar desenvolvimento do core
+- **outcome**: Toda definição/correção do usuário sobre como o sistema funciona agora é registrada automaticamente

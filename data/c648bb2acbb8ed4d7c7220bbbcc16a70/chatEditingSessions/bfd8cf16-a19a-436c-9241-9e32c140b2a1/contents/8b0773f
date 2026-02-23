@@ -1,0 +1,58 @@
+# infra-vertexai-prompt — STT Project Extension
+# Complementa o core skill com instruções específicas do projeto STT
+
+## Prompt de Anamnese — Regras de Edição
+
+O prompt padrão (`PromptDefault.Anamnesis`) é escrito em **português** e segue estrutura rígida:
+
+1. **CONTEXTO**: Define papel do assistente médico
+2. **VALIDAÇÃO PRÉVIA**: Áudio inválido → JSON com campos vazios
+3. **ESTRUTURA OBRIGATÓRIA**: QP, HMA, AP, Exame Físico, Conduta
+4. **REGRAS ABSOLUTAS**: JAMAIS inventar, ZERO interpretação
+5. **LINGUAGEM**: Terminologia médica formal, converter leigo → médico
+6. **PROIBIÇÕES**: Lista explícita do que NÃO fazer
+7. **FIDELIDADE**: Copiar literalmente medicações, comorbidades, alergias
+8. **CIDs**: Mínimo 5 CID-10, hierarquia definida
+9. **VALIDAÇÃO FINAL**: Zero margem para suposição
+
+> ⚠️ Ao editar o prompt, manter a estrutura de seções.
+> NUNCA remover regras de fidelidade ou proibições.
+
+## Schema de Resposta
+
+Para alterar o schema, editar `Domain/Models/v1/TranscriptionSchemaResponse.cs`:
+
+```csharp
+using Google.GenAI.Types;
+using SchemaType = Google.GenAI.Types.Type;
+
+public static readonly Schema Schema = new Schema
+{
+    Type = SchemaType.OBJECT,
+    Properties = new Dictionary<string, Schema>
+    {
+        ["transcription"] = new Schema { Type = SchemaType.STRING },
+        ["symptoms"] = new Schema
+        {
+            Type = SchemaType.ARRAY,
+            Items = new Schema { Type = SchemaType.STRING }
+        },
+        ["suggestedCIDs"] = new Schema { ... }
+    },
+    Required = new List<string> { "transcription", "symptoms", "suggestedCIDs" }
+};
+```
+
+## Architecture Flow
+
+```
+VertexAiService
+├── GetPromptAndPlatformAsync()     → BigQuery Prompts table
+│   └── Fallback: PromptDefault.Anamnesis
+├── Monta Content[] (audio GCS URI + prompt text)
+├── Monta GenerateContentConfig
+├── VertexClientWrapper.GenerateAsync()
+├── Error handling (429 → retry via Pub/Sub Nack)
+├── Token tracking → BigQuery Token_Data
+└── Valida e extrai resposta via Helper
+```

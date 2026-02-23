@@ -1,0 +1,307 @@
+---
+name: lang-program-configure
+description: Padrões para estrutura do Program.cs com extensões por camada. Use ao configurar Program.cs, adicionar nova camada, ou registrar serviços. Triggers: Program.cs, AddServices, UseMiddleware, configuração de camadas, DI.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: lang
+---
+
+# Program.cs Architecture Skill
+
+Padrões para estrutura limpa do Program.cs com extensões por camada.
+
+## Princípio
+
+O `Program.cs` deve ser **minimal e declarativo**. Cada camada é responsável por:
+- Criar sua própria extensão de configuração
+- Registrar seus próprios serviços
+- Configurar suas próprias dependências
+
+## Estrutura do Program.cs
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// ------------------------------
+// 1. Presentation Layer
+// ------------------------------
+builder.AddPresentation();
+
+// ------------------------------
+// 2. Domain Layer
+// ------------------------------
+builder.Services.AddDomainServices();
+
+// ------------------------------
+// 3. Application Layer
+// ------------------------------
+builder.Services.AddApplication();
+
+// ------------------------------
+// 4. Infrastructure Layers
+// ------------------------------
+builder.Services.AddPersistence(builder.Configuration);
+builder.Services.AddAuthentication(builder.Configuration);
+builder.Services.AddExternalServices(builder.Configuration);
+
+// ------------------------------
+// 5. Build
+// ------------------------------
+var app = builder.Build();
+
+// ------------------------------
+// 6. HTTP Pipeline (Presentation)
+// ------------------------------
+app.UsePresentation();
+
+// ------------------------------
+// 7. Run Application
+// ------------------------------
+app.Run();
+```
+
+## Convenções de Extensões
+
+### Nomenclatura
+
+| Camada | Extensão Builder | Extensão App |
+|--------|------------------|--------------|
+| Presentation | `AddPresentation()` | `UsePresentation()` |
+| Domain | `AddDomainServices()` | - |
+| Application | `AddApplication()` | - |
+| Infrastructure | `Add{Feature}Infrastructure()` | `Use{Feature}()` |
+
+### Localização
+
+```
+src/
+├── Api/                          # Presentation Layer
+│   ├── Program.cs                # Minimal, apenas chamadas de extensão
+│   └── DependencyInjection/
+│       └── ServiceCollectionExtensions.cs  # AddPresentation(), UsePresentation()
+│
+├── Application/
+│   └── DependencyInjection/
+│       └── ServiceCollectionExtensions.cs  # AddApplication()
+│
+├── Domain/
+│   └── DependencyInjection/
+│       └── ServiceCollectionExtensions.cs  # AddDomainServices()
+│
+└── Infrastructure.{Provider}/
+    └── DependencyInjection/
+        └── ServiceCollectionExtensions.cs  # Add{Feature}Infrastructure()
+```
+
+## Templates
+
+### Presentation Layer (Api/DependencyInjection/ServiceCollectionExtensions.cs)
+
+```csharp
+namespace Bewiser.Assistant.Api;
+
+public static class ServiceCollectionExtensions
+{
+    public static WebApplicationBuilder AddPresentation(this WebApplicationBuilder builder)
+    {
+        builder.Services.AddControllers();
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddSwaggerGen(options =>
+        {
+            options.SwaggerDoc("v1", new() { Title = "Bewiser Assistant API", Version = "v1" });
+            
+            // JWT Bearer config for Swagger
+            options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+            {
+                Description = "JWT Authorization header using the Bearer scheme.",
+                Name = "Authorization",
+                In = ParameterLocation.Header,
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer"
+            });
+            
+            options.AddSecurityRequirement(new OpenApiSecurityRequirement
+            {
+                {
+                    new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference
+                        {
+                            Type = ReferenceType.SecurityScheme,
+                            Id = "Bearer"
+                        }
+                    },
+                    Array.Empty<string>()
+                }
+            });
+        });
+
+        builder.Services.AddProblemDetails();
+        
+        return builder;
+    }
+
+    public static WebApplication UsePresentation(this WebApplication app)
+    {
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseSwagger();
+            app.UseSwaggerUI();
+        }
+
+        app.UseExceptionHandler();
+        app.UseHttpsRedirection();
+        
+        app.UseAuthentication();
+        app.UseAuthorization();
+        
+        app.MapControllers();
+
+        return app;
+    }
+}
+```
+
+### Application Layer (Application/DependencyInjection/ServiceCollectionExtensions.cs)
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Bewiser.Assistant.Application;
+
+public static class ServiceCollectionExtensions
+{
+    public static IServiceCollection AddApplication(this IServiceCollection services)
+    {
+        // MediatR
+        services.AddMediatR(cfg => 
+            cfg.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly));
+
+        // FluentValidation
+        services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
+
+        // AutoMapper
+        services.AddAutoMapper(typeof(DependencyInjection).Assembly);
+
+        // Application Services
+        services.AddScoped<IAssistantService, AssistantService>();
+        services.AddScoped<IConversationService, ConversationService>();
+
+        return services;
+    }
+}
+```
+
+### Domain Layer (Domain/DependencyInjection/ServiceCollectionExtensions.cs)
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Bewiser.Assistant.Domain;
+
+public static class ServiceCollectionExtensions
+{
+    public static IServiceCollection AddDomainServices(this IServiceCollection services)
+    {
+        // Domain Services (se houver)
+        // services.AddScoped<IDomainService, DomainService>();
+
+        return services;
+    }
+}
+```
+
+### Infrastructure Layer (Infrastructure.{Provider}/DependencyInjection/ServiceCollectionExtensions.cs)
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace Bewiser.Assistant.Infrastructure;
+
+public static class ServiceCollectionExtensions
+{
+    public static IServiceCollection AddPersistence(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        services.AddDbContext<ApplicationDbContext>(options =>
+            options.UseNpgsql(configuration.GetConnectionString("DefaultConnection")));
+
+        // Repositories
+        services.AddScoped<IAssistantRepository, AssistantRepository>();
+        services.AddScoped<IConversationRepository, ConversationRepository>();
+        services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddAuthentication(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        // Ver skill auth-jwt para implementação completa
+        services.Configure<JwtSettings>(configuration.GetSection(JwtSettings.SectionName));
+        
+        var jwtSettings = configuration
+            .GetSection(JwtSettings.SectionName)
+            .Get<JwtSettings>()!;
+
+        services
+            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = jwtSettings.Issuer,
+                    ValidAudience = jwtSettings.Audience,
+                    IssuerSigningKey = new SymmetricSecurityKey(
+                        Encoding.UTF8.GetBytes(jwtSettings.Secret)),
+                    ClockSkew = TimeSpan.Zero
+                };
+            });
+
+        services.AddAuthorization();
+        services.AddScoped<ITokenService, TokenService>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddExternalServices(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        // WhatsApp/Twilio
+        services.Configure<TwilioSettings>(configuration.GetSection(TwilioSettings.SectionName));
+        services.AddScoped<IWhatsAppService, TwilioWhatsAppService>();
+
+        // OpenAI
+        services.Configure<OpenAiSettings>(configuration.GetSection(OpenAiSettings.SectionName));
+        services.AddScoped<IAiService, OpenAiService>();
+
+        return services;
+    }
+}
+```
+
+## Regras
+
+1. **Program.cs não deve ter lógica** - apenas chamadas de extensão
+2. **Cada camada registra suas dependências** - não misturar responsabilidades
+3. **Configuration vem via parâmetro** - não acessar diretamente
+4. **Retornar o tipo para fluent API** - `return services;` ou `return builder;`
+5. **Usar extension methods** - `this IServiceCollection` ou `this WebApplicationBuilder`
+
+## Checklist
+
+- [ ] Program.cs com menos de 30 linhas
+- [ ] Cada camada tem pasta `DependencyInjection/` com `ServiceCollectionExtensions.cs`
+- [ ] Extensões seguem nomenclatura `Add{Camada}()` / `Use{Camada}()`
+- [ ] Configuration passada como parâmetro quando necessária
+- [ ] Sem lógica condicional no Program.cs

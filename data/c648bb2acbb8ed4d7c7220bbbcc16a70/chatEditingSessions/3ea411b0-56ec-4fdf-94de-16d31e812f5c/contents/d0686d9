@@ -1,0 +1,250 @@
+---
+applyTo: '**'
+---
+
+# Copilot Agent Instructions
+
+Regras globais para o agente. Skills são carregados automaticamente conforme necessidade.
+
+## Princípios
+
+1. **Instruções são obrigatórias** - não são sugestões
+2. **Perguntar antes de assumir** - quando houver ambiguidade, perguntar
+3. **Português para chat, inglês para código** - variáveis, funções, nomes de arquivo em inglês
+
+## Clarificação
+
+**Perguntar quando:**
+- Pedido é vago ou ambíguo
+- Múltiplas interpretações possíveis
+- Informação crítica faltando
+- Decisão impacta significativamente o resultado
+
+**NÃO perguntar quando:**
+- Informação está explícita
+- Convenção está documentada
+- Decisão é trivial
+- Contexto torna resposta óbvia
+
+**Formato**: ❓ **Preciso de clarificação**: {pergunta}
+
+## Skills
+
+Este projeto usa o padrão [Agent Skills](https://agentskills.io).
+
+### Sinalização de Uso
+
+**Sempre que uma skill for ativada**, o agente DEVE sinalizar no início da resposta:
+
+```
+🔧 Skill: `{nome-da-skill}`
+```
+
+Se múltiplas skills forem ativadas na mesma resposta:
+
+```
+🔧 Skills: `{skill-1}`, `{skill-2}`
+```
+
+Isso garante rastreabilidade e transparência sobre quais skills estão sendo utilizadas.
+
+### Descoberta de Skills
+
+O agente DEVE escanear os seguintes diretórios para descobrir skills disponíveis:
+
+1. **Core Skills**: `.copilot-core/skills/` (organizados em subpastas por tipo: `agent/`, `code/`, `editor/`, `infra/`, `project/`, `skill/`)
+2. **Project Skills**: `.copilot-project/skills/`
+
+Para cada skill encontrado (recursivamente), ler o frontmatter (`name` e `description`) do `SKILL.md`.
+Usar o campo `description` para decidir quando ativar cada skill.
+
+### Dados do Projeto
+
+O agente DEVE consultar quando relevante:
+
+- **Contexto**: `.copilot-project/context/project.md`
+- **Memória**: `.copilot-project/memory/lessons-learned.md`
+- **Mapa de Código**: `.copilot-project/context/code-map/`
+
+**Nomenclatura**: `{tipo}/{tipo}-{feature}-{ação}/SKILL.md`
+
+### Skills Core Disponíveis (52)
+
+#### Catálogos (descoberta rápida por tipo)
+
+| Catálogo | Tipo | Skills indexadas |
+|----------|------|------------------|
+| `agent-catalog-query` | agent | 4 skills |
+| `code-catalog-query` | code | 21 skills |
+| `infra-catalog-query` | infra | 11 skills |
+| `project-catalog-query` | project | 9 skills |
+
+#### Skills diretas (sem catálogo)
+
+| Skill | Propósito |
+|-------|-----------|
+| `skill-template-create` | Criar novos skills |
+| `editor-markdown-lint` | Regras de formatação Markdown |
+| `editor-readme-generate` | Criação e atualização de READMEs |
+
+#### Todas as skills por tipo
+
+| Tipo | Skills |
+|------|--------|
+| agent | `agent-memory-query`, `agent-memory-register`, `agent-task-manage`, `agent-subagent-delegate` |
+| code | `code-review-analyze`, `code-refactor-extract`, `code-pattern-enforce`, `code-dotnet-service`, `code-dotnet-test`, `code-bash-write`, `code-powershell-write`, `code-crossplatform-sync`, `code-api-validate`, `code-command-generate`, `code-contracts-generate`, `code-controller-generate`, `code-entity-generate`, `code-event-generate`, `code-integrationtest-generate`, `code-mapping-generate`, `code-program-configure`, `code-query-generate`, `code-unittest-generate`, `code-valueobject-generate`, `code-webhook-generate` |
+| project | `project-context-query`, `project-context-update`, `project-codemap-query`, `project-codemap-update`, `project-structure-analyze`, `project-workspace-create`, `project-setup-bootstrap`, `project-repo-update`, `project-branch-switch` |
+| infra | `infra-docker-build`, `infra-redis-cache`, `infra-bigquery-query`, `infra-gcp-integrate`, `infra-k8s-deploy`, `infra-pipeline-deploy`, `infra-vertexai-prompt`, `infra-jwt-configure`, `infra-messaging-configure`, `infra-repository-generate`, `infra-service-integrate` |
+| skill | `skill-template-create` |
+| editor | `editor-markdown-lint`, `editor-readme-generate` |
+
+### Descoberta Otimizada
+
+Para evitar carregar frontmatter de 50+ skills a cada sessão:
+
+1. **Identificar tipo** — pela tarefa do usuário, determinar o tipo (`agent`, `code`, `infra`, `project`)
+2. **Consultar catálogo** — usar `runSubagent` para ler o `{tipo}-catalog-query` e listar skills do project
+3. **Ativar skill específica** — carregar apenas o SKILL.md necessário
+
+**Exemplo de fluxo com subagent:**
+```
+Tarefa: "criar Dockerfile para o projeto"
+→ Tipo: infra
+→ Subagent lê: infra-catalog-query + project skills infra-*
+→ Resultado: usar infra-docker-build (+ config.yml do project se existir)
+→ Agente carrega: infra-docker-build/SKILL.md
+```
+
+Para skills de uso direto (`skill-template-create`, `editor-markdown-lint`) — ativar sem catálogo.
+
+### Delegação a Subagents
+
+Skills podem ser delegadas a subagents via `runSubagent`. Consultar `agent-subagent-delegate` para regras completas.
+
+#### Classificação Rápida
+
+Cada skill tem `delegable` no frontmatter metadata:
+
+| Valor | Quantidade | Descrição |
+|---|---|---|
+| `full` | 42 | Delegação direta — subagent executa sozinho |
+| `orchestrated` | 7 | Main agent coleta inputs → subagent executa |
+| `none` | 2 | Executar apenas no main agent |
+
+#### Quando Delegar
+
+- **Consultas de contexto/memória/codemap** → subagent lê e retorna (full)
+- **Geração de código/infra** → subagent gera com inputs definidos (full)
+- **Análise e review** → subagent analisa e retorna relatório (full)
+- **Refatoração/fix com confirmação** → 2-phase: subagent propõe, main confirma, subagent executa (orchestrated)
+- **Skills com perguntas ao usuário** → main coleta respostas, subagent executa (orchestrated)
+- **Tracking de tarefas (`agent-task-manage`)** → main agent apenas (none)
+- **Criação de projeto (`project-workspace-create`)** → main agent em Plan mode (none)
+
+#### Template de Prompt
+
+Usar `.copilot-core/templates/subagent-prompt.md` para montar prompts padronizados.
+
+## Agent vs Plan Mode
+
+| Modo | Quando usar |
+|------|------------|
+| **Agent** | Tarefas claras e diretas — registrar lição, criar skill, configurar projeto já plugado |
+| **Plan** | Tarefas complexas que precisam de revisão — `project-workspace-create`, refatorações grandes, análises de arquitetura |
+
+> **`project-workspace-create` deve ser usado com Plan mode** — envolve coleta de contexto profundo, decisão de quais skills criar e revisão antes de executar.
+
+## Tarefas Complexas
+
+**Usar `manage_todo_list` quando:**
+- Tarefa tem 4+ steps distintos
+- Usuário pede múltiplas coisas
+- Envolve múltiplos arquivos
+- Requer planejamento
+
+**Workflow:**
+1. Criar lista com todos os steps
+2. Marcar um como `in-progress`
+3. Executar e marcar `completed` imediatamente
+4. Próximo step → `in-progress`
+
+## Memória e Contexto
+
+### Roteamento — Quando o usuário pede para guardar informação
+
+Quando o usuário disser qualquer variação de "guarda", "salva", "anota", "lembra", "registra", "memoriza", "não esquece" uma informação, o agente DEVE decidir:
+
+| Tipo de Informação | Skill | Destino |
+|-------------------|-------|---------|
+| Lição aprendida, erro corrigido, padrão descoberto, decisão tomada | `agent-memory-register` | `memory/lessons-learned.md` |
+| Mudança de stack, nova integração, restrição, estado do projeto | `project-context-update` | `context/project.md` |
+
+**Se ambíguo** → perguntar ao usuário: "Isso é uma lição/decisão ou uma mudança no projeto?"
+
+**Se claramente nenhum dos dois** → informar que a informação não se encaixa em memória nem contexto e sugerir onde guardar.
+
+### Registro automático — Correções de código gerado
+
+Quando o usuário pedir para **corrigir ou alterar código que o agente gerou**, o agente DEVE:
+
+1. **Aplicar a correção** normalmente
+2. **Registrar automaticamente** uma lição via `agent-memory-register` com:
+   - **Categoria**: `padrões`
+   - **Context**: O que o agente gerou incorretamente
+   - **Decision**: O que o usuário corrigiu e qual é o padrão correto
+   - **Outcome**: Regra a seguir em futuras gerações
+
+**Detectar quando:**
+- Usuário diz "não é assim", "muda isso", "corrige isso", "prefiro assim", "faz diferente"
+- Usuário altera padrão de nomenclatura, estilo, estrutura ou abordagem
+- Usuário rejeita uma implementação e pede outra forma
+- Usuário aponta erro no código gerado pelo agente
+
+**NÃO registrar quando:**
+- Correção é por mudança de requisito (usuário mudou de ideia, não corrigiu padrão)
+- Erro factual pontual (typo, variável errada) sem padrão recorrente
+
+**Output adicional após a correção:**
+```
+📝 **Padrão registrado**: {descrição curta do padrão aprendido}
+```
+
+### Registro automático — Correções de regras, estrutura e processos
+
+Quando o usuário **definir, corrigir ou alterar regras, estruturas ou processos** do sistema (incluindo o próprio `.copilot-core`), o agente DEVE:
+
+1. **Aplicar a mudança** nos arquivos relevantes (skills, instructions, templates, context)
+2. **Registrar automaticamente** uma lição via `agent-memory-register` com:
+   - **Categoria**: `regras` ou `estrutura`
+   - **Context**: O que existia antes ou o que o agente fez incorretamente
+   - **Decision**: O que o usuário definiu/corrigiu
+   - **Outcome**: Regra a seguir em futuras operações
+
+**Detectar quando:**
+- Usuário define como algo deve funcionar ("a estrutura é assim", "o padrão é esse")
+- Usuário corrige uma decisão do agente sobre estrutura/processo
+- Usuário altera padrão de organização, fluxo de trabalho ou convenção
+- Usuário aponta que uma instrução/skill está incorreta ou incompleta
+
+### Consulta automática
+
+**Antes de tarefas complexas:**
+- Consultar `agent-memory-query` para lições aprendidas
+- Consultar `project-context-query` para stack e restrições
+
+**Antes de gerar código:**
+- Consultar `project-codemap-query` para verificar artefatos existentes e evitar duplicação
+- Consultar `agent-memory-query` com foco em `padrões` para aplicar preferências do usuário
+
+**Após criar/alterar código:**
+- Registrar com `project-codemap-update` os artefatos criados ou alterados
+
+**Após decisões importantes:**
+- Registrar com `agent-memory-register`
+
+## Regras de Código
+
+- **Linguagem do chat**: Português brasileiro
+- **Linguagem do código**: Inglês (variáveis, funções, parâmetros, nomes de arquivo)
+- **Nunca criar documentação automática** - apenas quando solicitado
+

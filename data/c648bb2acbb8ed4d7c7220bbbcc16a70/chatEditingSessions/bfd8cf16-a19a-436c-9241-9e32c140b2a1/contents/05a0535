@@ -1,0 +1,616 @@
+---
+name: test-unit
+description: Padrões para testes unitários com xUnit, NSubstitute e FluentAssertions. Use ao criar testes de handlers, services, ou validadores. Triggers: teste unitário, xUnit, mock, NSubstitute, FluentAssertions, arquivos *Tests.cs, pasta UnitTests/.
+metadata:
+  author: copilot-project
+  version: "2.0"
+  category: test
+---
+
+# Unit Testing Skill
+
+Padrões para testes unitários em .NET com xUnit, NSubstitute e FluentAssertions.
+
+## Quando Usar
+
+- Testar Command/Query Handlers
+- Testar Services isolados
+- Testar Validators
+- Testar Domain logic
+
+## Estrutura
+
+```
+tests/BeWiser.Assistant.UnitTests/
+├── Application/
+│   ├── Commands/
+│   │   └── ProcessMessageCommandHandlerTests.cs
+│   └── Queries/
+│       └── GetConversationQueryHandlerTests.cs
+├── Domain/
+│   ├── Entities/
+│   │   └── ConversationTests.cs
+│   └── ValueObjects/
+│       └── PhoneNumberVOTests.cs
+└── Builders/
+    ├── ConversationBuilder.cs
+    ├── MessageBuilder.cs
+    └── ProcessMessageCommandBuilder.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Classe de Teste | `[Classe]Tests` | `ProcessMessageCommandHandlerTests` |
+| Método de Teste | `[Método]_[Cenário]_[Esperado]` | `Handle_ValidMessage_ReturnsSuccess` |
+| Builder | `[Entidade]Builder` | `ConversationBuilder`, `MessageBuilder` |
+| Fake | `Fake[Interface]` | `FakeMessageRepository` |
+
+## Templates
+
+### Command Handler Test
+
+```csharp
+using FluentAssertions;
+using NSubstitute;
+using Xunit;
+
+namespace BeWiser.Assistant.UnitTests.Application.Commands;
+
+public class ProcessMessageCommandHandlerTests
+{
+    private readonly IConversationRepository _conversationRepository;
+    private readonly IMessagePublisher _messagePublisher;
+    private readonly ILogger<ProcessMessageCommandHandler> _logger;
+    private readonly ProcessMessageCommandHandler _sut;
+
+    public ProcessMessageCommandHandlerTests()
+    {
+        _conversationRepository = Substitute.For<IConversationRepository>();
+        _messagePublisher = Substitute.For<IMessagePublisher>();
+        _logger = Substitute.For<ILogger<ProcessMessageCommandHandler>>();
+        
+        _sut = new ProcessMessageCommandHandler(
+            _conversationRepository,
+            _messagePublisher,
+            _logger);
+    }
+
+    [Fact]
+    public async Task Handle_ValidMessage_ReturnsSuccessResult()
+    {
+        // Arrange
+        var command = new ProcessMessageCommandBuilder().Build();
+        var conversation = new ConversationBuilder().Build();
+        
+        _conversationRepository
+            .GetByPhoneNumberAsync(command.From, Arg.Any<CancellationToken>())
+            .Returns(conversation);
+
+        // Act
+        var result = await _sut.Handle(command, CancellationToken.None);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Success.Should().BeTrue();
+        result.ConversationId.Should().Be(conversation.Id);
+    }
+
+    [Fact]
+    public async Task Handle_NewConversation_CreatesConversation()
+    {
+        // Arrange
+        var command = new ProcessMessageCommandBuilder().Build();
+        
+        _conversationRepository
+            .GetByPhoneNumberAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns((Conversation?)null);
+
+        // Act
+        var result = await _sut.Handle(command, CancellationToken.None);
+
+        // Assert
+        await _conversationRepository
+            .Received(1)
+            .AddAsync(Arg.Any<Conversation>(), Arg.Any<CancellationToken>());
+            
+        result.Success.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_ValidMessage_PublishesToQueue()
+    {
+        // Arrange
+        var command = new ProcessMessageCommandBuilder().Build();
+        var conversation = new ConversationBuilder().Build();
+        
+        _conversationRepository
+            .GetByPhoneNumberAsync(command.From, Arg.Any<CancellationToken>())
+            .Returns(conversation);
+
+        // Act
+        await _sut.Handle(command, CancellationToken.None);
+
+        // Assert
+        await _messagePublisher
+            .Received(1)
+            .PublishAsync(
+                Arg.Is<ProcessMessageMessage>(m => 
+                    m.ConversationId == conversation.Id),
+                Arg.Any<CancellationToken>());
+    }
+}
+```
+
+### Query Handler Test
+
+```csharp
+using FluentAssertions;
+using NSubstitute;
+using Xunit;
+
+namespace BeWiser.Assistant.UnitTests.Application.Queries;
+
+public class GetConversationQueryHandlerTests
+{
+    private readonly IConversationRepository _repository;
+    private readonly GetConversationQueryHandler _sut;
+
+    public GetConversationQueryHandlerTests()
+    {
+        _repository = Substitute.For<IConversationRepository>();
+        _sut = new GetConversationQueryHandler(
+            _repository,
+            Substitute.For<ILogger<GetConversationQueryHandler>>());
+    }
+
+    [Fact]
+    public async Task Handle_ExistingConversation_ReturnsResult()
+    {
+        // Arrange
+        var conversation = new ConversationBuilder().Build();
+        var query = new GetConversationQuery { Id = conversation.Id };
+        
+        _repository
+            .GetByIdAsync(conversation.Id, Arg.Any<CancellationToken>())
+            .Returns(conversation);
+
+        // Act
+        var result = await _sut.Handle(query, CancellationToken.None);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.Id.Should().Be(conversation.Id);
+        result.PhoneNumber.Should().Be(conversation.PhoneNumber.Value);
+    }
+
+    [Fact]
+    public async Task Handle_NonExistingConversation_ReturnsNull()
+    {
+        // Arrange
+        var query = new GetConversationQuery { Id = Guid.NewGuid() };
+        
+        _repository
+            .GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns((Conversation?)null);
+
+        // Act
+        var result = await _sut.Handle(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeNull();
+    }
+}
+```
+
+### Validator Test
+
+```csharp
+using FluentAssertions;
+using Xunit;
+
+namespace BeWiser.Assistant.UnitTests.Application.Commands;
+
+public class ProcessMessageCommandValidatorTests
+{
+    private readonly ProcessMessageCommandValidator _sut = new();
+
+    [Fact]
+    public void Validate_ValidCommand_IsValid()
+    {
+        // Arrange
+        var command = new ProcessMessageCommandBuilder().Build();
+
+        // Act
+        var result = _sut.Validate(command);
+
+        // Assert
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(null)]
+    [InlineData("invalid")]
+    public void Validate_InvalidPhoneNumber_HasError(string? phoneNumber)
+    {
+        // Arrange
+        var command = new ProcessMessageCommandBuilder()
+            .WithFrom(phoneNumber!)
+            .Build();
+
+        // Act
+        var result = _sut.Validate(command);
+
+        // Assert
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == "From");
+    }
+
+    [Fact]
+    public void Validate_EmptyBody_HasError()
+    {
+        // Arrange
+        var command = new ProcessMessageCommandBuilder()
+            .WithBody("")
+            .Build();
+
+        // Act
+        var result = _sut.Validate(command);
+
+        // Assert
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == "Body");
+    }
+}
+```
+
+### Entity Test
+
+```csharp
+using FluentAssertions;
+using Xunit;
+
+namespace BeWiser.Assistant.UnitTests.Domain.Entities;
+
+public class ConversationTests
+{
+    [Fact]
+    public void End_ActiveConversation_SetsStatusToEnded()
+    {
+        // Arrange
+        var conversation = new ConversationBuilder()
+            .WithStatus(ConversationStatus.Active)
+            .Build();
+
+        // Act
+        conversation.End();
+
+        // Assert
+        conversation.Status.Should().Be(ConversationStatus.Ended);
+        conversation.EndedAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void End_AlreadyEnded_ThrowsException()
+    {
+        // Arrange
+        var conversation = new ConversationBuilder()
+            .WithStatus(ConversationStatus.Ended)
+            .Build();
+
+        // Act
+        var act = () => conversation.End();
+
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*already ended*");
+    }
+
+    [Fact]
+    public void AddMessage_ActiveConversation_AddsMessage()
+    {
+        // Arrange
+        var conversation = new ConversationBuilder().Build();
+
+        // Act
+        var message = conversation.AddMessage("Hello", MessageDirection.Incoming);
+
+        // Assert
+        conversation.Messages.Should().Contain(message);
+        message.Content.Value.Should().Be("Hello");
+    }
+}
+```
+
+### Value Object Test
+
+```csharp
+using FluentAssertions;
+using Xunit;
+
+namespace BeWiser.Assistant.UnitTests.Domain.ValueObjects;
+
+public class PhoneNumberVOTests
+{
+    [Theory]
+    [InlineData("+5511999999999")]
+    [InlineData("+14155551234")]
+    public void Constructor_ValidPhoneNumber_CreatesInstance(string value)
+    {
+        // Act
+        var phoneNumber = new PhoneNumberVO(value);
+
+        // Assert
+        phoneNumber.Value.Should().Be(value);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(null)]
+    [InlineData("invalid")]
+    [InlineData("5511999999999")] // Missing +
+    public void Constructor_InvalidPhoneNumber_ThrowsException(string? value)
+    {
+        // Act
+        var act = () => new PhoneNumberVO(value!);
+
+        // Assert
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void ImplicitConversion_ToString_ReturnsValue()
+    {
+        // Arrange
+        var phoneNumber = new PhoneNumberVO("+5511999999999");
+
+        // Act
+        string result = phoneNumber;
+
+        // Assert
+        result.Should().Be("+5511999999999");
+    }
+}
+```
+
+## Builders
+
+### Entity Builder
+
+```csharp
+namespace BeWiser.Assistant.UnitTests.Builders;
+
+/// <summary>
+/// Builder for creating Conversation test instances.
+/// </summary>
+public class ConversationBuilder
+{
+    private Guid _id = Guid.NewGuid();
+    private PhoneNumberVO _phoneNumber = new("+5511999999999");
+    private PhoneNumberVO _assistantPhoneNumber = new("+5511888888888");
+    private ConversationStatus _status = ConversationStatus.Active;
+    private Guid _assistantId = Guid.NewGuid();
+    private DateTime _createdAt = DateTime.UtcNow;
+    private readonly List<Message> _messages = [];
+
+    public ConversationBuilder WithId(Guid id)
+    {
+        _id = id;
+        return this;
+    }
+
+    public ConversationBuilder WithPhoneNumber(string phoneNumber)
+    {
+        _phoneNumber = new PhoneNumberVO(phoneNumber);
+        return this;
+    }
+
+    public ConversationBuilder WithStatus(ConversationStatus status)
+    {
+        _status = status;
+        return this;
+    }
+
+    public ConversationBuilder WithAssistantId(Guid assistantId)
+    {
+        _assistantId = assistantId;
+        return this;
+    }
+
+    public ConversationBuilder WithMessage(Message message)
+    {
+        _messages.Add(message);
+        return this;
+    }
+
+    public ConversationBuilder WithMessages(int count)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            _messages.Add(new MessageBuilder()
+                .WithConversationId(_id)
+                .Build());
+        }
+        return this;
+    }
+
+    public Conversation Build()
+    {
+        var conversation = new Conversation
+        {
+            Id = _id,
+            PhoneNumber = _phoneNumber,
+            AssistantPhoneNumber = _assistantPhoneNumber,
+            Status = _status,
+            AssistantId = _assistantId,
+            CreatedAt = _createdAt
+        };
+
+        foreach (var message in _messages)
+        {
+            conversation.Messages.Add(message);
+        }
+
+        return conversation;
+    }
+}
+```
+
+### Command Builder
+
+```csharp
+namespace BeWiser.Assistant.UnitTests.Builders;
+
+/// <summary>
+/// Builder for creating ProcessMessageCommand test instances.
+/// </summary>
+public class ProcessMessageCommandBuilder
+{
+    private string _from = "+5511999999999";
+    private string _to = "+5511888888888";
+    private string _body = "Test message";
+    private string _messageSid = $"SM{Guid.NewGuid():N}";
+
+    public ProcessMessageCommandBuilder WithFrom(string from)
+    {
+        _from = from;
+        return this;
+    }
+
+    public ProcessMessageCommandBuilder WithTo(string to)
+    {
+        _to = to;
+        return this;
+    }
+
+    public ProcessMessageCommandBuilder WithBody(string body)
+    {
+        _body = body;
+        return this;
+    }
+
+    public ProcessMessageCommandBuilder WithMessageSid(string messageSid)
+    {
+        _messageSid = messageSid;
+        return this;
+    }
+
+    public ProcessMessageCommand Build() => new()
+    {
+        From = _from,
+        To = _to,
+        Body = _body,
+        MessageSid = _messageSid
+    };
+}
+```
+
+### DTO/Result Builder
+
+```csharp
+namespace BeWiser.Assistant.UnitTests.Builders;
+
+/// <summary>
+/// Builder for creating MessageDto test instances.
+/// </summary>
+public class MessageDtoBuilder
+{
+    private Guid _id = Guid.NewGuid();
+    private Guid _conversationId = Guid.NewGuid();
+    private string _content = "Test message";
+    private string _direction = "Incoming";
+    private DateTime _sentAt = DateTime.UtcNow;
+
+    public MessageDtoBuilder WithId(Guid id)
+    {
+        _id = id;
+        return this;
+    }
+
+    public MessageDtoBuilder WithDirection(string direction)
+    {
+        _direction = direction;
+        return this;
+    }
+
+    public MessageDto Build() => new()
+    {
+        Id = _id,
+        ConversationId = _conversationId,
+        Content = _content,
+        Direction = _direction,
+        SentAt = _sentAt
+    };
+}
+```
+
+## Mocking Patterns
+
+### NSubstitute
+
+```csharp
+// Setup return value
+_repository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+    .Returns(entity);
+
+// Setup for specific arg
+_repository.GetByIdAsync(specificId, Arg.Any<CancellationToken>())
+    .Returns(entity);
+
+// Setup exception
+_repository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+    .ThrowsAsync(new Exception("Error"));
+
+// Verify call was made
+await _repository.Received(1).AddAsync(
+    Arg.Any<Conversation>(), 
+    Arg.Any<CancellationToken>());
+
+// Verify call was not made
+await _repository.DidNotReceive().DeleteAsync(
+    Arg.Any<Guid>(), 
+    Arg.Any<CancellationToken>());
+
+// Capture argument
+var capturedConversation = Arg.Do<Conversation>(c => { /* capture */ });
+```
+
+## FluentAssertions
+
+```csharp
+// Basic assertions
+result.Should().NotBeNull();
+result.Should().BeNull();
+result.Should().Be(expected);
+result.Should().BeTrue();
+
+// Collections
+list.Should().HaveCount(3);
+list.Should().Contain(item);
+list.Should().BeEmpty();
+list.Should().AllSatisfy(x => x.Status.Should().Be(Status.Active));
+
+// Exceptions
+act.Should().Throw<ArgumentException>()
+    .WithMessage("*invalid*");
+    
+await act.Should().ThrowAsync<ValidationException>();
+
+// Object comparison
+result.Should().BeEquivalentTo(expected);
+result.Should().BeEquivalentTo(expected, opt => opt
+    .Excluding(x => x.CreatedAt));
+```
+
+## Checklist
+
+- [ ] Projeto: `BeWiser.Assistant.UnitTests`
+- [ ] Estrutura espelha `src/`
+- [ ] Padrão AAA (Arrange/Act/Assert)
+- [ ] Nome: `[Método]_[Cenário]_[Esperado]`
+- [ ] Builders para dados complexos
+- [ ] FluentAssertions para asserts
+- [ ] NSubstitute para mocks
+- [ ] Um assert lógico por teste

@@ -1,0 +1,158 @@
+---
+name: code-pattern-enforce
+description: Verifica e aplica padrões de código definidos no projeto (naming, estrutura, convenções). Automático após gerar código. Lê config.yml do project para regras. Triggers: "verificar padrões", "está no padrão?", "padronizar", "convenções", automaticamente após gerar código, durante code review.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: code
+---
+
+# Code Pattern Enforce
+
+Verifica e aplica padrões de código definidos no projeto.
+
+## Quando Usar
+
+- **Automaticamente** após gerar qualquer código novo
+- Durante code review (`code-review-analyze`)
+- Usuário pergunta "está no padrão?"
+- Ao padronizar código existente
+
+## Config Loading
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/code-pattern-enforce/config.yml`
+2. Se existe, carregar regras do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/code-pattern-enforce/SKILL.md`
+4. Se existe, carregar regras complementares (convenções densas e específicas)
+5. Se nenhum existe, usar padrões genéricos
+
+## Workflow
+
+### 1. Identificar código a verificar
+
+- Código recém-gerado pelo agente
+- Arquivo específico indicado pelo usuário
+- Changeset de um PR
+
+### 2. Carregar regras do projeto
+
+Ler `config.yml` para obter as regras de:
+- Naming conventions
+- Estrutura de arquivos/pastas
+- Padrões obrigatórios
+- Anti-patterns proibidos
+
+### 3. Verificar conformidade
+
+Para cada regra, verificar se o código está em conformidade:
+
+| Categoria | Verificações |
+|-----------|-------------|
+| **Naming** | Classes, métodos, variáveis, arquivos seguem padrão |
+| **Estrutura** | Arquivo no diretório correto, namespace correto |
+| **Patterns** | DI registration, error handling, logging |
+| **Anti-patterns** | Código proibido, práticas banidas |
+| **Style** | Async suffix, null guards, CancellationToken |
+
+### 4. Reportar
+
+```
+✅ **Padrões verificados** — X regras, Y conformes, Z violações
+
+🟠 Violações:
+- [regra] Descrição → Correção sugerida
+- [regra] Descrição → Correção sugerida
+```
+
+### 5. Corrigir automaticamente
+
+Se possível, corrigir violações encontradas diretamente (com confirmação do usuário).
+
+## Regras Genéricas
+
+### Naming
+
+| Artefato | Padrão |
+|----------|--------|
+| Classes | PascalCase |
+| Interfaces | `I` + PascalCase |
+| Métodos | PascalCase |
+| Variáveis locais | camelCase |
+| Constantes | UPPER_SNAKE_CASE ou PascalCase |
+| Arquivos | Mesmo nome da classe principal |
+
+### Estrutura
+
+| Regra | Descrição |
+|-------|-----------|
+| Um arquivo por classe/interface | Separação clara |
+| Namespace = caminho de diretórios | Consistência |
+| Testes espelham estrutura do source | Fácil localização |
+
+### Patterns Obrigatórios
+
+| Pattern | Quando |
+|---------|--------|
+| Null guard | Parâmetros de construtor |
+| CancellationToken | Métodos async |
+| IOptions\<T> | Configurações |
+| ILogger\<T> | Logging estruturado |
+| Interface-first | Antes da implementação |
+
+### Anti-Patterns
+
+| Proibido | Alternativa |
+|----------|-------------|
+| `string.Format` para SQL values | Parâmetros tipados |
+| `catch (Exception) { }` silencioso | Log mínimo |
+| `new HttpClient()` direto | `IHttpClientFactory` |
+| Secrets em código | Configuration/KeyVault |
+| DateTime.Now | DateTime.UtcNow ou `IDateTimeProvider` |
+
+## Checklist
+
+- [ ] Naming segue convenções
+- [ ] Arquivos no diretório correto
+- [ ] Namespace corresponde ao path
+- [ ] Patterns obrigatórios aplicados
+- [ ] Nenhum anti-pattern presente
+- [ ] DI registration com lifetime correto
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/code-pattern-enforce/config.yml
+naming:
+  classes: PascalCase
+  interfaces: "I{PascalCase}"
+  methods: PascalCase
+  variables: camelCase
+  constants: PascalCase               # or UPPER_SNAKE_CASE
+  files: "{ClassName}.cs"
+  namespace: "{Project}.{Layer}.{Feature}.v1"
+structure:
+  contracts: "Contracts/v1/"
+  services: "Services/v1/"
+  models: "Models/v1/"
+  wrappers: "Wrappers/v1/"
+  tests: "{Project}.UnitTests/"
+required-patterns:
+  - null-guard
+  - cancellation-token
+  - ioptions
+  - ilogger
+  - interface-first
+anti-patterns:
+  - sql-string-concat
+  - silent-catch
+  - direct-httpclient
+  - hardcoded-secrets
+  - datetime-now
+custom-rules:
+  - name: "Versioned folders"
+    description: "All feature folders must have v1/ subfolder"
+    applies-to: [Domain, Infrastructure]
+  - name: "Bootstrapper registration"
+    description: "All services must be registered in Bootstrapper.cs"
+    applies-to: [Services]
+```

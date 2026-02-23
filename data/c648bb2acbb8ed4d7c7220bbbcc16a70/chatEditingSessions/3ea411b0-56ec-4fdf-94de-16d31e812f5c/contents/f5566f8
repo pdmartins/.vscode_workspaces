@@ -1,0 +1,271 @@
+---
+name: infra-service-integrate
+description: Padrões para Services externos e Clients na Infrastructure. Lê config.yml do project para convenções específicas. Use ao integrar com APIs externas (qualquer provedor). Triggers: service, client, integração, HTTP client, pasta Services/, Clients/.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: infra
+  delegable: full
+---
+
+# External Services Skill
+
+Padrões para Services e Clients que integram com APIs externas.
+
+## Config Loading
+
+Antes de gerar código, carregar configurações do projeto:
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/infra-service-integrate/config.yml`
+2. Se existe, carregar e usar as configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/infra-service-integrate/SKILL.md`
+4. Se existe, carregar como instruções complementares (extensões específicas do projeto)
+5. Se nenhum existe, usar apenas os padrões genéricos abaixo
+
+## Quando Usar
+
+- Integrar com APIs externas de qualquer provedor
+- Criar HTTP clients tipados
+- Configurar resiliência com Polly
+
+## Estrutura
+
+```
+src/{RootNamespace}.Infrastructure/
+├── Services/
+│   └── {Category}/
+│       └── {Provider}{Domain}Service.cs
+├── Clients/
+│   └── {Provider}Client.cs
+└── Options/
+    └── {Provider}Options.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Service Interface | `I[Domínio]Service` | `IPaymentService`, `INotificationService` |
+| Service Impl | `[Provedor][Domínio]Service` | `StripePaymentService`, `SendGridNotificationService` |
+| Client | `[Provedor]Client` | `StripeClient`, `SendGridClient` |
+| Options | `[Serviço]Options` | `StripeOptions`, `SendGridOptions` |
+
+## Templates
+
+### Service Interface
+
+```csharp
+namespace {RootNamespace}.Application.Interfaces.Services;
+
+/// <summary>
+/// Service for {domain} operations.
+/// </summary>
+public interface I{Domain}Service
+{
+    Task<{ReturnType}> {Operation}Async(
+        {Parameters},
+        CancellationToken cancellationToken = default);
+}
+```
+
+### Service Implementation
+
+```csharp
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
+
+namespace {RootNamespace}.Infrastructure.Services.{Category};
+
+/// <summary>
+/// {Provider} implementation of I{Domain}Service.
+/// </summary>
+public class {Provider}{Domain}Service : I{Domain}Service
+{
+    private readonly {Provider}Options _options;
+    private readonly ILogger<{Provider}{Domain}Service> _logger;
+
+    public {Provider}{Domain}Service(
+        IOptions<{Provider}Options> options,
+        ILogger<{Provider}{Domain}Service> logger)
+    {
+        _options = options.Value;
+        _logger = logger;
+    }
+
+    public async Task<{ReturnType}> {Operation}Async(
+        {Parameters},
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "Executing {Operation} via {Provider}",
+            nameof({Operation}Async), "{Provider}");
+
+        // Provider-specific implementation
+        
+        _logger.LogInformation(
+            "{Operation} completed successfully via {Provider}",
+            nameof({Operation}Async), "{Provider}");
+
+        return result;
+    }
+}
+```
+
+### Options Class
+
+```csharp
+namespace {RootNamespace}.Infrastructure.Options;
+
+/// <summary>
+/// {Provider} configuration options.
+/// </summary>
+public class {Provider}Options
+{
+    public const string SectionName = "{Provider}";
+    
+    public required string Endpoint { get; init; }
+    public required string ApiKey { get; init; }
+    // Provider-specific options
+}
+```
+
+### Typed HTTP Client
+
+```csharp
+using System.Net.Http.Json;
+
+namespace {RootNamespace}.Infrastructure.Clients;
+
+/// <summary>
+/// Typed HTTP client for {Provider} API.
+/// </summary>
+public class {Provider}Client
+{
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<{Provider}Client> _logger;
+
+    public {Provider}Client(
+        HttpClient httpClient,
+        ILogger<{Provider}Client> logger)
+    {
+        _httpClient = httpClient;
+        _logger = logger;
+    }
+
+    public async Task<TResponse?> GetAsync<TResponse>(
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("GET {Path}", path);
+        
+        var response = await _httpClient.GetAsync(path, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        
+        return await response.Content.ReadFromJsonAsync<TResponse>(cancellationToken);
+    }
+
+    public async Task<TResponse?> PostAsync<TRequest, TResponse>(
+        string path,
+        TRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("POST {Path}", path);
+        
+        var response = await _httpClient.PostAsJsonAsync(path, request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        
+        return await response.Content.ReadFromJsonAsync<TResponse>(cancellationToken);
+    }
+}
+```
+
+### Registro de HTTP Client com Resiliência
+
+```csharp
+public static IServiceCollection AddExternalServices(
+    this IServiceCollection services,
+    IConfiguration configuration)
+{
+    // {Provider} service
+    services.Configure<{Provider}Options>(
+        configuration.GetSection({Provider}Options.SectionName));
+    services.AddScoped<I{Domain}Service, {Provider}{Domain}Service>();
+
+    // Typed HTTP Client com Polly
+    services
+        .AddHttpClient<{Provider}Client>((sp, client) =>
+        {
+            var options = sp.GetRequiredService<IOptions<{Provider}Options>>().Value;
+            client.BaseAddress = new Uri(options.Endpoint);
+            client.DefaultRequestHeaders.Add("X-Api-Key", options.ApiKey);
+        })
+        .AddStandardResilienceHandler(); // Polly retry/circuit breaker
+
+    return services;
+}
+```
+
+## Resiliência com Polly
+
+```csharp
+services
+    .AddHttpClient<{Provider}Client>()
+    .AddResilienceHandler("default", builder =>
+    {
+        builder
+            .AddRetry(new RetryStrategyOptions<HttpResponseMessage>
+            {
+                MaxRetryAttempts = 3,
+                Delay = TimeSpan.FromSeconds(1),
+                BackoffType = DelayBackoffType.Exponential
+            })
+            .AddCircuitBreaker(new CircuitBreakerStrategyOptions<HttpResponseMessage>
+            {
+                FailureRatio = 0.5,
+                MinimumThroughput = 10,
+                BreakDuration = TimeSpan.FromSeconds(30)
+            })
+            .AddTimeout(TimeSpan.FromSeconds(10));
+    });
+```
+
+## Checklist
+
+- [ ] Interface em `Application/Interfaces/Services/`
+- [ ] Implementação em `Infrastructure/Services/[Categoria]/`
+- [ ] Options em `Infrastructure/Options/`
+- [ ] Nomenclatura: `[Provedor][Domínio]Service`
+- [ ] Logs em operações externas
+- [ ] Retry/Circuit Breaker configurado
+- [ ] Secrets via User Secrets/Key Vault
+- [ ] CancellationToken propagado
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/infra-service-integrate/config.yml
+root_namespace: "{RootNamespace}"
+
+services:
+  - domain: "{Domain}"
+    interface: "I{Domain}Service"
+    provider: "{Provider}"
+    implementation: "{Provider}{Domain}Service"
+    category: "{Category}"
+    options_class: "{Provider}Options"
+    options_section: "{Provider}"
+    uses_http_client: false
+    options_properties:
+      - "Endpoint: string"
+      - "ApiKey: string"
+
+http_clients:
+  - name: "{Provider}Client"
+    base_url_from: "{Provider}Options.Endpoint"
+    auth_header: "X-Api-Key"
+    resilience:
+      retry_attempts: 3
+      retry_delay_seconds: 1
+      circuit_breaker_failure_ratio: 0.5
+      timeout_seconds: 10
+```

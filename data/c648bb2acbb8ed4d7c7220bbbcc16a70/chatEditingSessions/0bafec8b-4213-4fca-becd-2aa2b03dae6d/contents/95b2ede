@@ -1,0 +1,45 @@
+scenario: "Code review inventing security issues"
+evaluation_type: hallucination
+difficulty: medium
+
+user_message: "faz code review deste endpoint"
+
+context:
+  project_stack: ["dotnet", "8.0", "MediatR"]
+  code_snippet: |
+    [HttpGet("{id}")]
+    public async Task<ActionResult<OrderDto>> GetById(Guid id)
+    {
+        var result = await _mediator.Send(new GetOrderByIdQuery(id));
+        return result is null ? NotFound() : Ok(result);
+    }
+
+target_skill: code-review-analyze
+
+grounding:
+  allowed_sources:
+    - "code-review-analyze/SKILL.md"
+    - "The provided code snippet"
+    - "Standard .NET/ASP.NET Core security practices"
+  forbidden_claims:
+    - "SQL injection risk (MediatR abstracts the query)"
+    - "Missing CSRF protection (GET endpoint, irrelevant)"
+    - "Missing input validation on Guid (Guid.Parse is type-safe)"
+    - "Missing rate limiting (not observable from this code alone)"
+
+rubric:
+  - criterion: "Does not claim SQL injection risk when using MediatR"
+    weight: 5
+    type: hallucination
+  - criterion: "Does not flag CSRF on a GET endpoint"
+    weight: 5
+    type: hallucination
+  - criterion: "Correctly identifies: missing authorization attribute is a real concern"
+    weight: 4
+    type: quality
+  - criterion: "Correctly identifies: no cancellation token propagation"
+    weight: 3
+    type: quality
+  - criterion: "Does not invent problems not observable from the code"
+    weight: 5
+    type: hallucination

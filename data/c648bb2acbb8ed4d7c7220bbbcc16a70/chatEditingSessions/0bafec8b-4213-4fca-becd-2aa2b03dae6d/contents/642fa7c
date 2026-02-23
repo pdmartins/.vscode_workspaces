@@ -1,0 +1,169 @@
+# Subagent Prompt Template
+
+Template padronizado para montar prompts ao delegar skills via `runSubagent`.
+
+## Variáveis
+
+| Variável | Descrição | Obrigatória |
+|---|---|---|
+| `{skill-path}` | Caminho completo do SKILL.md | ✅ |
+| `{skill-name}` | Nome da skill (ex: `code-command-generate`) | ✅ |
+| `{task-description}` | Descrição concisa da tarefa (3-5 words) | ✅ |
+| `{task-inputs}` | Inputs específicos da tarefa em texto livre | ✅ |
+| `{expected-output}` | O que o subagent deve retornar ao main agent | ✅ |
+| `{config-path}` | Caminho do config.yml do project (se existir) | ❌ |
+| `{context-path}` | Caminho do project.md (se relevante) | ❌ |
+| `{codemap-path}` | Caminho do code-map/ (se relevante) | ❌ |
+| `{pre-collected-inputs}` | Respostas pré-coletadas do usuário (para `orchestrated`) | ❌ |
+
+## Template: Direct Delegation (`full`)
+
+```
+description: "{task-description}"
+prompt: |
+  Você é um subagent especializado. Execute a seguinte skill de forma autônoma.
+
+  ## Skill
+  Leia as instruções completas em: {skill-path}
+
+  ## Config do Projeto
+  Leia o config (se existir): {config-path}
+  Leia o contexto (se relevante): {context-path}
+
+  ## Tarefa
+  {task-inputs}
+
+  ## Output Esperado
+  {expected-output}
+
+  ## Regras
+  - Siga as instruções do SKILL.md à risca
+  - Não pergunte nada — todos os inputs necessários estão acima
+  - Retorne resultado completo na mensagem final
+  - Se encontrar erro, descreva o problema em vez de parar silenciosamente
+```
+
+## Template: Pre-collect (`orchestrated`)
+
+```
+description: "{task-description}"
+prompt: |
+  Você é um subagent especializado. Execute a seguinte skill com inputs pré-coletados do usuário.
+
+  ## Skill
+  Leia as instruções completas em: {skill-path}
+
+  ## Config do Projeto
+  Leia o config (se existir): {config-path}
+
+  ## Inputs Coletados do Usuário
+  {pre-collected-inputs}
+
+  ## Tarefa
+  {task-inputs}
+
+  ## Output Esperado
+  {expected-output}
+
+  ## Regras
+  - Siga as instruções do SKILL.md à risca
+  - Os inputs do usuário já foram coletados — use-os diretamente
+  - Não pergunte nada — execute com base nos dados fornecidos
+  - Se encontrar erro ou ambiguidade, descreva o problema no retorno
+```
+
+## Template: Two-phase — Fase 1 Análise (`orchestrated`)
+
+```
+description: "Analyze for {task-description}"
+prompt: |
+  Você é um subagent de análise. Execute APENAS a fase de análise da skill, sem modificar nenhum arquivo.
+
+  ## Skill
+  Leia as instruções completas em: {skill-path}
+
+  ## Config do Projeto
+  Leia o config (se existir): {config-path}
+  Leia o codemap (se relevante): {codemap-path}
+
+  ## Tarefa de Análise
+  {task-inputs}
+
+  ## Output Esperado
+  Retorne APENAS a proposta/plano de ação em formato estruturado:
+  - O que foi analisado
+  - Problemas/oportunidades encontrados
+  - Ações propostas (numeradas)
+  - Impacto estimado de cada ação
+
+  ## Regras
+  - NÃO modifique nenhum arquivo
+  - NÃO execute nenhuma ação — apenas analise e proponha
+  - Seja específico sobre arquivos, linhas, e mudanças propostas
+```
+
+## Template: Two-phase — Fase 2 Execução (`orchestrated`)
+
+```
+description: "Execute {task-description}"
+prompt: |
+  Você é um subagent de execução. Aplique o plano aprovado pelo usuário.
+
+  ## Skill
+  Leia as instruções completas em: {skill-path}
+
+  ## Config do Projeto
+  Leia o config (se existir): {config-path}
+
+  ## Plano Aprovado
+  {pre-collected-inputs}
+
+  ## Tarefa de Execução
+  Aplique EXATAMENTE as ações aprovadas acima. Não adicione nem remova ações.
+
+  ## Output Esperado
+  {expected-output}
+
+  ## Regras
+  - Execute APENAS as ações listadas no plano aprovado
+  - Se encontrar impedimento em alguma ação, pule e reporte no retorno
+  - Confirme cada ação executada com sucesso
+```
+
+## Exemplos Práticos
+
+### Exemplo 1: Consultar catálogo (full)
+
+```
+runSubagent({
+  description: "Query infra catalog",
+  prompt: "Leia o skill em .copilot-core/skills/infra/infra-catalog-query/SKILL.md. Também liste quaisquer skills em .copilot-project/skills/ que comecem com 'infra-'. A tarefa do usuário é: criar Dockerfile para o projeto. Retorne: qual skill usar e se existe config.yml no project."
+})
+```
+
+### Exemplo 2: Gerar código (full)
+
+```
+runSubagent({
+  description: "Generate CQRS command",
+  prompt: "Leia o skill em .copilot-core/skills/code/code-command-generate/SKILL.md. Leia o config em .copilot-project/skills/code-command-generate/config.yml (se existir). Leia o contexto em .copilot-project/context/project.md. Crie um Command para 'CreateOrder' com campos: CustomerId (Guid), Items (List<OrderItemDto>), ShippingAddress (string). Retorne: lista de arquivos criados com caminhos completos."
+})
+```
+
+### Exemplo 3: Refatoração two-phase (orchestrated)
+
+```
+// Fase 1 — Análise
+result = runSubagent({
+  description: "Analyze refactoring",
+  prompt: "Leia .copilot-core/skills/code/code-refactor-extract/SKILL.md. Analise o arquivo src/Services/OrderService.cs. NÃO modifique nada. Retorne: lista de extrações recomendadas com justificativa."
+})
+
+// Main agent apresenta resultado ao usuário e coleta aprovação
+
+// Fase 2 — Execução
+runSubagent({
+  description: "Execute refactoring",
+  prompt: "Leia .copilot-core/skills/code/code-refactor-extract/SKILL.md. Aplique APENAS estas extrações aprovadas: 1. Extrair método CalculateTotal. 2. Extrair classe OrderValidator. Retorne: lista de arquivos modificados/criados."
+})
+```

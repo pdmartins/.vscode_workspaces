@@ -1,0 +1,22 @@
+scenario: "User asks to create unit tests"
+evaluation_type: routing
+difficulty: easy
+
+user_message: "cria testes unitários para o OrderService"
+
+context:
+  project_stack: ["dotnet", "8.0", "xUnit", "NSubstitute"]
+  existing_files:
+    - "src/Application/Services/OrderService.cs"
+    - "tests/Application.Tests/Application.Tests.csproj"
+
+expected_skills:
+  - name: code-unittest-generate
+    must_activate: true
+    reason: "Explicit unit test generation request"
+  - name: code-dotnet-test
+    must_activate: false
+    reason: "code-dotnet-test is for general .NET test patterns, not direct generation"
+  - name: code-integrationtest-generate
+    must_activate: false
+    reason: "User specifically asked for unit tests, not integration tests"

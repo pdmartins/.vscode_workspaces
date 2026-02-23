@@ -1,0 +1,7 @@
+# No Hardcoded Paths
+
+- **date**: 2026-02-17
+- **status**: active
+- **context**: Agente criou script com path absoluto do Python hardcoded no credentials.yml. Scripts em `.copilot-core/` são compartilhados entre máquinas
+- **decision**: NUNCA hardcodar paths absolutos de máquina em scripts/config compartilhado. Detectar em runtime via: (1) mcp.json do workspace, (2) PATH do sistema com fallbacks. credentials.yml apenas credenciais + configs agnósticos
+- **outcome**: Scripts corrigidos para detectar Python via mcp.json → PATH. Regra registrada para futuras gerações

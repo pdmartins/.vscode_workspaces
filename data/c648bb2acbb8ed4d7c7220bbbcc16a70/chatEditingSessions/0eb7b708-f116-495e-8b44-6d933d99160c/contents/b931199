@@ -1,0 +1,55 @@
+---
+name: clean-arch-pattern
+description: Padrões de Clean Architecture do projeto SHY HubAI. Estrutura de camadas, regras de dependência, onde colocar cada tipo de artefato. Triggers - criar feature, nova funcionalidade, onde colocar, qual camada, estrutura.
+metadata:
+  author: shy.hubai
+  version: "1.0"
+  category: code
+---
+
+# Clean Architecture Pattern
+
+Regras de estrutura e dependência do projeto SHY HubAI.
+
+## Camadas e Dependências
+
+```
+API → Application → Domain ← Infrastructure
+```
+
+- **Domain** não depende de nada
+- **Application** depende apenas de Domain
+- **Infrastructure** implementa interfaces de Domain/Application
+- **API** orquestra via DI
+
+## Onde Colocar Cada Artefato
+
+| Artefato | Camada | Exemplo |
+|----------|--------|---------|
+| Entidade | Domain | `Automation.cs` |
+| Value Object | Domain | `AutomationId.cs` |
+| Interface de Repositório | Domain | `IAutomationRepository.cs` |
+| Interface de Serviço | Application | `IAutomationService.cs` |
+| Command/Query | Application | `ProcessAutomationCommand.cs` |
+| Handler | Application | `ProcessAutomationHandler.cs` |
+| DTO | Application | `AutomationDto.cs` |
+| Repositório concreto | Infrastructure | `AutomationRepository.cs` |
+| Integração externa | Infrastructure | `OpenAiProvider.cs` |
+| Controller | API | `AutomationController.cs` |
+| Middleware | API | `ErrorHandlingMiddleware.cs` |
+
+## Workflow para Nova Feature
+
+1. Definir entidades/VOs no **Domain**
+2. Criar interfaces no **Domain**
+3. Criar Commands/Queries + Handlers no **Application**
+4. Implementar repositórios/serviços no **Infrastructure**
+5. Expor via Controller na **API**
+6. Registrar DI no **API** (ou Infrastructure DI extension)
+
+## Regras
+
+- NUNCA referenciar Infrastructure no Domain
+- NUNCA colocar lógica de negócio em Controllers
+- Commands para escrita, Queries para leitura
+- Um Handler por Command/Query

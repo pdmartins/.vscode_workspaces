@@ -1,0 +1,284 @@
+---
+name: infra-initscript-create
+description: Guia para criar init scripts idempotentes por tipo de recurso de infraestrutura. Templates para SQL Server, PostgreSQL, Kafka, MongoDB, RabbitMQ, Redis e Elasticsearch. Triggers: "criar init script", "script de inicialização", "CREATE DATABASE", "create topic", "init sql", "init kafka", "init mongo".
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: infra
+---
+
+# Init Script Create
+
+Guia para criar init scripts idempotentes para cada tipo de recurso de infraestrutura.
+
+## Quando Usar
+
+- Nova app precisa de init script para uma dependência de infra
+- Novo tipo de recurso adicionado e precisa de template de init
+- Debug de init script que falha ou não é idempotente
+
+## Princípio Fundamental: Idempotência
+
+Todo init script DEVE ser executável N vezes sem erro e sem efeito colateral. Isso significa:
+- Usar `IF NOT EXISTS` / `--if-not-exists` / checagens equivalentes
+- Nunca assumir estado limpo
+- Nunca dropar e recriar (isso é papel do `df reset`, não do `df start`)
+
+## Localização
+
+```
+project-{team}/{app_name}/init/
+├── sql_server.sql      # Nomeado pelo recurso de infra
+├── kafka.sh
+├── mongodb.js
+└── rabbitmq.sh
+```
+
+O nome do arquivo DEVE coincidir com o nome do recurso em `infra/` + extensão apropriada.
+
+## Execução pelo CLI
+
+O CLI (`lib/init.sh`) executa os init scripts automaticamente durante `df start`:
+
+1. Identifica dependências do `df.yml`
+2. Para cada dependência, verifica se existe `init/{dep}.{ext}`
+3. Se existe, executa dentro do container de infra correspondente
+4. Registra sucesso/falha no output
+
+## Templates por Recurso
+
+### SQL Server
+
+**Arquivo:** `init/sql_server.sql`
+**Executor:** `sqlcmd` dentro do container
+
+```sql
+-- Init script for {app_name} on SQL Server
+-- MUST be idempotent
+
+-- Create database
+IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '{app_name}')
+BEGIN
+  CREATE DATABASE [{app_name}];
+  PRINT 'Database {app_name} created';
+END
+ELSE
+  PRINT 'Database {app_name} already exists';
+GO
+
+-- Optional: create login/user for the app
+USE [{app_name}];
+GO
+
+IF NOT EXISTS (SELECT * FROM sys.database_principals WHERE name = '{app_name}_user')
+BEGIN
+  CREATE LOGIN [{app_name}_user] WITH PASSWORD = '{password}';
+  CREATE USER [{app_name}_user] FOR LOGIN [{app_name}_user];
+  ALTER ROLE db_owner ADD MEMBER [{app_name}_user];
+  PRINT 'User {app_name}_user created';
+END
+GO
+```
+
+**Executor em `lib/init.sh`:**
+```bash
+run_init_sql_server() {
+  local init_file="${1}"
+  docker exec -i infra-sql_server /opt/mssql-tools18/bin/sqlcmd \
+    -S localhost -U sa -P "${SQL_SA_PASSWORD}" \
+    -C -i "/dev/stdin" < "${init_file}"
+}
+```
+
+### PostgreSQL
+
+**Arquivo:** `init/postgresql.sql`
+
+```sql
+-- Init script for {app_name} on PostgreSQL
+
+-- Create database (psql requires separate connection for CREATE DATABASE)
+SELECT 'CREATE DATABASE {app_name}'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '{app_name}')\gexec
+
+-- Connect and create schema
+\c {app_name}
+CREATE SCHEMA IF NOT EXISTS app;
+```
+
+**Executor:**
+```bash
+run_init_postgresql() {
+  local init_file="${1}"
+  docker exec -i infra-postgresql psql \
+    -U "${PG_USER}" -d postgres \
+    < "${init_file}"
+}
+```
+
+### Kafka
+
+**Arquivo:** `init/kafka.sh`
+
+```bash
+#!/usr/bin/env bash
+# Init script for {app_name} on Kafka
+# MUST be idempotent (--if-not-exists)
+
+BOOTSTRAP="localhost:9092"
+
+# Create topics
+kafka-topics --create --if-not-exists \
+  --topic {app_name}.events \
+  --partitions 3 \
+  --replication-factor 1 \
+  --bootstrap-server "${BOOTSTRAP}"
+
+kafka-topics --create --if-not-exists \
+  --topic {app_name}.commands \
+  --partitions 3 \
+  --replication-factor 1 \
+  --bootstrap-server "${BOOTSTRAP}"
+
+echo "Kafka topics for {app_name} initialized"
+```
+
+**Executor:**
+```bash
+run_init_kafka() {
+  local init_file="${1}"
+  docker exec -i infra-kafka bash < "${init_file}"
+}
+```
+
+### MongoDB
+
+**Arquivo:** `init/mongodb.js`
+
+```javascript
+// Init script for {app_name} on MongoDB
+// MUST be idempotent
+
+// Switch to app database (creates if not exists)
+db = db.getSiblingDB('{app_name}');
+
+// Create initial collections (idempotent)
+const collections = ['{app_name}_events', '{app_name}_snapshots'];
+const existing = db.getCollectionNames();
+
+collections.forEach(col => {
+  if (!existing.includes(col)) {
+    db.createCollection(col);
+    print('Collection ' + col + ' created');
+  } else {
+    print('Collection ' + col + ' already exists');
+  }
+});
+
+print('MongoDB init for {app_name} completed');
+```
+
+**Executor:**
+```bash
+run_init_mongodb() {
+  local init_file="${1}"
+  docker exec -i infra-mongodb mongosh \
+    -u "${MONGO_ROOT_USER}" -p "${MONGO_ROOT_PASSWORD}" \
+    --authenticationDatabase admin \
+    < "${init_file}"
+}
+```
+
+### RabbitMQ
+
+**Arquivo:** `init/rabbitmq.sh`
+
+```bash
+#!/usr/bin/env bash
+# Init script for {app_name} on RabbitMQ
+# MUST be idempotent
+
+# Create vhost (idempotent)
+rabbitmqadmin declare vhost name="{app_name}" 2>/dev/null || true
+
+# Create exchanges
+rabbitmqadmin declare exchange \
+  name="{app_name}.events" type="topic" \
+  vhost="{app_name}" durable=true 2>/dev/null || true
+
+# Create queues
+rabbitmqadmin declare queue \
+  name="{app_name}.events.queue" \
+  vhost="{app_name}" durable=true 2>/dev/null || true
+
+echo "RabbitMQ init for {app_name} completed"
+```
+
+**Executor:**
+```bash
+run_init_rabbitmq() {
+  local init_file="${1}"
+  docker exec -i infra-rabbitmq bash < "${init_file}"
+}
+```
+
+### Elasticsearch
+
+**Arquivo:** `init/elasticsearch.sh`
+
+```bash
+#!/usr/bin/env bash
+# Init script for {app_name} on Elasticsearch
+# MUST be idempotent
+
+ES_HOST="http://localhost:9200"
+
+# Create index (idempotent via PUT)
+curl -s -X PUT "${ES_HOST}/{app_name}-events" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "settings": { "number_of_shards": 1, "number_of_replicas": 0 }
+  }' 2>/dev/null || true
+
+echo "Elasticsearch init for {app_name} completed"
+```
+
+**Executor:**
+```bash
+run_init_elasticsearch() {
+  local init_file="${1}"
+  docker exec -i infra-elasticsearch bash < "${init_file}"
+}
+```
+
+### Redis
+
+Redis geralmente **não precisa de init script** pois databases (0-15) já existem. Se necessário:
+
+**Arquivo:** `init/redis.sh`
+
+```bash
+#!/usr/bin/env bash
+# Init script for {app_name} on Redis
+# Typically not needed - Redis databases 0-15 exist by default
+
+echo "Redis init for {app_name} - no initialization needed"
+```
+
+## Adicionando Suporte a Novo Recurso
+
+Ao criar um novo tipo de recurso via `infra-resource-create`:
+
+1. Definir extensão do init script (`.sql`, `.sh`, `.js`)
+2. Criar template idempotente
+3. Implementar executor `run_init_{resource}()` em `lib/init.sh`
+4. Documentar neste skill
+
+## Troubleshooting
+
+| Problema | Causa | Solução |
+|----------|-------|---------|
+| Init script falha | Container não está pronto | Aguardar healthcheck antes de executar |
+| Init não é idempotente | Falta `IF NOT EXISTS` | Adicionar checagem de existência |
+| Permissão negada | Script .sh sem +x | CLI deve executar via `bash < file`, não `./file` |
+| Encoding errado | .sql com BOM | Salvar como UTF-8 sem BOM |

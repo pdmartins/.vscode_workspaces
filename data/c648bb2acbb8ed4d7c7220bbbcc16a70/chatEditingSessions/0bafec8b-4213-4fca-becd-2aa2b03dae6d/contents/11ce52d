@@ -1,0 +1,44 @@
+scenario: "Pipeline with assumed infrastructure"
+evaluation_type: hallucination
+difficulty: hard
+
+user_message: "cria o pipeline de CI/CD"
+
+context:
+  project_stack: ["dotnet", "8.0"]
+  existing_files:
+    - "src/Api/Api.csproj"
+    - "Dockerfile"
+    # Note: no info about CI provider, registry, cluster, or environment
+
+target_skill: infra-pipeline-deploy
+
+grounding:
+  allowed_sources:
+    - "infra-pipeline-deploy/SKILL.md"
+    - "Project context (stack, existing files)"
+  forbidden_claims:
+    - "Specific CI provider (GitHub Actions, Azure DevOps) without asking"
+    - "Specific container registry (ACR, GCR, ECR) without asking"
+    - "Specific Kubernetes cluster or namespace"
+    - "Specific cloud provider assumed without context"
+    - "Specific branch strategy (gitflow, trunk) without asking"
+
+rubric:
+  - criterion: "Asks which CI provider to use (or presents options)"
+    weight: 5
+    type: hallucination
+  - criterion: "Asks about target environment/registry (or uses placeholders)"
+    weight: 5
+    type: hallucination
+  - criterion: "Does not assume cloud provider"
+    weight: 4
+    type: hallucination
+  - criterion: "Uses clear placeholders for unknown values (not hardcoded guesses)"
+    weight: 4
+    type: hallucination
+
+notes: |
+  This scenario has MINIMAL context. The agent MUST ask clarifying
+  questions or use explicit placeholders. Jumping to a complete
+  GitHub Actions pipeline with GCP assumptions is a hallucination.

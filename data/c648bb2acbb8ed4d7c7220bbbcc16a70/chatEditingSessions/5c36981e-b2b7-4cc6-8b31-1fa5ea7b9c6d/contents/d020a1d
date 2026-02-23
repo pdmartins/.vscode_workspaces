@@ -1,0 +1,304 @@
+---
+name: project-setup-bootstrap
+description: Configura o projeto via Copilot Chat quando submodules já existem. Preenche context/project.md, inicializa memória, analisa stack. Inclui modo manual para ambientes com restrições. Se submodules não existem, orienta a usar project-workspace-create no workspace core. Triggers - configurar projeto, configurar copilot, setup do projeto, bootstrap, inicializar contexto do projeto, configure este projeto, inicializar projeto manualmente, passo a passo.
+metadata:
+  author: copilot-core
+  version: "5.0"
+  category: project
+---
+
+# Project Setup Bootstrap
+
+Configura o projeto via Copilot Chat quando os submodules já existem.
+
+## Fluxo Geral
+
+```
+project-workspace-create (workspace core)  →  script no projeto-alvo  →  project-setup-bootstrap
+         ↓                              ↓                          ↓
+  cria branch                     pluga submodules            analisa stack
+  preenche contexto               cria symlinks               ajusta contexto
+  gera script
+```
+
+## Pré-condição
+
+Os submodules devem existir em `.copilot-core/` e `.copilot-project/`.
+
+**Se não existirem**, orientar o usuário:
+
+1. Abrir o workspace `.copilot-core` + `.copilot-project`
+2. No Copilot Chat, dizer: "criar projeto {nome}"
+3. O agente vai gerar um script para colar no projeto-alvo
+
+## Quando Usar
+
+- Submodules já existem, mas contexto precisa ser configurado/atualizado
+- Usuário diz "configurar projeto", "setup", "bootstrap", "configurar copilot"
+- `context/project.md` ainda está com template padrão
+
+## Workflow
+
+### 1. Verificar submodules
+
+Verificar se `.copilot-core/` e `.copilot-project/` existem.
+
+- **Se não existirem:** Orientar a usar `project-workspace-create` no workspace core (ver Pré-condição acima).
+- **Se existirem:** Continuar para configuração.
+
+### 2. Analisar o projeto
+
+Identificar automaticamente:
+
+- **Stack técnica**: Examinar arquivos como `package.json`, `*.csproj`, `Cargo.toml`, `pyproject.toml`, `go.mod`, `pom.xml`, etc.
+- **Frameworks**: React, Next.js, Django, FastAPI, ASP.NET, etc.
+- **Ferramentas**: Docker, CI/CD, linters, formatters
+- **Estrutura de pastas**: src/, lib/, tests/, etc.
+
+### 3. Coletar informações do usuário
+
+Perguntar de forma conversacional:
+
+1. **Resumo do projeto** — "Me descreva brevemente o que este projeto faz"
+2. **Fase atual** — "Em que fase está? (inicial, desenvolvimento, produção)"
+3. **Algo específico** — "Alguma restrição ou padrão que devo saber?"
+
+### 4. Preencher context/project.md
+
+Combinar análise automática + respostas do usuário para gerar:
+
+```markdown
+# Contexto do Projeto: {nome}
+
+## Status
+- **Fase**: {fase}
+- **Última atualização**: {data}
+
+## Resumo
+{resumo do usuário}
+
+## Stack
+- **Linguagem**: {detectada}
+- **Framework**: {detectado}
+- **Banco de dados**: {se detectado}
+- **Infra**: {se detectado}
+
+## Arquitetura
+{estrutura detectada}
+
+## Restrições e Padrões
+{respostas do usuário}
+
+## Próximos Passos
+- [ ] {baseado na fase}
+```
+
+### 5. Inicializar memória
+
+Se `memory/lessons-learned.md` ainda está com template padrão, manter como está.
+Se não existe, criar automaticamente a estrutura (ver Auto-Init em `agent-memory-query`).
+
+### 6. Push da branch (se nova)
+
+Se a branch do `.copilot-project` é nova e ainda não tem remote:
+
+```bash
+cd .copilot-project
+git add .
+git commit -m "feat: configuração inicial do projeto"
+git push -u origin {branch}
+```
+
+### 7. Confirmar configuração
+
+**Output:**
+```
+✅ Projeto configurado!
+
+📋 Stack detectada: {stack}
+📁 Contexto: .copilot-project/context/project.md
+🧠 Memória: .copilot-project/memory/lessons-learned.md
+
+Agora você pode:
+- Pedir para analisar código
+- Registrar lições aprendidas
+- Criar skills específicos para o projeto
+```
+
+## Diferença dos outros métodos
+
+| Método | Onde roda | Propósito |
+|--------|-----------|----------|
+| **project-workspace-create** | Workspace core | Cria branch + contexto + gera script |
+| **project-setup-bootstrap** | Projeto-alvo (Chat) | Configura contexto após submodules existirem |
+
+## Modo Manual
+
+> Para ambientes com restrições especiais ou quando se precisa entender o processo em detalhe.
+
+### Pré-requisitos
+
+- Git inicializado no workspace
+- Acesso aos repositórios `.copilot-core` e `.copilot-project`
+
+### Modos de Instalação
+
+O sistema suporta dois modos de instalação:
+
+| Modo | Quando usar | Visibilidade |
+|------|-------------|-------------|
+| **Aberto** | Submodules podem ser comitados no repo | `.gitmodules` visível, clone recursivo funciona |
+| **Stealth** | Submodules NÃO podem ser expostos | Tudo no `.gitignore`, setup manual por dev |
+
+### Arquitetura
+
+```
+{projeto}/
+├── .github/
+│   └── instructions/
+│       ├── default.instructions.md      → symlink → ../../.copilot-core/instructions/default.instructions.md
+│       └── workspace.instructions.md    → symlink → ../../.copilot-project/instructions/workspace.instructions.md
+│
+├── .copilot-core/              # Submodule ou clone (branch main ou core)
+│   ├── instructions/
+│   │   └── default.instructions.md
+│   ├── skills/
+│   │   └── {tipo}/
+│   │       └── {skill-name}/
+│   │           └── SKILL.md
+│   └── templates/
+│       └── workspace.instructions.md
+│
+└── .copilot-project/           # Submodule ou clone (branch específica)
+    ├── context/
+    │   └── project.md
+    ├── instructions/
+    │   └── workspace.instructions.md
+    ├── memory/
+    │   └── lessons-learned.md
+    └── skills/
+        └── {project-skills}/
+```
+
+### Passo a passo — Modo Aberto (submodule)
+
+#### 1. Adicionar .copilot-core como submodule
+
+```bash
+git submodule add -b main https://github.com/pdmartins/.copilot-core.git .copilot-core
+```
+
+#### 2. Configurar repositório project
+
+```bash
+# Se branch já existe:
+git submodule add -b {branch} https://github.com/pdmartins/.copilot-project.git .copilot-project
+
+# Se branch não existe (novo projeto):
+git submodule add https://github.com/pdmartins/.copilot-project.git .copilot-project
+cd .copilot-project
+git checkout -b {branch}
+```
+
+#### 3. Criar symlinks de instructions
+
+**Windows (PowerShell):**
+
+```powershell
+mkdir .github\instructions -Force
+cmd /c mklink ".github\instructions\default.instructions.md" "..\..\copilot-core\instructions\default.instructions.md"
+cmd /c mklink ".github\instructions\workspace.instructions.md" "..\..\copilot-project\instructions\workspace.instructions.md"
+```
+
+**Linux/Mac (Bash):**
+
+```bash
+mkdir -p .github/instructions
+ln -s ../../.copilot-core/instructions/default.instructions.md .github/instructions/default.instructions.md
+ln -s ../../.copilot-project/instructions/workspace.instructions.md .github/instructions/workspace.instructions.md
+```
+
+#### 4. Clonando em nova máquina
+
+```bash
+# Opção 1: Clone recursivo
+git clone --recursive https://github.com/seu/projeto.git
+
+# Opção 2: Clone normal + inicializar submodules
+git clone https://github.com/seu/projeto.git
+cd projeto
+git submodule update --init --recursive
+```
+
+### Passo a passo — Modo Stealth (clone + gitignore)
+
+#### 1. Clonar .copilot-core
+
+```bash
+git clone -b main https://github.com/pdmartins/.copilot-core.git .copilot-core
+```
+
+#### 2. Clonar .copilot-project
+
+```bash
+git clone -b {branch} https://github.com/pdmartins/.copilot-project.git .copilot-project
+```
+
+#### 3. Criar symlinks de instructions
+
+(mesmos comandos do modo aberto — a estrutura final é idêntica)
+
+**Windows (PowerShell):**
+
+```powershell
+mkdir .github\instructions -Force
+cmd /c mklink ".github\instructions\default.instructions.md" "..\..\copilot-core\instructions\default.instructions.md"
+cmd /c mklink ".github\instructions\workspace.instructions.md" "..\..\copilot-project\instructions\workspace.instructions.md"
+```
+
+**Linux/Mac (Bash):**
+
+```bash
+mkdir -p .github/instructions
+ln -s ../../.copilot-core/instructions/default.instructions.md .github/instructions/default.instructions.md
+ln -s ../../.copilot-project/instructions/workspace.instructions.md .github/instructions/workspace.instructions.md
+```
+
+#### 4. Adicionar ao .gitignore
+
+```bash
+cat >> .gitignore << 'EOF'
+
+# Copilot Agent Skills (local only)
+.copilot-core/
+.copilot-project/
+.github/instructions/default.instructions.md
+.github/instructions/workspace.instructions.md
+EOF
+```
+
+#### 5. Onboarding de novo dev
+
+Cada dev precisa rodar os passos 1-3 após clonar o projeto. Recomenda-se criar um script `setup-copilot.sh` / `setup-copilot.ps1` no projeto (ou documentar no README interno).
+
+## Troubleshooting
+
+### Submodules/clones não existem
+
+Orientar o usuário a usar `project-workspace-create` no workspace core (seção Pré-condição acima).
+
+### Erro ao fazer push da branch
+
+```bash
+cd .copilot-project
+git push -u origin {branch}
+```
+
+### Contexto já preenchido
+
+Perguntar ao usuário se deseja sobrescrever ou atualizar.
+
+## Referência
+
+- Skill de criação: `project-workspace-create`
+- Documentação: `.copilot-core/QUICK-START.md`

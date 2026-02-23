@@ -1,0 +1,15 @@
+{
+  "servers": {
+    "memory": {
+      "type": "npx",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@doobidoo/mcp-memory-service@latest"
+      ],
+      "env": {
+        "MEMORY_FILE_PATH": "${workspaceFolder}/.copilot-project/memory/memory.db"
+      }
+    }
+  }
+}

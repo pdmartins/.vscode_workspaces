@@ -1,0 +1,323 @@
+---
+name: lang-query-generate
+description: Padrões para Queries CQRS com MediatR. Use ao criar operações de leitura (obter, listar, buscar). Triggers: query, get, list, buscar, consultar, MediatR, CQRS, pasta Queries/.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: lang
+---
+
+# Query Skill (CQRS)
+
+Padrões para Queries em arquitetura CQRS com MediatR.
+
+## Quando Usar
+
+- Obter entidade por ID (Get)
+- Listar entidades com filtros (List)
+- Buscar entidades (Search)
+- Consultar histórico (GetHistory)
+
+## Estrutura
+
+```
+src/BeWiser.Assistant.Application/
+└── Queries/
+    └── [Domínio]/
+        ├── Get[Domínio]Query.cs
+        ├── Get[Domínio]QueryHandler.cs
+        ├── Get[Domínio]QueryResult.cs
+        └── Get[Domínio]QueryValidator.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Query | `Get[Domínio]Query` | `GetConversationHistoryQuery` |
+| Handler | `Get[Domínio]QueryHandler` | `GetConversationHistoryQueryHandler` |
+| Result | `Get[Domínio]QueryResult` | `GetConversationHistoryQueryResult` |
+| Validator | `Get[Domínio]QueryValidator` | `GetConversationHistoryQueryValidator` |
+
+### Prefixos de Query
+
+| Prefixo | Uso | Exemplo |
+|---------|-----|---------|
+| `Get` | Obter único por ID | `GetConversationQuery` |
+| `GetAll` | Listar todos (sem filtro) | `GetAllTenantsQuery` |
+| `List` | Listar com filtros/paginação | `ListMessagesQuery` |
+| `Search` | Busca por texto | `SearchAssistantsQuery` |
+
+## Templates
+
+### Query (Get by ID)
+
+```csharp
+using MediatR;
+
+namespace BeWiser.Assistant.Application.Queries.Conversation;
+
+/// <summary>
+/// Query to get a conversation by ID.
+/// </summary>
+public record GetConversationQuery : IRequest<GetConversationQueryResult?>
+{
+    public required Guid Id { get; init; }
+}
+```
+
+### Query Result
+
+```csharp
+namespace BeWiser.Assistant.Application.Queries.Conversation;
+
+/// <summary>
+/// Result of GetConversationQuery.
+/// </summary>
+public record GetConversationQueryResult
+{
+    public Guid Id { get; init; }
+    public required string PhoneNumber { get; init; }
+    public required string AssistantPhoneNumber { get; init; }
+    public required string Status { get; init; }
+    public DateTime StartedAt { get; init; }
+    public DateTime? EndedAt { get; init; }
+    public IReadOnlyList<MessageDto> Messages { get; init; } = [];
+}
+```
+
+### Query Handler
+
+```csharp
+using MediatR;
+using Microsoft.Extensions.Logging;
+
+namespace BeWiser.Assistant.Application.Queries.Conversation;
+
+/// <summary>
+/// Handles the GetConversationQuery.
+/// </summary>
+public class GetConversationQueryHandler 
+    : IRequestHandler<GetConversationQuery, GetConversationQueryResult?>
+{
+    private readonly IConversationRepository _repository;
+    private readonly ILogger<GetConversationQueryHandler> _logger;
+
+    public GetConversationQueryHandler(
+        IConversationRepository repository,
+        ILogger<GetConversationQueryHandler> logger)
+    {
+        _repository = repository;
+        _logger = logger;
+    }
+
+    public async Task<GetConversationQueryResult?> Handle(
+        GetConversationQuery request,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogDebug("Getting conversation {Id}", request.Id);
+
+        var conversation = await _repository.GetByIdAsync(
+            request.Id, 
+            cancellationToken);
+
+        return conversation?.ToQueryResult();
+    }
+}
+```
+
+### Query Validator
+
+```csharp
+using FluentValidation;
+
+namespace BeWiser.Assistant.Application.Queries.Conversation;
+
+/// <summary>
+/// Validates the GetConversationQuery.
+/// </summary>
+public class GetConversationQueryValidator 
+    : AbstractValidator<GetConversationQuery>
+{
+    public GetConversationQueryValidator()
+    {
+        RuleFor(x => x.Id)
+            .NotEmpty()
+            .WithMessage("Conversation ID is required");
+    }
+}
+```
+
+## List Query (Com Paginação)
+
+### ListMessagesQuery.cs
+
+```csharp
+using MediatR;
+
+namespace BeWiser.Assistant.Application.Queries.Message;
+
+/// <summary>
+/// Query to list messages with pagination.
+/// </summary>
+public record ListMessagesQuery : IRequest<ListMessagesQueryResult>
+{
+    public Guid? ConversationId { get; init; }
+    public DateTime? FromDate { get; init; }
+    public DateTime? ToDate { get; init; }
+    public int Page { get; init; } = 1;
+    public int PageSize { get; init; } = 20;
+}
+```
+
+### ListMessagesQueryResult.cs
+
+```csharp
+namespace BeWiser.Assistant.Application.Queries.Message;
+
+/// <summary>
+/// Result of ListMessagesQuery with pagination.
+/// </summary>
+public record ListMessagesQueryResult
+{
+    public IReadOnlyList<MessageDto> Items { get; init; } = [];
+    public int TotalCount { get; init; }
+    public int Page { get; init; }
+    public int PageSize { get; init; }
+    public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
+    public bool HasNextPage => Page < TotalPages;
+    public bool HasPreviousPage => Page > 1;
+}
+```
+
+### ListMessagesQueryHandler.cs
+
+```csharp
+using MediatR;
+
+namespace BeWiser.Assistant.Application.Queries.Message;
+
+public class ListMessagesQueryHandler 
+    : IRequestHandler<ListMessagesQuery, ListMessagesQueryResult>
+{
+    private readonly IMessageRepository _repository;
+
+    public ListMessagesQueryHandler(IMessageRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<ListMessagesQueryResult> Handle(
+        ListMessagesQuery request,
+        CancellationToken cancellationToken)
+    {
+        var (items, totalCount) = await _repository.ListAsync(
+            conversationId: request.ConversationId,
+            fromDate: request.FromDate,
+            toDate: request.ToDate,
+            page: request.Page,
+            pageSize: request.PageSize,
+            cancellationToken: cancellationToken);
+
+        return new ListMessagesQueryResult
+        {
+            Items = items.Select(m => m.ToDto()).ToList(),
+            TotalCount = totalCount,
+            Page = request.Page,
+            PageSize = request.PageSize
+        };
+    }
+}
+```
+
+### ListMessagesQueryValidator.cs
+
+```csharp
+using FluentValidation;
+
+namespace BeWiser.Assistant.Application.Queries.Message;
+
+public class ListMessagesQueryValidator 
+    : AbstractValidator<ListMessagesQuery>
+{
+    public ListMessagesQueryValidator()
+    {
+        RuleFor(x => x.Page)
+            .GreaterThan(0)
+            .WithMessage("Page must be greater than 0");
+
+        RuleFor(x => x.PageSize)
+            .InclusiveBetween(1, 100)
+            .WithMessage("PageSize must be between 1 and 100");
+
+        RuleFor(x => x)
+            .Must(x => x.FromDate is null || x.ToDate is null || x.FromDate <= x.ToDate)
+            .WithMessage("FromDate must be before ToDate");
+    }
+}
+```
+
+## Search Query
+
+```csharp
+using MediatR;
+
+namespace BeWiser.Assistant.Application.Queries.Assistant;
+
+/// <summary>
+/// Query to search assistants by text.
+/// </summary>
+public record SearchAssistantsQuery : IRequest<SearchAssistantsQueryResult>
+{
+    public required string SearchTerm { get; init; }
+    public int MaxResults { get; init; } = 10;
+}
+
+public record SearchAssistantsQueryResult
+{
+    public IReadOnlyList<AssistantDto> Items { get; init; } = [];
+    public int TotalCount { get; init; }
+}
+```
+
+## Padrão de Paginação Reutilizável
+
+```csharp
+namespace BeWiser.Assistant.Application.Common;
+
+/// <summary>
+/// Base class for paginated queries.
+/// </summary>
+public abstract record PaginatedQuery
+{
+    public int Page { get; init; } = 1;
+    public int PageSize { get; init; } = 20;
+    
+    public int Skip => (Page - 1) * PageSize;
+}
+
+/// <summary>
+/// Base class for paginated results.
+/// </summary>
+public abstract record PaginatedResult<T>
+{
+    public IReadOnlyList<T> Items { get; init; } = [];
+    public int TotalCount { get; init; }
+    public int Page { get; init; }
+    public int PageSize { get; init; }
+    public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
+    public bool HasNextPage => Page < TotalPages;
+    public bool HasPreviousPage => Page > 1;
+}
+```
+
+## Checklist
+
+- [ ] Pasta: `Queries/[Domínio]/`
+- [ ] Nomenclatura: `Get[Domínio]Query`
+- [ ] Query implementa `IRequest<TResult?>`
+- [ ] Result nullable para Get single
+- [ ] Paginação para List queries
+- [ ] Validator para regras de entrada
+- [ ] Handler readonly (sem side effects)
+- [ ] ToQueryResult() via Mapping Extensions

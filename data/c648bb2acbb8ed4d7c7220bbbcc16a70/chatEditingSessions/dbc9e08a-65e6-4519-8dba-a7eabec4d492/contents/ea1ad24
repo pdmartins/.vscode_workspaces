@@ -1,0 +1,21 @@
+# Permissões de git para o workspace copilot-core
+# Este workspace é o ambiente de desenvolvimento do sistema de skills,
+# por isso git é liberado em ambos os repos.
+
+repos:
+  copilot-core:
+    path: .copilot-core
+    add: false
+    commit: false
+    push: true
+
+  copilot-project:
+    path: .copilot-project
+    add: true
+    commit: true
+    push: true
+
+default:
+  add: false
+  commit: false
+  push: false

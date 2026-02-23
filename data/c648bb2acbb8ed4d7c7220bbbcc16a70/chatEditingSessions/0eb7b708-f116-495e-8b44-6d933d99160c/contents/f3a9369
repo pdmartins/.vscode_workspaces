@@ -1,0 +1,43 @@
+# Code Map — Copilot Core
+
+Índice mestre de artefatos do projeto.
+
+## Natureza do Projeto
+
+Este projeto é **Markdown-based** — não possui source code tradicional. Os artefatos principais são:
+
+- **Skills** (56 core skills em `.copilot-core/skills/`)
+- **Instructions** (2 arquivos: `agent-skills-core.instructions.md`, `agent-skills-project.instructions.md`)
+- **Templates** (3 arquivos em `.copilot-core/.internal/templates/`)
+- **Context** (`index.md` + subpastas: `architecture/`, `infrastructure/`, `conventions/`, etc.)
+- **Memory** (`index.md` + subpastas: `preferences/`, `patterns/`, `decisions/`, `concepts/`)
+
+## Mapa de Artefatos
+
+| Tipo | Localização | Quantidade | Descrição |
+|------|-------------|------------|-----------|
+| Core Skills | `.copilot-core/skills/{tipo}/{name}/SKILL.md` | 62 | Skills genéricos reutilizáveis |
+| Project Skills | `.copilot-project/skills/{name}/SKILL.md` | 0 | Skills específicos do projeto |
+| Instructions | `.copilot-core/instructions/` | 1 | `agent-skills-core.instructions.md` (global) |
+| Instructions | `.copilot-project/instructions/` | 1 | `agent-skills-project.instructions.md` (projeto) |
+| Templates | `.copilot-core/.internal/templates/` | 3 | `agent-skills-project.instructions.md`, `setup-scripts.md`, `subagent-prompt.md` |
+| Context | `.copilot-project/context/` | 6+ | `index.md` + subpastas (`architecture/`, `infrastructure/`, etc.) |
+| Memory | `.copilot-project/memory/` | 22+ | `index.md` + subpastas (`preferences/`, `patterns/`, `decisions/`, `concepts/`) |
+| Chat Memory | `.copilot-project/chat-memory/` | var | Sessões persistidas |
+| Source Control | `.copilot-core/.internal/source-control/` | 1 | `commit-prompt.md` |
+
+## Skills por Tipo
+
+| Tipo | Count | Catálogo |
+|------|-------|----------|
+| agent | 12 | `agent-catalog-query` |
+| code | 23 | `code-catalog-query` |
+| editor | 2 | *(diretas — sem catálogo)* |
+| infra | 12 | `infra-catalog-query` |
+| project | 11 | `project-catalog-query` |
+| skill | 2 | *(diretas — sem catálogo)* |
+
+## Notas
+
+- Arquivos `services.md`, `models.md`, `api.md`, `components.md`, `utils.md`, `config.md` — não aplicáveis a este projeto (são templates para projetos com source code)
+- O code-map é mantido manualmente para este projeto dado sua natureza Markdown-based

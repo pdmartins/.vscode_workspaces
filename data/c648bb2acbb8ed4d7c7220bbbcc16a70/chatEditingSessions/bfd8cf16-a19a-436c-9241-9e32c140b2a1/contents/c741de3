@@ -1,0 +1,154 @@
+---
+name: code-cli-create
+description: Guia para criar novos comandos do CLI `df`. Define estrutura, padrão de implementação e integração com o entrypoint. Triggers: "criar comando", "novo comando df", "adicionar comando", implementar funcionalidade no CLI.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: code
+---
+
+# CLI Command Create
+
+Guia para criar novos comandos do CLI `df`.
+
+## Quando Usar
+
+- Novo comando precisa ser adicionado ao CLI
+- Usuário pede para adicionar funcionalidade ao `df`
+- Novo subcomando ou variação de comando existente
+
+## Estrutura de um Comando
+
+Cada comando é um arquivo em `lib/commands/` que exporta uma função `cmd_{nome}()`.
+
+### Template
+
+```bash
+#!/usr/bin/env bash
+# Command: df {nome}
+# Description: {descrição breve}
+
+# Fonte das dependências internas
+# shellcheck source=../core.sh
+source "${LIB_DIR}/core.sh"
+# shellcheck source=../config.sh
+source "${LIB_DIR}/config.sh"
+
+# {Descrição completa do que o comando faz}
+# Args: $@ - argumentos passados pelo usuário
+cmd_{nome}() {
+  local args=("$@")
+
+  # 1. Validar contexto (está em diretório de projeto?)
+  validate_project_context || return 1
+
+  # 2. Carregar configuração
+  local df_yml
+  df_yml="$(find_df_yml)"
+
+  # 3. Lógica do comando
+  # ...
+
+  # 4. Output ao usuário
+  log_success "{nome} completed"
+}
+```
+
+## Workflow de Criação
+
+### 1. Criar o arquivo
+
+```
+lib/commands/{nome}.sh
+```
+
+### 2. Implementar `cmd_{nome}()`
+
+Seguir o template acima. A função deve:
+- Validar argumentos e contexto
+- Carregar configs necessárias via `lib/config.sh`
+- Usar funções de `lib/infra.sh`, `lib/deps.sh`, `lib/init.sh` conforme necessário
+- Usar `log_info`, `log_success`, `log_error` para output
+- Retornar 0 em sucesso, 1 em erro
+
+### 3. Registrar no entrypoint
+
+Em `bin/df`, o dispatch de comandos usa `case`:
+
+```bash
+case "${command}" in
+  start)    cmd_start "$@" ;;
+  stop)     cmd_stop "$@" ;;
+  {nome})   cmd_{nome} "$@" ;;    # ← adicionar aqui
+  *)        show_usage ;;
+esac
+```
+
+### 4. Adicionar source no entrypoint
+
+```bash
+source "${LIB_DIR}/commands/{nome}.sh"
+```
+
+## Padrões Obrigatórios
+
+| Padrão | Regra |
+|--------|-------|
+| Arquivo | `lib/commands/{nome}.sh` |
+| Função | `cmd_{nome}()` |
+| Validação | Sempre validar contexto antes de executar |
+| Output | Usar funções de log de `lib/core.sh` |
+| Erros | Mensagens claras, return 1 |
+| Flags | Parsear com `getopts` ou loop manual de args |
+
+## Comandos Existentes
+
+| Comando | Arquivo | Função | Descrição |
+|---------|---------|--------|-----------|
+| start | `commands/start.sh` | `cmd_start()` | Sobe infra + projeto |
+| stop | `commands/stop.sh` | `cmd_stop()` | Para projeto (e infra se sem uso) |
+| restart | `commands/restart.sh` | `cmd_restart()` | Reinicia projeto + deps |
+| status | `commands/status.sh` | `cmd_status()` | Estado de todos os containers |
+| reset | `commands/reset.sh` | `cmd_reset()` | Limpa dados, re-init, reinicia |
+| log | `commands/log.sh` | `cmd_log()` | Exibe logs de projeto ou recurso |
+
+## Exemplo Completo
+
+```bash
+#!/usr/bin/env bash
+# Command: df ports
+# Description: Shows all mapped ports for current project and its dependencies
+
+source "${LIB_DIR}/core.sh"
+source "${LIB_DIR}/config.sh"
+source "${LIB_DIR}/deps.sh"
+
+# Shows all mapped ports for the current project and its infrastructure dependencies.
+# Args: none
+cmd_ports() {
+  validate_project_context || return 1
+
+  local df_yml
+  df_yml="$(find_df_yml)"
+
+  local app_name
+  app_name="$(read_config "${df_yml}" '.name')"
+
+  local deps
+  deps="$(resolve_deps "${df_yml}")"
+
+  log_info "Ports for ${app_name}:"
+  printf "%-20s %s\n" "RESOURCE" "PORT"
+  printf "%-20s %s\n" "--------" "----"
+
+  while IFS= read -r dep; do
+    local port
+    port="$(get_port "${dep}")"
+    printf "%-20s %s\n" "${dep}" "${port}"
+  done <<< "${deps}"
+
+  local app_port
+  app_port="$(get_project_port "${app_name}")"
+  printf "%-20s %s\n" "${app_name}" "${app_port}"
+}
+```

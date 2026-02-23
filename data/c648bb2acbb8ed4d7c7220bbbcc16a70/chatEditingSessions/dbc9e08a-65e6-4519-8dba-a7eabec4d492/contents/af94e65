@@ -1,0 +1,141 @@
+# Project Context — Copilot Core
+
+Estado atual do projeto para referência do Copilot.
+
+---
+
+## Objetivo
+
+Sistema de instruções e skills reutilizáveis para o Copilot Agent, seguindo o padrão [Agent Skills](https://agentskills.io). Fornece um core genérico (`.copilot-core`) que é plugado via git submodule ou clone na **raiz** de qualquer projeto, junto com um repositório de dados por projeto (`.copilot-project`) com branch por projeto. Suporta dois modos de instalação: **aberto** (submodule visível) e **stealth** (clone + gitignore, invisível).
+
+## Repos
+
+| Repo | URL | Propósito |
+|------|-----|-----------|
+| `.copilot-core` | `https://github.com/pdmartins/.copilot-core.git` | Skills genéricos, instruções globais, templates |
+| `.copilot-project` | `https://github.com/pdmartins/.copilot-project.git` | Contexto, memória e skills específicos por projeto (branch por projeto) |
+
+## Stack
+
+| Componente | Tecnologia |
+|------------|------------|
+| Formato | Markdown (Agent Skills pattern) |
+| Versionamento | Git (submodules ou clones para distribuição) |
+| Padrão | [Agent Skills](https://agentskills.io) |
+| Commit | Conventional Commits |
+| Linting | markdownlint (via extensão VS Code) |
+
+## Arquitetura
+
+> Ver `workspace.instructions.md` para diagrama completo da arquitetura do sistema.
+
+**Workspace de desenvolvimento** com dois repos lado a lado, seguindo o padrão standard de projetos consumidores.
+
+### Estratégia de Branches
+
+#### `.copilot-core`
+
+- Branch única: `main` (fonte de verdade e distribuição)
+- Projetos consumidores usam `main` (via submodule ou clone)
+
+#### `.copilot-project`
+
+| Branch | Propósito |
+|--------|-----------|
+| `main` | Template base agnóstico |
+| `_pm/copilot-core` | Dados deste projeto (workspace de desenvolvimento do core) |
+| `{nome-projeto}` | Dados específicos de cada projeto plugado |
+
+### Projetos Consumidores
+
+Nos projetos-alvo, a estrutura final é:
+
+```
+{projeto}/
+├── .github/
+│   └── instructions/
+│       ├── default.instructions.md      → symlink → ../../.copilot-core/instructions/default.instructions.md
+│       └── workspace.instructions.md    → symlink → ../../.copilot-project/instructions/workspace.instructions.md
+│
+├── .copilot-core/                  # Submodule ou clone (branch main)
+└── .copilot-project/               # Submodule ou clone (branch do projeto)
+    └── instructions/
+        └── workspace.instructions.md   # Arquivo real específico do projeto
+```
+
+**Modo aberto** (submodule): visível no `.gitmodules`, onboarding via `git clone --recursive`.
+**Modo stealth** (clone): `.copilot-core/`, `.copilot-project/` e symlinks no `.gitignore`, onboarding via script manual.
+
+Os arquivos em `.github/instructions/` são **symlinks**, nunca cópias. Isso garante sincronização automática com os repos de origem.
+
+## Skills Core (58)
+
+> Descoberta via catálogos por tipo. Para lista completa, consultar `{tipo}-catalog-query`.
+
+| Tipo | Capacidades | Skills |
+|------|------------|--------|
+| `agent` | Memória, delegação, tarefas, sessões, validação, sync MCP | 9 |
+| `code` | Review, geração .NET, CQRS/DDD, testes, bash/powershell | 21 |
+| `infra` | Docker, K8s, Redis, GCP, pipelines, JWT, mensageria | 11 |
+| `project` | Contexto, codemap, setup, branches, análise | 9 |
+| `skill` | Criar e validar skills | 2 |
+| `editor` | Markdown lint, READMEs | 2 |
+
+### Componentes Adicionais
+
+| Componente | Propósito |
+|------------|-----------|
+| `mcp-memory-service` | Busca semântica sobre memória e contexto (SQLite-vec via Git LFS) |
+| Catálogos (`{tipo}-catalog-query`) | Índice de descoberta por tipo de skill |
+| Templates (`templates/`) | Prompts de subagent, scripts de setup, workspace instructions |
+
+### Padrões dos Skills
+
+> Regras completas em `agent-skills-core.instructions.md`. Resumo:
+
+- **Naming**: `{tipo}-{feature}-{ação}` — sempre 3 segmentos, kebab-case
+- **Tipos**: `agent`, `code`, `project`, `skill`, `editor`, `infra`
+- **Estrutura**: `skills/{tipo}/{name}/SKILL.md`
+- **Config pattern**: Skills `infra` e `code` carregam `config.yml` do project
+
+## Convenções
+
+> Regras completas em `agent-skills-core.instructions.md` e `agent-skills-project.instructions.md`.
+
+1. **Português para chat, inglês para código**: Variáveis, nomes de arquivo, paths em inglês
+2. **Conventional Commits**: `<type>(<scope>): <description>` (single-line, ≤250 chars)
+3. **Worktrees**: `.copilot-project` usa git worktrees em `.copilot-project-worktrees/` com nomes espelhando exatamente os nomes das branches
+
+## Estado Atual
+
+**Fase**: Ativo
+**Status**: Core estável com 56 skills organizados em subpastas por tipo (nomenclatura `{tipo}-{feature}-{ação}`), sistema em uso em projetos reais. Suporte a dual-mode (aberto/stealth) para instalação em projetos. Projetos estendem core via `config.yml` (dados estruturados) + `SKILL.md` opcional (extensões provider-specific).
+
+## Projetos Plugados
+
+| Branch (.copilot-project) | Projeto | Status |
+|---------------------------|---------|--------|
+| `main` | Template base | — |
+| `_pm/copilot-core` | Workspace de desenvolvimento do core | Ativo |
+| `_bw/bewiser.assistant.api` | BeWiser Assistant API | Ativo |
+| `_hv/STT` | VoiceTranscription.AI (Hapvida) | Ativo |
+| `_pm/docker-framework` | Docker Framework | — |
+| `_pm/everyday_queries` | Everyday Queries | Ativo |
+| `_pm/scripts` | Scripts de automação | Ativo |
+
+## Inconsistências Conhecidas
+
+| # | Issue | Local | Detalhe |
+|---|-------|-------|---------|
+| 1 | URLs hardcoded | `project-workspace-create` | `github.com/pdmartins/` não parametrizado |
+
+## Regras deste Workspace
+
+1. **Branch ativa**: `.copilot-project/` deve sempre ter a branch `_pm/copilot-core` ativa (checkout direto)
+2. **main como worktree**: A branch `main` (template) deve sempre existir como worktree em `.copilot-project-worktrees/main/`
+3. **Naming de branches**: Branches de projetos pessoais usam prefixo `_pm/`, orgs usam `_{org}/`
+
+## Última Atualização
+
+**Data**: 2026-02-16
+**Motivo**: Validação profunda e correções — contagens atualizadas (56 skills), referências quebradas corrigidas, template alinhado com 4 colunas (Delegable), code-map criado, catálogo unificado de project skills introduzido, README atualizado

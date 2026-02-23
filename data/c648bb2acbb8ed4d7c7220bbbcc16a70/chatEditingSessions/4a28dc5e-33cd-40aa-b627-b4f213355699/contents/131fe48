@@ -1,0 +1,71 @@
+---
+name: project-context-query
+description: Consulta o contexto do projeto usando modelo index-first. Lê context/index.md primeiro, carrega subpastas sob demanda (architecture, business-rules, code-map, conventions, infrastructure, team-process). Triggers: "qual é o contexto", "que tecnologias usamos", antes de codificar, verificar restrições.
+metadata:
+  author: copilot-core
+  version: "4.0"
+  category: project
+  delegable: full
+---
+
+# Project Context Query
+
+Consulta o contexto do projeto usando modelo index-first com deep-load sob demanda.
+
+## Quando Usar
+
+- Início de sessão ou tarefa complexa
+- Verificar stack/tecnologias antes de implementar
+- Confirmar restrições antes de codificar
+- Usuário pergunta "qual é o contexto do projeto?"
+
+## Workflow
+
+### 1. Ler index.md
+
+Ler: `{workspace}/.copilot-project/context/index.md`
+
+**Se não existe** → criar via Auto-Init.
+
+### 2. Decidir se precisa deep-load
+
+| Situação | Ação |
+|----------|------|
+| Index tem resumo suficiente | Usar diretamente |
+| Precisa de stack detalhado | Carregar `infrastructure/*.md` |
+| Precisa de restrições | Carregar `business-rules/*.md` |
+| Precisa de convenções | Carregar `conventions/*.md` |
+| Precisa de decisões arquiteturais | Carregar `architecture/*.md` |
+| Consulta ampla | Ler index + subpastas relevantes |
+
+### 3. Aplicar restrições
+
+Se ação viola restrição → **PARAR** e informar. Sugerir alternativa.
+
+### 4. Apresentar resumo
+
+```
+📋 **Contexto carregado**
+- Stack: {tecnologias}
+- Restrições ativas: {número}
+- Estado: {fase}
+```
+
+## Subtipos de Contexto
+
+| Subtipo | Pasta | Conteúdo |
+|---------|-------|----------|
+| Architecture | `architecture/` | Decisões, estrutura, padrões de design |
+| Business Rules | `business-rules/` | Regras de domínio, restrições |
+| Code Map | `code-map/` | Inventário de artefatos |
+| Conventions | `conventions/` | Nomenclatura, estilo, processos |
+| Infrastructure | `infrastructure/` | Stack, ferramentas, integrações |
+| Team Process | `team-process/` | SDLC, normas (opt-in) |
+
+## Auto-Init
+
+Se `context/index.md` não existe:
+
+1. Criar `context/index.md` com template padrão
+2. Criar subpastas com `.gitkeep`
+3. Informar: `✅ Contexto inicializado automaticamente`

@@ -1,0 +1,94 @@
+#!/usr/bin/env bash
+# Start MCP Memory Dashboard
+# Inicia o servidor HTTP do mcp-memory-service com o dashboard web.
+# Acesso: http://localhost:8000
+#
+# Uso: ./start-memory-dashboard.sh [--port 8000] [--no-browser]
+
+set -e
+
+PORT=8000
+OPEN_BROWSER=true
+INTERNAL_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+CRED_FILE="$INTERNAL_DIR/config/credentials.yml"
+
+# --- Parse args ---
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --port) PORT="$2"; shift 2 ;;
+        --no-browser) OPEN_BROWSER=false; shift ;;
+        *) echo "❌ Opção desconhecida: $1"; exit 1 ;;
+    esac
+done
+
+# --- Carregar credenciais ---
+if [ ! -f "$CRED_FILE" ]; then
+    echo "❌ credentials.yml não encontrado em $INTERNAL_DIR/config"
+    exit 1
+fi
+
+parse_yaml_value() {
+    grep "$1" "$CRED_FILE" | head -1 | sed 's/.*"\(.*\)"/\1/'
+}
+
+ACCOUNT_ID=$(parse_yaml_value "account_id")
+API_TOKEN=$(parse_yaml_value "api_token")
+VECTORIZE_INDEX=$(parse_yaml_value "vectorize_index")
+D1_DATABASE_ID=$(parse_yaml_value "d1_database_id")
+STORAGE_BACKEND=$(parse_yaml_value "storage_backend")
+STORAGE_BACKEND=${STORAGE_BACKEND:-cloudflare}
+
+if [ -z "$ACCOUNT_ID" ] || [ -z "$API_TOKEN" ]; then
+    echo "❌ Credenciais Cloudflare incompletas no credentials.yml"
+    exit 1
+fi
+
+# --- Detectar Python ---
+PYTHON=""
+if command -v python3 &>/dev/null; then
+    PYTHON="python3"
+elif command -v python &>/dev/null; then
+    PYTHON="python"
+fi
+
+if [ -z "$PYTHON" ]; then
+    echo "❌ Python não encontrado. Instale Python 3.12+"
+    exit 1
+fi
+
+echo "📊 MCP Memory Dashboard"
+echo "   Python:  $PYTHON"
+echo "   Backend: $STORAGE_BACKEND"
+echo "   URL:     http://localhost:$PORT"
+echo ""
+
+# --- Exportar variáveis de ambiente ---
+export MCP_MEMORY_STORAGE_BACKEND="$STORAGE_BACKEND"
+export CLOUDFLARE_ACCOUNT_ID="$ACCOUNT_ID"
+export CLOUDFLARE_API_TOKEN="$API_TOKEN"
+export CLOUDFLARE_VECTORIZE_INDEX="$VECTORIZE_INDEX"
+export CLOUDFLARE_D1_DATABASE_ID="$D1_DATABASE_ID"
+export MCP_HTTP_PORT="$PORT"
+export MCP_ALLOW_ANONYMOUS_ACCESS="true"
+
+# --- Abrir browser automaticamente ---
+if [ "$OPEN_BROWSER" = true ]; then
+    (sleep 5 && {
+        if command -v xdg-open &>/dev/null; then
+            xdg-open "http://localhost:$PORT"
+        elif command -v open &>/dev/null; then
+            open "http://localhost:$PORT"
+        fi
+    }) &
+    echo "🌐 Browser abrirá automaticamente em 5s..."
+fi
+
+echo "🚀 Iniciando servidor... (Ctrl+C para parar)"
+echo ""
+
+# --- Iniciar servidor HTTP ---
+if command -v memory &>/dev/null; then
+    memory server --http --storage-backend "$STORAGE_BACKEND"
+else
+    $PYTHON -m mcp_memory_service.cli server --http --storage-backend "$STORAGE_BACKEND"
+fi

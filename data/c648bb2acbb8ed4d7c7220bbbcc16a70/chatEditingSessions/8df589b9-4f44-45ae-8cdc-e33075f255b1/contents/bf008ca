@@ -1,0 +1,61 @@
+# Project Skills
+
+Skills específicos deste projeto seguindo o padrão [Agent Skills](https://agentskills.io).
+
+## Estrutura
+
+O project contém **configuração e extensões** para skills do core:
+
+```
+skills/
+└── {tipo}-{feature}-{ação}/
+    ├── config.yml          # Dados estruturados do projeto (obrigatório)
+    └── SKILL.md            # Instruções complementares (opcional)
+```
+
+## Como Funciona
+
+1. **O core contém a lógica genérica** (em `.copilot-core/skills/`)
+2. **O project contém os dados específicos** (nesta pasta)
+3. Core skills dos tipos `infra` e `code` carregam automaticamente o `config.yml` daqui
+4. SKILL.md opcional adiciona instruções complementares em prosa
+
+## Como Criar
+
+Use a skill `skill-template-create` do core para criar novos skills:
+
+1. Defina o tipo, feature e ação: `{tipo}-{feature}-{ação}` (sempre 3 segmentos)
+2. Crie a lógica genérica no core
+3. Crie o `config.yml` aqui com dados específicos do projeto
+4. Opcionalmente crie `SKILL.md` com instruções complementares
+
+## Exemplo de config.yml
+
+```yaml
+# .copilot-project/skills/code-dotnet-service/config.yml
+language: csharp
+framework: dotnet-8
+solution: MyProject
+
+projects:
+  api:
+    root_namespace: MyCompany.MyProject
+    di_lifetime: Scoped
+```
+
+## Skills Configurados neste Projeto
+
+| Skill | Config | Extension |
+|-------|--------|-----------|
+| `code-dotnet-service` | ✅ | ✅ |
+| `code-dotnet-test` | ✅ | ✅ |
+| `infra-docker-build` | ✅ | — |
+| `infra-redis-cache` | ✅ | — |
+| `infra-bigquery-query` | ✅ | — |
+| `infra-gcp-integrate` | ✅ | — |
+| `infra-k8s-deploy` | ✅ | — |
+| `infra-pipeline-deploy` | ✅ | ✅ |
+| `infra-vertexai-prompt` | ✅ | ✅ |
+| `code-review-analyze` | ✅ | — |
+| `code-refactor-extract` | ✅ | — |
+| `code-pattern-enforce` | ✅ | ✅ |

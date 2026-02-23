@@ -1,0 +1,48 @@
+# Project Skills — BeWiser.Assistant API
+
+Skills específicos deste projeto seguindo o padrão [Agent Skills](https://agentskills.io).
+
+## Nomenclatura
+
+Formato obrigatório: **`{tipo}-{feature}-{ação}`** — sempre 3 segmentos, kebab-case.
+
+| Tipo | Propósito |
+|------|-----------|
+| `code` | Análise, validação de código e padrões .NET / ASP.NET Core |
+| `infra` | Infraestrutura, deploy, serviços externos |
+| `project` | Gestão de projeto e escopo |
+
+## Skills Disponíveis (18)
+
+### Config-only (13) — estendem core skills com `config.yml`
+
+| Tipo | Skill | Core Skill Estendido |
+|------|-------|---------------------|
+| code | `code-api-validate` | `code-api-validate` |
+| code | `code-command-generate` | `code-command-generate` |
+| code | `code-contracts-generate` | `code-contracts-generate` |
+| code | `code-controller-generate` | `code-controller-generate` |
+| code | `code-entity-generate` | `code-entity-generate` |
+| code | `code-event-generate` | `code-event-generate` |
+| code | `code-integrationtest-generate` | `code-integrationtest-generate` |
+| code | `code-mapping-generate` | `code-mapping-generate` |
+| code | `code-program-configure` | `code-program-configure` |
+| code | `code-query-generate` | `code-query-generate` |
+| code | `code-unittest-generate` | `code-unittest-generate` |
+| code | `code-valueobject-generate` | `code-valueobject-generate` |
+| infra | `infra-jwt-configure` | `infra-jwt-configure` |
+
+### Config + SKILL.md (4) — estendem core com conteúdo provider-specific
+
+| Tipo | Skill | Core Skill Estendido | Extensão |
+|------|-------|---------------------|----------|
+| code | `code-webhook-generate` | `code-webhook-generate` | Twilio provider |
+| infra | `infra-messaging-configure` | `infra-messaging-configure` | Azure Service Bus / MassTransit |
+| infra | `infra-repository-generate` | `infra-repository-generate` | Dapper + SQL Server |
+| infra | `infra-service-integrate` | `infra-service-integrate` | Services externos do projeto |
+
+### Project-only (1) — skills exclusivos deste projeto
+
+| Tipo | Skill | Propósito |
+|------|-------|-----------|
+| project | `project-scope-validate` | Validar escopo ANTES de implementar |

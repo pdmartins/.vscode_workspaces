@@ -1,0 +1,7 @@
+# Symlink Naming
+
+- **date**: 2026-02-16
+- **status**: active
+- **context**: Symlinks usavam nomes genéricos (default.instructions.md, workspace.instructions.md) que poderiam conflitar em projetos com seus próprios instructions
+- **decision**: Renomear para `agent-skills-core.instructions.md` e `agent-skills-project.instructions.md`. 2 symlinks mantidos (não consolidar) porque servem propósitos distintos: core cross-project, project por branch
+- **outcome**: Risco de conflito eliminado. Todos arquivos, symlinks, templates e skills atualizados

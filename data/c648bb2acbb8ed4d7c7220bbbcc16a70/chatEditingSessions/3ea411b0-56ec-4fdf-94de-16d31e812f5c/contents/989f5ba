@@ -1,0 +1,100 @@
+---
+name: agent-memory-register
+description: Registra novas lições aprendidas e decisões importantes no projeto. Use após decisões arquiteturais significativas, correção de erros com aprendizado útil, descoberta de padrões, quando o usuário pedir para guardar/salvar/anotar/lembrar qualquer informação, ou AUTOMATICAMENTE quando o usuário corrigir/alterar código gerado pelo agente (para aprender o padrão correto). Triggers: "registrar lição", "lembrar isso", "guarda isso", "salva isso", "anota isso", "não esquece", "memoriza", "decisão importante", "aprendi que", "descobri que", "não é assim", "muda isso", "corrige isso", "prefiro assim", "faz diferente", após resolver bug complexo, após correção de código gerado.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: agent
+  delegable: full
+---
+
+# Agent Memory Register
+
+Registra novas lições aprendidas na memória persistente do projeto.
+
+## Quando Usar
+
+- Após decisão arquitetural que impacta o projeto
+- Erro corrigido com aprendizado útil
+- Novo padrão estabelecido
+- Descoberta importante sobre o projeto
+- Usuário pede para "lembrar" ou "registrar"
+- **Automaticamente** quando o usuário corrige/altera código gerado pelo agente
+- **Automaticamente** quando o usuário indica preferência de estilo ou padrão
+
+## Quando NÃO Usar
+
+- Mudança trivial de código (typo, variável errada) sem padrão recorrente
+- Decisão temporária ou experimental
+- Informação já documentada em README
+- Detalhes de implementação muito específicos
+- Correção por mudança de requisito (usuário mudou de ideia, não corrigiu padrão)
+
+## Workflow
+
+### 1. Avaliar se deve registrar
+
+**Registrar se:**
+- Decisão arquitetural com impacto
+- Erro corrigido com lição aprendida
+- Padrão novo estabelecido
+- Descoberta importante
+- Usuário corrigiu código gerado pelo agente (padrão de preferência)
+- Usuário indicou como prefere que algo seja feito
+
+**Não registrar se:**
+- Typo ou erro pontual sem padrão
+- Decisão temporária
+- Já documentado em outro lugar
+- Usuário mudou de requisito (não corrigiu padrão)
+
+### 2. Determinar categoria
+
+| Categoria | Quando Usar |
+|-----------|-------------|
+| arquitetura | Estrutura do projeto, organização |
+| padrões | Convenções de código, nomenclatura |
+| tooling | Ferramentas, dependências, configs |
+| workflow | Processos, automações |
+| debug | Problemas resolvidos, armadilhas |
+| performance | Otimizações, melhorias |
+| segurança | Práticas de segurança |
+
+### 3. Formatar lição
+
+Usar template:
+
+```xml
+<lesson date="YYYY-MM-DD" category="categoria">
+  <context>Contexto do problema ou situação</context>
+  <decision>Decisão tomada e por quê</decision>
+  <outcome>Resultado e impacto</outcome>
+</lesson>
+```
+
+### 4. Adicionar ao arquivo
+
+- Ler: `{workspace}/.copilot-project/memory/lessons-learned.md`
+- Adicionar nova lição na seção "## Registro"
+- Manter ordem cronológica (mais recente primeiro)
+
+**Se arquivo não existe:**
+→ Criar automaticamente a estrutura de memória (ver seção "Auto-Init" abaixo)
+→ Depois adicionar a lição normalmente
+
+### 5. Confirmar registro
+
+**Output**:
+```
+📝 **Lição registrada**
+- Categoria: {categoria}
+- Resumo: {resumo breve}
+```
+
+## Auto-Init
+
+Quando `memory/` ou `lessons-learned.md` não existir, criar automaticamente:
+
+1. Criar diretório: `{workspace}/.copilot-project/memory/`
+2. Criar `lessons-learned.md` com o template padrão (ver `agent-memory-query` para o template completo)
+3. Prosseguir com o registro da lição normalmente

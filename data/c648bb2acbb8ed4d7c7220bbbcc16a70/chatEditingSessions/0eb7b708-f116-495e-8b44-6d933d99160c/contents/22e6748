@@ -1,0 +1,41 @@
+# LLM-as-Judge evaluation configuration
+# Used by code-skill-evaluate skill
+
+evaluation:
+  # Minimum passing score (0-5 scale)
+  pass_threshold: 3.5
+
+  # Weights by evaluation type
+  type_weights:
+    routing: 1.0
+    quality: 1.0
+    hallucination: 1.5  # Higher weight — fabricated data is worse
+
+  # Default rubric weights (overridden per scenario)
+  default_rubric_weight: 3
+
+  # Score interpretation
+  scores:
+    5: "Excellent — fully meets criterion"
+    4: "Good — minor issues"
+    3: "Acceptable — meets minimum bar"
+    2: "Below expectations — significant gaps"
+    1: "Poor — fails criterion"
+    0: "N/A or completely wrong"
+
+scenarios:
+  # Path relative to worktree root
+  root: "scenarios"
+  types:
+    - routing
+    - quality
+    - hallucination
+
+output:
+  # Where to register findings
+  memory: "memory/"
+
+  # Score format in findings
+  format: |
+    **Score**: {weighted_avg}/5.0 ({pass_fail})
+    **Routing**: {routing_score} | **Quality**: {quality_score} | **Hallucination**: {hallucination_score}

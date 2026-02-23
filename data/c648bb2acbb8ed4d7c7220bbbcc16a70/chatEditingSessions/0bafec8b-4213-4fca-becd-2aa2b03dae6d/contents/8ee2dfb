@@ -1,0 +1,7 @@
+# Git Guard Creation
+
+- **date**: 2026-02-16
+- **status**: active
+- **context**: Agente executava operações git livremente em qualquer projeto. Alguns projetos querem revisão via Source Control antes de commit
+- **decision**: Skill `agent-git-guard` (delegable: none) com config.yml por projeto. Toda operação git DEVE passar pela skill. Default sem config = tudo bloqueado (seguro)
+- **outcome**: Controle granular por projeto. Default seguro. Subagents não executam git

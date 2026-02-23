@@ -1,0 +1,44 @@
+---
+name: lang-catalog-query
+description: Catálogo de skills do tipo lang — linguagens de programação e frameworks. Consulte este catálogo quando a tarefa envolver geração de código específico de linguagem, serviços, handlers, testes, ou padrões de framework. Triggers: qual skill de lang usar, listar skills lang, gerar serviço, criar teste, .NET, dotnet.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: lang
+---
+
+# Language Skills Catalog
+
+Catálogo de skills do tipo `lang` para descoberta rápida.
+
+## Core Skills
+
+| Skill | Ação | Quando Usar | Keywords |
+|-------|------|-------------|----------|
+| `lang-dotnet-service` | Gerar | Serviços, handlers, commands, queries, interfaces .NET | serviço, handler, command, query, wrapper, endpoint, .NET |
+| `lang-dotnet-test` | Gerar | Testes unitários .NET (xUnit/NUnit, NSubstitute/Moq) | teste, unit test, coverage, mock, xUnit, NSubstitute |
+
+## Roteamento Rápido
+
+| Situação | Skill |
+|----------|-------|
+| Criar serviço, handler, command, query .NET | `lang-dotnet-service` |
+| Criar testes unitários .NET | `lang-dotnet-test` |
+| Após criar serviço (testes devem acompanhar) | `lang-dotnet-test` |
+
+## Project Skills
+
+Projetos podem adicionar skills `lang-*` adicionais no `.copilot-project/skills/`:
+- Controllers, webhooks, contratos de API
+- Entities, value objects, domain events
+- Commands/queries CQRS, DTOs, mappings
+- Scripts Bash/PowerShell
+- Testes de integração
+
+Consulte o `skills/README.md` do project para lista completa.
+
+## Project Config
+
+Ambas core skills carregam `config.yml` do project:
+- `lang-dotnet-service` → arquitetura, namespaces, DI, patterns
+- `lang-dotnet-test` → framework de test, mock lib, convenções

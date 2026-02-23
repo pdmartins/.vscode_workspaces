@@ -1,0 +1,60 @@
+# infra-bigquery-query — STT Project Configuration
+# Consumed by core skill: .copilot-core/skills/infra-bigquery-query/SKILL.md
+
+sdk: Google.Cloud.BigQuery.V2
+sdk_version: "3.11.0"
+
+tables:
+  - name: File_Transcription
+    dataset_var: bigquery_dataset
+    purpose: "Transcrições, status, CIDs, sintomas"
+    used_by: [api, consumer]
+  - name: Token_Data
+    dataset_var: bigquery_dataset
+    purpose: "Metadata de uso de tokens Gemini"
+    used_by: [consumer]
+  - name: Prompts
+    dataset_var: bigquery_dataset
+    purpose: "Prompts customizados"
+    used_by: [consumer]
+
+projects:
+  api:
+    pattern: wrapper
+    client: IBigQueryClientWrapper
+    return_type: "IEnumerable<RowDto>"
+    mapping: BigQueryRowExtensions
+    error_handling:
+      reader: rethrow      # try/catch → LogCritical → rethrow
+      writer: return_bool   # try/catch → return false
+    config_keys:
+      project_id: "Core:GoogleCloudStorage:ProjectId"
+      dataset: "Core:GoogleCloudStorage:GoogleBigQuery:DataSet"
+      table: "Core:GoogleCloudStorage:GoogleBigQuery:Table"
+
+  consumer:
+    pattern: direct
+    client: BigQueryClient
+    credential: IGoogleCredentialProvider
+    error_handling:
+      all: throw_data_exception  # try/catch → throws DataException
+    config_keys:
+      project_id: "Core:VoiceTranscription:BigQuery:ProjectId"
+      dataset: "Core:VoiceTranscription:BigQuery:Dataset"
+      results_table: "Core:VoiceTranscription:BigQuery:ResultsTable"
+      prompts_table: "Core:VoiceTranscription:BigQuery:PromptsTable"
+      token_data_table: "Core:VoiceTranscription:BigQuery:TokenDataTable"
+
+sql_patterns:
+  table_ref: "fully_qualified_backticks"  # `project.dataset.table`
+  template: "const_string_format"          # const string sqlTemplate + string.Format
+  parameters: "typed_array"                # BigQueryParameter[] with BigQueryDbType
+  dates: utc                               # Always .UtcDateTime
+
+row_extensions:
+  - method: "Get<string>"
+    purpose: "campo string"
+  - method: "Get<DateTime>"
+    purpose: "campo timestamp"
+  - method: "GetJsonArray<T>"
+    purpose: "JSON ou repeated"

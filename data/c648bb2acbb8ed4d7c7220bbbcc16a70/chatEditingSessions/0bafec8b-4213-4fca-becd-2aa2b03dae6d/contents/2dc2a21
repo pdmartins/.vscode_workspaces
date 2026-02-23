@@ -1,0 +1,43 @@
+scenario: "Entity generation with partial context — missing ValueObjects"
+evaluation_type: hallucination
+difficulty: hard
+
+user_message: "cria a entidade Payment com Id, OrderId, Amount e Status"
+
+context:
+  project_stack: ["dotnet", "8.0", "DDD"]
+  existing_files:
+    - "src/Domain/Entities/Order.cs"
+    # Note: NO Money.cs, NO PaymentStatus.cs exist
+
+target_skill: code-entity-generate
+
+grounding:
+  allowed_sources:
+    - "code-entity-generate/SKILL.md"
+    - "Project context (stack, existing files)"
+  forbidden_claims:
+    - "Referencing Money value object that doesn't exist in the project"
+    - "Importing namespaces not inferrable from existing files"
+    - "Assuming specific ORM configurations not in context"
+    - "Referencing PaymentStatus enum that doesn't exist"
+
+rubric:
+  - criterion: "Amount uses decimal (not Money VO that doesn't exist)"
+    weight: 5
+    type: hallucination
+  - criterion: "Status uses string or new enum (not reference to non-existent type)"
+    weight: 5
+    type: hallucination
+  - criterion: "Does not import non-existent namespaces"
+    weight: 5
+    type: hallucination
+  - criterion: "Mentions that Money VO and PaymentStatus could be created (suggestion, not assumption)"
+    weight: 3
+    type: quality
+
+notes: |
+  The agent should NOT assume Money or PaymentStatus exist.
+  Acceptable: use decimal for Amount, string/new enum for Status,
+  then SUGGEST creating these as value objects.
+  Unacceptable: reference Money.cs or PaymentStatus.cs as if they exist.

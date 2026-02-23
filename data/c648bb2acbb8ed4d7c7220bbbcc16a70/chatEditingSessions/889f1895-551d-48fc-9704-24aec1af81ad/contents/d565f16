@@ -1,0 +1,42 @@
+# Project Skills — Scripts
+
+Skills específicos deste projeto seguindo o padrão [Agent Skills](https://agentskills.io).
+
+## Nomenclatura
+
+Formato obrigatório: **`{tipo}-{feature}-{ação}`** — sempre 3 segmentos, kebab-case.
+
+| Tipo | Propósito |
+|------|-----------|
+| `editor` | Documentação e formatação |
+
+## Estrutura
+
+```
+skills/
+└── {tipo}-{feature}-{ação}/
+    └── SKILL.md
+```
+
+## Skills Disponíveis (1)
+
+| Tipo | Skill | Propósito |
+|------|-------|-----------|
+| editor | `editor-english-sync` | Sincronização de versões em inglês |
+
+## Exemplo de SKILL.md
+
+```markdown
+---
+name: {tipo}-{feature}-{ação}
+description: {descrição completa incluindo triggers}
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: {tipo}
+---
+
+# {Nome do Skill}
+
+{Instruções em Markdown}
+```

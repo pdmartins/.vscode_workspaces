@@ -1,0 +1,50 @@
+# Project Skills — Docker Framework
+
+Skills específicos deste projeto seguindo o padrão [Agent Skills](https://agentskills.io).
+
+## Nomenclatura
+
+Formato obrigatório: **`{tipo}-{feature}-{ação}`** — sempre 3 segmentos, kebab-case.
+
+| Tipo | Propósito |
+|------|-----------|
+| `code` | Análise e manipulação de código |
+| `infra` | Infraestrutura, docker, config |
+| `project` | Gestão de projeto, estrutura |
+
+## Estrutura
+
+```
+skills/
+└── {tipo}-{feature}-{ação}/
+    └── SKILL.md
+```
+
+## Skills Disponíveis (7)
+
+| Tipo | Skill | Propósito |
+|------|-------|-----------|
+| code | `code-cli-create` | Criação de comandos CLI do df |
+| code | `code-convention-enforce` | Convenções de código do projeto |
+| infra | `infra-config-manage` | Gestão de configuração YAML |
+| infra | `infra-initscript-create` | Criação de scripts de inicialização |
+| infra | `infra-resource-create` | Criação de recursos Docker |
+| project | `project-app-create` | Criação de aplicações no framework |
+| project | `project-submodule-create` | Criação de submodules de equipe |
+
+## Exemplo de SKILL.md
+
+```markdown
+---
+name: {tipo}-{feature}-{ação}
+description: {descrição completa incluindo triggers}
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: {tipo}
+---
+
+# {Nome do Skill}
+
+{Instruções em Markdown}
+```

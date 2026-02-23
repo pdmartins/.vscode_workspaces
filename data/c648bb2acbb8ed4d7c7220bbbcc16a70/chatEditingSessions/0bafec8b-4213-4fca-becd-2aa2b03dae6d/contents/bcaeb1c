@@ -1,0 +1,87 @@
+"""Verify specific skill behavioral contracts (documented expectations)."""
+
+import pytest
+
+
+@pytest.mark.behavioral
+class TestSkillContracts:
+    def test_turn_reflect_has_all_phases(self, all_skills):
+        """agent-turn-reflect must document Fase 0 through Fase 4."""
+        skill = next(
+            (s for s in all_skills if s.name == "agent-turn-reflect"), None
+        )
+        if skill is None:
+            pytest.fail("agent-turn-reflect skill not found")
+
+        for phase in range(5):
+            assert f"Fase {phase}" in skill.content, (
+                f"agent-turn-reflect: missing Fase {phase}"
+            )
+
+    def test_turn_reflect_has_triage(self, all_skills):
+        """agent-turn-reflect must document triage rapido."""
+        skill = next(
+            (s for s in all_skills if s.name == "agent-turn-reflect"), None
+        )
+        if skill is None:
+            pytest.fail("agent-turn-reflect skill not found")
+
+        assert "Triage" in skill.content or "triage" in skill.content
+
+    def test_memory_register_has_categories(self, all_skills):
+        """agent-memory-register must document standard categories."""
+        skill = next(
+            (s for s in all_skills if s.name == "agent-memory-register"),
+            None,
+        )
+        if skill is None:
+            pytest.skip("agent-memory-register not found")
+
+        expected = ["arquitetura", "padrões", "tooling", "workflow", "debug"]
+        for cat in expected:
+            assert cat in skill.content, (
+                f"agent-memory-register: missing category '{cat}'"
+            )
+
+    def test_chat_save_has_incremental_mode(self, all_skills):
+        """agent-chat-save must have incremental mode for per-turn appends."""
+        skill = next(
+            (s for s in all_skills if s.name == "agent-chat-save"), None
+        )
+        if skill is None:
+            pytest.skip("agent-chat-save not found")
+
+        assert "Modo Incremental" in skill.content, (
+            "agent-chat-save: missing 'Modo Incremental' section"
+        )
+
+    def test_action_review_has_side_effect_checks(self, all_skills):
+        """agent-action-review must check codemap, memory, and context."""
+        skill = next(
+            (s for s in all_skills if s.name == "agent-action-review"), None
+        )
+        if skill is None:
+            pytest.skip("agent-action-review not found")
+
+        for item in ["Codemap", "Memória", "Contexto"]:
+            assert item in skill.content, (
+                f"agent-action-review: missing side-effect check '{item}'"
+            )
+
+    def test_git_guard_blocks_by_default(self, all_skills):
+        """agent-git-guard must default to blocking git operations."""
+        skill = next(
+            (s for s in all_skills if s.name == "agent-git-guard"), None
+        )
+        if skill is None:
+            pytest.skip("agent-git-guard not found")
+
+        has_default_block = (
+            "sem git" in skill.content.lower()
+            or "não executar" in skill.content.lower()
+            or "block" in skill.content.lower()
+            or "sem config" in skill.content.lower()
+        )
+        assert has_default_block, (
+            "agent-git-guard: should default to blocking git operations"
+        )

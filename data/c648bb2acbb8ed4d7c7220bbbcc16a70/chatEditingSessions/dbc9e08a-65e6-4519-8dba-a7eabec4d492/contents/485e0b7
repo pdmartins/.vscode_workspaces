@@ -1,0 +1,14 @@
+{
+  "name": "cloudflare-memory-mcp",
+  "version": "1.0.0",
+  "description": "MCP server for Cloudflare Vectorize + Workers AI. Provides semantic memory search for Copilot Agent Skills.",
+  "type": "module",
+  "main": "server.mjs",
+  "scripts": {
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.23.0"
+  }
+}

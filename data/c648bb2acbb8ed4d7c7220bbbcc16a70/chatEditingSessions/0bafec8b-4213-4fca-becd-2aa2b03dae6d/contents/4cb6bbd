@@ -1,0 +1,22 @@
+scenario: "User asks to create a DDD entity"
+evaluation_type: routing
+difficulty: medium
+
+user_message: "cria a entidade Order com Id, CustomerId, Items e Total"
+
+context:
+  project_stack: ["dotnet", "8.0", "DDD", "Entity Framework"]
+  existing_files:
+    - "src/Domain/Entities/Customer.cs"
+    - "src/Domain/ValueObjects/Money.cs"
+
+expected_skills:
+  - name: code-entity-generate
+    must_activate: true
+    reason: "Direct entity creation request with DDD context"
+  - name: code-valueobject-generate
+    must_activate: false
+    reason: "Not asking for a ValueObject — it's an Entity with Id"
+  - name: code-dotnet-service
+    must_activate: false
+    reason: "Not a service — it's a domain entity"

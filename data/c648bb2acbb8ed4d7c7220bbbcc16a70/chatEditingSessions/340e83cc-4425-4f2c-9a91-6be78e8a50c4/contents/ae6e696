@@ -1,0 +1,30 @@
+---
+applyTo: '**'
+---
+
+# Workspace Context — docker-framework
+
+Framework CLI (`df`) em Bash para orquestração de ambientes Docker multi-projeto com infra compartilhada.
+
+## Sobre o Projeto
+
+- **Stack**: Bash puro, Docker, Docker Compose, yq (YAML parser)
+- **Plataformas**: WSL, Linux, macOS
+- **Foco**: CLI orquestrador — resolve dependências, portas e credenciais entre projetos e infra
+
+## Convenções
+
+- **Idioma chat**: Português brasileiro
+- **Idioma código**: Inglês
+- **Scripts**: Bash shell script puro (sem dependências externas além de yq)
+- **Config**: YAML (ports.yml, credentials.yml, df.yml)
+
+## Skills Core Relevantes
+
+| Skill | Uso |
+|-------|-----|
+| `code-bash-write` | Padrões para scripts Bash |
+| `infra-docker-build` | Geração de Dockerfile |
+| `code-review-analyze` | Análise de qualidade e segurança |
+| `agent-memory-query` | Consultar lições aprendidas |
+| `project-context-query` | Consultar contexto do projeto |

@@ -1,0 +1,270 @@
+# Project Context — docker-framework
+
+Estado atual do projeto para referência do Copilot.
+
+---
+
+## Objetivo
+
+Framework CLI (`df`) em Bash para orquestração de ambientes Docker multi-projeto. Gerencia infra compartilhada (SQL Server, Kafka, Redis, etc.) e projetos isolados via git submodules, resolvendo dependências, portas e credenciais automaticamente.
+
+O CLI é o **orquestrador central** — docker-compose é usado apenas como building block para definir containers individuais. O `df` resolve ciclo de vida, dependências entre projetos e infra, e executa init scripts de cada projeto.
+
+## Stack
+
+| Componente | Tecnologia |
+|------------|------------|
+| Linguagem | Bash (shell script puro) |
+| Parser YAML | yq (pré-requisito) |
+| Runtime | Docker + Docker Compose |
+| Config | YAML (ports, credentials, df.yml) |
+| OS | WSL, Linux, macOS |
+| Versionamento | Git + git submodules |
+
+## Arquitetura
+
+### Visão Geral
+
+```
+docker-framework/           # Repo principal (GitHub)
+├── bin/df                   # CLI entrypoint
+├── lib/                     # Funções modulares do CLI
+│   ├── core.sh              # Log, parse, validate
+│   ├── config.sh            # Leitura YAML (ports, credentials)
+│   ├── deps.sh              # Resolução de dependências
+│   ├── infra.sh             # Gerência de containers de infra
+│   ├── init.sh              # Execução de init scripts por projeto
+│   └── commands/            # Um arquivo por comando
+│       ├── start.sh
+│       ├── stop.sh
+│       ├── restart.sh
+│       ├── status.sh
+│       ├── reset.sh
+│       └── log.sh
+├── config/
+│   ├── ports.yml            # Dicionário central de portas
+│   └── credentials.yml      # Dicionário central de credenciais
+├── infra/
+│   ├── sql_server/
+│   │   └── docker-compose.yml
+│   ├── kafka/
+│   │   └── docker-compose.yml
+│   └── {recurso}/
+│       └── docker-compose.yml
+├── project-{team}/          # ← git submodule (repo separado por equipe)
+│   ├── {app}/
+│   │   ├── df.yml           # Manifesto de dependências
+│   │   ├── docker-compose.yml
+│   │   └── init/            # Scripts de inicialização idempotentes
+│   │       ├── sql_server.sql
+│   │       └── kafka.sh
+│   └── {outra-app}/
+├── .gitmodules
+├── .gitignore
+└── README.md
+```
+
+### Princípios Arquiteturais
+
+1. **CLI como orquestrador** — `df` é quem resolve lifecycle, não docker-compose
+2. **Infra singleton** — cada recurso roda UMA vez (um SQL Server, um Kafka, etc.)
+3. **Isolamento lógico** — projetos compartilham containers mas têm databases/topics/namespaces separados
+4. **Init scripts idempotentes** — cada projeto traz seus scripts (CREATE DATABASE IF NOT EXISTS, etc.)
+5. **Submodules por equipe** — cada `project-{team}/` é um repo separado, equipes não acessam dados umas das outras
+6. **Config centralizada** — portas e credenciais em dicionários YAML no repo principal
+
+### Decisões de Design
+
+| Decisão | Motivo |
+|---------|--------|
+| Bash puro para o CLI | Sem dependências extras, compatível WSL/Linux/Mac |
+| yq como parser YAML | Único pré-requisito externo, necessário para config YAML |
+| docker-compose como building block | Cada recurso de infra tem compose próprio, CLI orquestra o conjunto |
+| Isolamento lógico (não físico) | Um container SQL com vários databases é mais leve que N containers |
+| Init scripts no submodule do projeto | O projeto sabe o que precisa; infra não conhece projetos |
+| df.yml dedicado por app | Separação clara entre manifesto do framework e docker-compose |
+| Network compartilhada (df-network) | Permite comunicação entre containers por nome |
+| Named volumes sem prefixo `df-` | Infra: `infra-{recurso}-data`, App: `{app}-data` |
+
+### Formato do df.yml (por app)
+
+```yaml
+name: autocid
+project: project-hv
+dependencies:
+  - sql_server
+  - kafka
+```
+
+Declarativo e simples. Portas e credenciais vêm do `config/` central, injetadas pelo CLI.
+
+### Formato do config/ports.yml
+
+```yaml
+# Portas de infraestrutura
+sql_server: 1433
+kafka: 9092
+zookeeper: 2181
+mongodb: 27017
+redis: 6379
+rabbitmq: 5672
+elasticsearch: 9200
+grafana: 3000
+
+# Portas de projetos (range separado para evitar conflito)
+projects:
+  autocid: 5100
+  comissao: 5200
+```
+
+### Formato do config/credentials.yml
+
+```yaml
+sql_server:
+  sa_password: "Dev@12345"
+mongodb:
+  root_user: "admin"
+  root_password: "Dev@12345"
+redis:
+  password: "Dev@12345"
+rabbitmq:
+  user: "admin"
+  password: "Dev@12345"
+```
+
+### Convenção de Nomes
+
+| Recurso | Container Name | Named Volume | Network |
+|---------|---------------|--------------|---------|
+| SQL Server | `infra-sql_server` | `infra-sql_server-data` | `df-network` |
+| Kafka | `infra-kafka` | `infra-kafka-data` | `df-network` |
+| App autocid | `autocid` | `autocid-data` (se necessário) | `df-network` |
+
+### Fluxo: `df start`
+
+```
+$ cd project-hv/autocid && df start
+
+1. Lê df.yml → deps: [sql_server, kafka]
+2. Lê config/ports.yml e config/credentials.yml
+3. Para cada dependência:
+   a. Verifica se container infra-{dep} já está rodando (docker ps)
+   b. Se NÃO → sobe via docker compose -f infra/{dep}/docker-compose.yml up -d
+   c. Aguarda healthcheck (container pronto para conexões)
+   d. Executa init scripts do projeto (idempotentes):
+      docker exec infra-sql_server sqlcmd -i init/sql_server.sql
+4. Sobe o projeto:
+   docker compose -f docker-compose.yml up -d --build
+   (injeta variáveis de ports/credentials via env)
+5. Exibe resumo:
+   ✓ sql_server  :1433  (já estava rodando)
+   ✓ kafka       :9092  (iniciado)
+   ✓ autocid     :5100  (iniciado)
+```
+
+### Fluxo: `df stop`
+
+```
+$ cd project-hv/autocid && df stop
+
+1. Para o container do projeto autocid
+2. Verifica se outro projeto ativo depende de sql_server/kafka
+   → SIM: mantém infra rodando
+   → NÃO: pergunta ou usa --with-infra para parar
+```
+
+### Fluxo: `df reset`
+
+```
+$ cd project-hv/autocid && df reset
+
+1. Para o projeto
+2. Remove dados do projeto (DROP DATABASE autocid, delete topics)
+3. Re-executa init scripts
+4. Reinicia o projeto
+```
+
+### Fluxo: `df status`
+
+```
+$ df status
+
+Exibe estado de todos os containers gerenciados (infra + projetos):
+- Nome, porta, status (running/stopped), uptime
+```
+
+### Fluxo: `df log`
+
+```
+$ df log              # logs do projeto no diretório atual
+$ df log sql_server   # logs de um recurso específico
+```
+
+### Init Scripts — Regra de Idempotência
+
+Todos os init scripts DEVEM ser idempotentes:
+
+```sql
+-- init/sql_server.sql
+IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'autocid')
+  CREATE DATABASE autocid;
+GO
+```
+
+```bash
+# init/kafka.sh
+kafka-topics --create --if-not-exists \
+  --topic autocid.events \
+  --bootstrap-server kafka:9092
+```
+
+### Cenários Especiais
+
+**SQL Server já rodando + novo projeto precisa dele:**
+1. `df start` detecta que `infra-sql_server` já está UP
+2. Pula criação do container
+3. Executa apenas os init scripts do novo projeto (CREATE DATABASE novo_projeto)
+4. Sobe o novo projeto conectando ao mesmo SQL Server
+
+**Múltiplos projetos, um para:**
+1. `df stop` no projeto A
+2. CLI verifica se projeto B ainda depende da infra
+3. Se sim, mantém infra rodando — só para o projeto A
+
+## Comandos do CLI
+
+| Comando | Descrição |
+|---------|-----------|
+| `df start` | Sobe dependências de infra + projeto atual |
+| `df stop` | Para o projeto (e infra se ninguém mais usa) |
+| `df restart` | Restart do projeto (e dependências se necessário) |
+| `df status` | Mostra estado de todos os containers gerenciados |
+| `df reset` | Limpa dados do projeto, re-executa init, reinicia |
+| `df log [recurso]` | Exibe logs do projeto ou recurso específico |
+
+## Restrições
+
+- Sem dependências além de Bash, Docker, Docker Compose e yq
+- Compatível com WSL, Linux e macOS
+- Cada `project-{team}/` é um git submodule — equipes não acessam dados umas das outras
+- Init scripts devem ser sempre idempotentes
+- Portas e credenciais são centralizadas — nunca hardcoded nos composes
+
+## Integrações
+
+| Sistema | Propósito | Status |
+|---------|-----------|--------|
+| Docker Engine | Runtime de containers | Necessário |
+| Docker Compose | Definição de containers | Necessário |
+| yq | Parser YAML para configs | Necessário |
+| Git submodules | Isolamento de projetos por equipe | Necessário |
+
+## Estado Atual
+
+**Fase**: Planejamento
+**Status**: Arquitetura definida, pronto para implementação da estrutura e CLI
+
+## Última Atualização
+
+**Data**: 2026-02-09
+**Motivo**: Criação inicial — arquitetura e decisões definidas

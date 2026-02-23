@@ -1,0 +1,32 @@
+# Stack — Copilot Core
+
+- **date**: 2026-02-17
+- **status**: active
+
+## Stack Principal
+
+| Componente | Tecnologia |
+|------------|------------|
+| Formato | Markdown (Agent Skills pattern) |
+| Versionamento | Git (submodules ou clones para distribuição) |
+| Padrão | [Agent Skills](https://agentskills.io) |
+| Commit | Conventional Commits |
+| Linting | markdownlint (via extensão VS Code) |
+
+## Componentes Adicionais
+
+| Componente | Propósito |
+|------------|----------|
+| Catálogos (`{tipo}-catalog-query`) | Índice de descoberta por tipo de skill |
+| Templates (`templates/`) | Prompts de subagent, scripts de setup, workspace instructions |
+
+## Skills Core (62)
+
+| Tipo | Capacidades | Skills |
+|------|------------|--------|
+| `agent` | Memória, delegação, tarefas, sessões, validação, git guard, reflexão, guia | 12 |
+| `code` | Review, geração .NET, CQRS/DDD, testes, bash/powershell, avaliação | 23 |
+| `infra` | Docker, K8s, Redis, GCP, pipelines, JWT, mensageria | 12 |
+| `project` | Contexto, codemap, setup, branches, análise, backlog | 11 |
+| `skill` | Criar e validar skills | 2 |
+| `editor` | Markdown lint, READMEs | 2 |

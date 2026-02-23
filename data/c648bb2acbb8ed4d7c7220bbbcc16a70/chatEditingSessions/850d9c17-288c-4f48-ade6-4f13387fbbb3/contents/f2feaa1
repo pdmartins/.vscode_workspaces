@@ -1,0 +1,7 @@
+# Python Venv Obrigatório
+
+- **date**: 2026-02-17
+- **status**: active
+- **context**: Dependências Python (mcp-memory-service) eram instaladas no Python global do sistema via `pip install`. Isso polui o ambiente global e causa conflitos entre projetos
+- **decision**: Todas as dependências Python do sistema de skills devem ser instaladas num **venv isolado** em `.copilot-core/.venv/`. NUNCA instalar no Python global. O `command` do `mcp.json` aponta para o Python do venv
+- **outcome**: Atualizado: `setup-scripts.md` (4 variantes), `project-setup-bootstrap` (detecção, pré-requisitos, mcp.json path), `credentials.yml` (venv_path + install_package). Caminhos: Windows `.copilot-core/.venv/Scripts/python.exe`; Linux/Mac `.copilot-core/.venv/bin/python3`

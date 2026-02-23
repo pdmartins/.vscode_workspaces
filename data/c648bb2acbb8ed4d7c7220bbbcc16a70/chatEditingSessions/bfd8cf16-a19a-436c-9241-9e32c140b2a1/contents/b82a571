@@ -1,0 +1,123 @@
+# Copilot Project - BeWiser.Assistant API
+
+Branch de configuração do Copilot Agent para o projeto BeWiser.Assistant API.
+
+## Sobre o Projeto
+
+**BeWiser.Assistant** é um assistente de IA para WhatsApp que:
+- Recebe mensagens via webhook do Twilio
+- Processa via Azure OpenAI
+- Devolve respostas ao usuário
+
+Características: Multi-tenant, múltiplos assistentes, RAG, Function Calling, processamento assíncrono.
+
+## Estrutura
+
+```
+.copilot-project/
+├── context/
+│   └── project.md          # Estado e escopo do projeto
+├── memory/
+│   └── lessons-learned.md  # Lições aprendidas
+└── skills/                 # Skills por camada
+    │
+    ├── scope-validate/     # ⚠️ Validação ANTES
+    ├── api-validate/       # ⚠️ Validação DEPOIS
+    │
+    ├── api-controller/     # API - Controllers
+    ├── api-webhook/        # API - Webhooks
+    ├── api-contracts/      # API - Requests/Responses
+    │
+    ├── app-command/        # Application - Commands CQRS
+    ├── app-query/          # Application - Queries CQRS
+    ├── app-mapping/        # Application - DTOs e Mappings
+    │
+    ├── domain-entity/      # Domain - Entities
+    ├── domain-valueobject/ # Domain - Value Objects
+    ├── domain-event/       # Domain - Events
+    │
+    ├── infra-repository/   # Infrastructure - Dapper + SQL
+    ├── infra-messaging/    # Infrastructure - Service Bus
+    ├── infra-service/      # Infrastructure - External Services
+    │
+    ├── arch-program/       # Clean Program.cs
+    ├── auth-jwt/           # JWT Authentication
+    │
+    ├── test-unit/          # Unit Tests + Builders
+    ├── test-integration/   # Integration + Architecture Tests
+    │
+    └── deploy-docker/      # Docker + CI/CD
+```
+
+## Skills por Categoria
+
+### ⚠️ Validação (Usar Sempre!)
+
+| Skill | Quando |
+|-------|--------|
+| `scope-validate` | **ANTES** de implementar qualquer feature |
+| `api-validate` | **DEPOIS** de implementar, para validar aderência |
+
+### API Layer
+
+| Skill | Descrição |
+|-------|-----------|
+| `api-controller` | Controllers RESTful, rotas, status codes |
+| `api-webhook` | Webhooks Twilio, validação de assinatura |
+| `api-contracts` | `[Verbo][Domínio]Request/Response` em `Contracts/` |
+
+### Application Layer (CQRS)
+
+| Skill | Descrição |
+|-------|-----------|
+| `app-command` | Commands + Handlers + Validators (MediatR) |
+| `app-query` | Queries + Handlers + Validators (MediatR) |
+| `app-mapping` | DTOs e Mapping Extensions |
+
+### Domain Layer (DDD)
+
+| Skill | Descrição |
+|-------|-----------|
+| `domain-entity` | Entities, Aggregates, Exceptions |
+| `domain-valueobject` | Value Objects imutáveis |
+| `domain-event` | Domain Events com MediatR |
+
+### Infrastructure Layer
+
+| Skill | Descrição |
+|-------|-----------|
+| `infra-repository` | Repositories com ADO.NET + Dapper |
+| `infra-messaging` | Azure Service Bus com MassTransit |
+| `infra-service` | Twilio, Azure OpenAI, Search |
+
+### Testes
+
+| Skill | Descrição |
+|-------|-----------|
+| `test-unit` | xUnit, NSubstitute, Builders |
+| `test-integration` | WebApplicationFactory, TestContainers, NetArchTest |
+
+### Cross-cutting
+
+| Skill | Descrição |
+|-------|-----------|
+| `arch-program` | Clean Program.cs com layer extensions |
+| `auth-jwt` | JWT via Infrastructure layer |
+| `deploy-docker` | Docker, docker-compose, GitHub Actions |
+
+## Stack
+
+| Categoria | Tecnologia |
+|-----------|------------|
+| Runtime | .NET 8 |
+| CQRS | MediatR |
+| Validação | FluentValidation |
+| ORM | ADO.NET + Dapper |
+| Mensageria | Azure Service Bus (MassTransit) |
+| IA | Azure OpenAI |
+| WhatsApp | Twilio |
+| Testes | xUnit, FluentAssertions, NSubstitute |
+
+## Padrão
+
+Este projeto segue o padrão [Agent Skills](https://agentskills.io).

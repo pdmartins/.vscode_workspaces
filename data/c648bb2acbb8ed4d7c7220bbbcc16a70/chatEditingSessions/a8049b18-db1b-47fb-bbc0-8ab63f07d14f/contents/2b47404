@@ -1,0 +1,159 @@
+# Quick Start Guide
+
+Configure o sistema de skills do Copilot Agent em seu projeto em **menos de 2 minutos**.
+
+## TL;DR
+
+### Opção A: Do workspace core (recomendado)
+
+Se você tem o workspace `.copilot-core` + `.copilot-project` aberto, diga no Copilot Chat:
+
+> "criar projeto docker-framework"
+
+O agente pergunta sobre o projeto, cria a branch com contexto e te dá um **one-liner** para colar no projeto-alvo.
+
+### Opção B: Direto do projeto-alvo (one-liner)
+
+Rode na raiz do seu projeto:
+
+**Windows (PowerShell):**
+```powershell
+irm https://raw.githubusercontent.com/pdmartins/.copilot-core/main/.github/scripts/setup.ps1 -OutFile setup.ps1; .\setup.ps1; Remove-Item setup.ps1
+```
+
+**Linux/Mac:**
+```bash
+curl -fsSL https://raw.githubusercontent.com/pdmartins/.copilot-core/main/.github/scripts/setup.sh | bash
+```
+
+Depois, no Copilot Chat do projeto:
+```
+"configure este projeto"
+```
+
+---
+
+## Estrutura Criada
+
+```
+seu-projeto/
+└── .github/
+    ├── instructions/
+    │   └── workspace.instructions.md  # ← Copiado automaticamente
+    ├── .copilot-core/                 # Submodule - Skills genéricos
+    │   ├── instructions/
+    │   ├── scripts/
+    │   │   └── setup.ps1 / setup.sh   # ← Setup
+    │   └── skills/
+    │       ├── agent-memory-*/
+    │       ├── project-*/
+    │       └── skill-create/
+    │
+    └── .copilot-project/              # Submodule - Seu projeto
+        ├── context/
+        │   └── project.md
+        ├── memory/
+        │   └── lessons-learned.md
+        └── skills/
+```
+
+---
+
+## Uso no VS Code
+
+### Via Copilot Chat
+
+Após o setup, abra o Copilot Chat e diga:
+
+| Comando | O que faz |
+|---------|-----------|
+| "Configure este projeto" | Preenche contexto e analisa stack |
+| "Analise este projeto" | Usa `project-analyze` |
+| "Registre uma lição" | Usa `agent-memory-register` |
+| "Crie um skill para X" | Usa `skill-create` |
+| "Qual o contexto do projeto?" | Usa `project-context-query` |
+
+---
+
+## Opções Avançadas
+
+### Especificar nome do projeto
+
+```powershell
+.\setup.ps1 -ProjectName "meu-projeto-custom"
+```
+
+```bash
+./setup.sh "meu-projeto-custom"
+```
+
+### Forçar reinstalação
+
+```powershell
+.\setup.ps1 -Force
+```
+
+```bash
+FORCE=true ./setup.sh
+```
+
+### URLs customizadas
+
+```powershell
+.\setup.ps1 -CoreUrl "https://github.com/sua-org/.copilot-core.git" `
+            -ProjectUrl "https://github.com/sua-org/.copilot-project.git"
+```
+
+```bash
+COPILOT_CORE_URL="https://..." COPILOT_PROJECT_URL="https://..." ./setup.sh
+```
+
+---
+
+## Clonando em Nova Máquina
+
+Se você clonar um projeto que já tem os submodules:
+
+```bash
+git clone --recursive https://github.com/seu/projeto.git
+# ou
+git clone https://github.com/seu/projeto.git
+cd projeto
+git submodule update --init --recursive
+```
+
+---
+
+## Troubleshooting
+
+### "fatal: repository not found"
+Verifique se tem acesso aos repositórios via `git clone`.
+
+### "submodule already exists"
+Execute com `-Force` ou remova manualmente:
+```bash
+git rm --cached .github/.copilot-core .github/.copilot-project
+rm -rf .github/.copilot-core .github/.copilot-project
+```
+
+### Submodules não aparecem após clone
+```bash
+git submodule update --init --recursive
+```
+
+---
+
+## Próximos Passos
+
+1. **Diga "configure este projeto"** no Copilot Chat para análise de stack e contexto
+2. **Edite `context/project.md`** com detalhes do seu projeto
+3. **Crie skills específicos** em `.copilot-project/skills/`
+4. **Registre lições** após resolver problemas
+
+---
+
+## Links
+
+- [Agent Skills Pattern](https://agentskills.io)
+- [.copilot-core](https://github.com/pdmartins/.copilot-core)
+- [.copilot-project](https://github.com/pdmartins/.copilot-project)

@@ -1,0 +1,19 @@
+"""Validate conversation fixture specifications against real skills."""
+
+import yaml
+import pytest
+from pathlib import Path
+from conftest import CORE_ROOT
+
+FIXTURES_DIR = (
+    Path(__file__).resolve().parent.parent / "fixtures" / "conversations"
+)
+
+
+def load_fixtures() -> list[dict]:
+    """Load all conversation fixture YAML files."""
+    fixtures = []
+    if not FIXTURES_DIR.exists():
+        return fixtures
+    for f in sorted(FIXTURES_DIR.glob("*.yaml")):
+        content = yaml.safe_load(f.read_text(encoding="utf-8"))

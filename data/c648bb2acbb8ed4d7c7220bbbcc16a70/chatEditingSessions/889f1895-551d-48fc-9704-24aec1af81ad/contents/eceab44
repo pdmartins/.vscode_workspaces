@@ -1,0 +1,53 @@
+# code-entity-generate — BeWiser Assistant API Configuration
+# Consumed by core skill: .copilot-core/skills/code/code-entity-generate/SKILL.md
+
+language: csharp
+framework: dotnet-8
+solution: BeWiser.Assistant
+
+project:
+  root_namespace: BeWiser.Assistant
+  api_namespace: Bewiser.Assistant.Api
+
+domain:
+  base_path: src/BeWiser.Assistant.Domain
+  base_entity_class: BaseEntity
+  supports_domain_events: true
+
+  entities:
+    - name: Conversation
+      type: aggregate_root
+      children: [Message]
+      value_objects: [PhoneNumberVO]
+      enums: [ConversationStatus]
+      domain_methods: [End, AddMessage]
+    - name: Message
+      type: entity
+      parent: Conversation
+      value_objects: [MessageContentVO]
+      enums: [MessageDirection, MessageStatus]
+      domain_methods: [MarkAsDelivered, MarkAsFailed]
+    - name: Tenant
+      type: aggregate_root
+      children: []
+    - name: Assistant
+      type: aggregate_root
+      children: []
+
+  enums:
+    - ConversationStatus
+    - MessageDirection
+    - MessageStatus
+
+  exceptions:
+    pattern: "{Entity}NotFoundException"
+    base_class: DomainException
+    examples:
+      - ConversationNotFoundException
+
+  repositories:
+    pattern: "I{Entity}Repository"
+    namespace: BeWiser.Assistant.Domain.Interfaces.Repositories
+    examples:
+      - IConversationRepository
+      - IMessageRepository

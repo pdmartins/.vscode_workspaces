@@ -1,0 +1,32 @@
+scenario: "Generate unit test for service"
+evaluation_type: quality
+difficulty: medium
+
+user_message: "cria testes unitários para o OrderService.CreateOrder"
+
+context:
+  project_stack: ["dotnet", "8.0", "xUnit", "NSubstitute", "FluentAssertions"]
+  existing_files:
+    - "src/Application/Services/OrderService.cs"
+    - "src/Application/Interfaces/IOrderRepository.cs"
+    - "tests/Application.Tests/Application.Tests.csproj"
+
+target_skill: code-unittest-generate
+
+rubric:
+  - criterion: "Uses AAA pattern (Arrange/Act/Assert clearly separated)"
+    weight: 5
+  - criterion: "Tests both success and failure paths"
+    weight: 5
+  - criterion: "Mocks dependencies with NSubstitute (not Moq)"
+    weight: 4
+  - criterion: "Uses FluentAssertions (Should().Be, not Assert.Equal)"
+    weight: 3
+  - criterion: "Descriptive test names following convention (Method_Scenario_Expected)"
+    weight: 4
+  - criterion: "One assertion concept per test method"
+    weight: 3
+  - criterion: "Tests edge cases (null input, empty collection, etc.)"
+    weight: 4
+  - criterion: "Does not test implementation details (only behavior)"
+    weight: 4

@@ -1,0 +1,17 @@
+# Configurações específicas do projeto BeWiser Assistant API para code-webhook-generate
+root_namespace: "BeWiser.Assistant"
+
+providers:
+  - name: "Twilio"
+    route: "/webhooks/twilio"
+    signature_header: "X-Twilio-Signature"
+    content_type: "application/x-www-form-urlencoded"
+    events:
+      - name: "Message"
+        endpoint: "message"
+        request_model: "TwilioMessageWebhookRequest"
+        command: "ProcessMessageCommand"
+      - name: "Status"
+        endpoint: "status"
+        request_model: "TwilioStatusWebhookRequest"
+        command: "UpdateMessageStatusCommand"

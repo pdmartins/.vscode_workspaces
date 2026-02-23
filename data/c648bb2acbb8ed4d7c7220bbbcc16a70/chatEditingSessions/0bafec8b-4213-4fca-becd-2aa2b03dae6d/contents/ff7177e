@@ -1,0 +1,33 @@
+# Copilot Project - Scripts
+
+Branch de configuração do Copilot Agent para projetos de scripts de automação.
+
+## Estrutura
+
+```
+.copilot-project/
+├── context/
+│   └── project.md          # Estado atual do projeto
+├── memory/
+│   └── lessons-learned.md  # Lições aprendidas
+└── skills/                 # Skills específicas do projeto
+    ├── code-bash/
+    ├── code-powershell/
+    ├── sync-cross-platform/
+    ├── sync-english-version/
+    └── doc-readme/
+```
+
+## Skills
+
+| Skill | Descrição |
+|-------|-----------|
+| `code-bash` | Templates e padrões para scripts Bash (.sh) |
+| `code-powershell` | Templates e padrões para scripts PowerShell (.ps1) |
+| `sync-cross-platform` | Sincronização entre versões Bash e PowerShell |
+| `sync-english-version` | Sincronização para pasta .english-version/ |
+| `doc-readme` | Padrões para documentação README |
+
+## Padrão
+
+Este projeto segue o padrão [Agent Skills](https://agentskills.io).

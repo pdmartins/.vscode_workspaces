@@ -1,0 +1,183 @@
+---
+name: stt-gcp-integration
+description: Padrões e configuração para integração com Google Cloud Speech-to-Text (v1, v2, Chirp), Cloud Storage e Vertex AI. Define como criar clients, configurar authentication, e avaliar resultados de transcrição. Triggers — integrar GCP, configurar speech-to-text, criar client GCP, comparar providers, avaliar transcrição.
+metadata:
+  author: _poc/stt_gcp
+  version: "1.0"
+  category: infra
+---
+
+# STT GCP Integration
+
+Guia de integração com os serviços GCP de Speech-to-Text para a PoC hospitalar.
+
+## Quando Usar
+
+- Criar ou modificar integração com GCP
+- Adicionar novo provider de STT
+- Configurar autenticação GCP
+- Definir parâmetros de transcrição (encoding, sample rate, language)
+- Comparar resultados entre providers
+
+## Providers
+
+### Speech-to-Text v1
+
+```csharp
+using Google.Cloud.Speech.V1;
+
+public sealed class SpeechToTextV1Service(
+    SpeechClient client,
+    IOptions<GcpSettings> settings,
+    ILogger<SpeechToTextV1Service> logger) : ISpeechToTextService
+{
+    public string ProviderName => "Speech-to-Text v1";
+
+    public async Task<TranscribeResponse> TranscribeAsync(
+        Stream audioStream, string contentType, CancellationToken ct = default)
+    {
+        var audio = RecognitionAudio.FromStream(audioStream);
+
+        var config = new RecognitionConfig
+        {
+            Encoding = GetEncoding(contentType),
+            LanguageCode = settings.Value.LanguageCode,  // "pt-BR"
+            EnableAutomaticPunctuation = true,
+            EnableWordTimeOffsets = true,
+            Model = "medical_dictation",  // if available, otherwise "default"
+            UseEnhanced = true,
+            DiarizationConfig = new SpeakerDiarizationConfig
+            {
+                EnableSpeakerDiarization = true,
+                MinSpeakerCount = 2,
+                MaxSpeakerCount = 2  // médico + paciente
+            }
+        };
+
+        var response = await client.RecognizeAsync(config, audio, ct);
+        return MapResponse(response);
+    }
+}
+```
+
+### Speech-to-Text v2 / Chirp
+
+```csharp
+using Google.Cloud.Speech.V2;
+
+// V2 usa Recognizer resources
+// Chirp é configurado via model no Recognizer
+
+var recognizerName = RecognizerName.FromProjectLocationRecognizer(
+    projectId, "global", recognizerId);
+
+var config = new RecognitionConfig
+{
+    AutoDecodingConfig = new AutoDetectDecodingConfig(),
+    LanguageCodes = { "pt-BR" },
+    Model = "chirp_2",  // ou "long" para v2 standard
+    Features = new RecognitionFeatures
+    {
+        EnableAutomaticPunctuation = true,
+        EnableWordTimeOffsets = true,
+        DiarizationConfig = new SpeakerDiarizationConfig
+        {
+            MinSpeakerCount = 2,
+            MaxSpeakerCount = 2
+        }
+    }
+};
+```
+
+### Vertex AI
+
+Para processamento avançado ou pós-processamento da transcrição (ex: gerar anamnese):
+
+```csharp
+using Google.Cloud.AIPlatform.V1;
+
+// Vertex AI pode ser usado para:
+// 1. Modelos custom de STT (se necessário)
+// 2. Pós-processamento: transcrição → anamnese estruturada
+// 3. Sugestões de diagnóstico (futuro)
+```
+
+## Configuração
+
+### appsettings.json
+
+```json
+{
+  "Gcp": {
+    "ProjectId": "my-gcp-project",
+    "Region": "us-central1",
+    "LanguageCode": "pt-BR",
+    "StorageBucket": "stt-gcp-audio",
+    "Providers": {
+      "V1": { "Enabled": true, "Model": "medical_dictation" },
+      "V2": { "Enabled": true, "Model": "long" },
+      "Chirp": { "Enabled": true, "Model": "chirp_2" },
+      "VertexAi": { "Enabled": false }
+    }
+  }
+}
+```
+
+### Autenticação
+
+| Ambiente | Método | Setup |
+|----------|--------|-------|
+| Local | ADC | `gcloud auth application-default login` |
+| Docker | Service Account | Mount JSON key, set `GOOGLE_APPLICATION_CREDENTIALS` |
+| GCP (Cloud Run) | Workload Identity | Automatic |
+
+## Formatos de Áudio Suportados
+
+| Formato | Encoding | Ext | Notas |
+|---------|----------|-----|-------|
+| WAV/PCM | LINEAR16 | .wav | Melhor qualidade, sem compressão |
+| FLAC | FLAC | .flac | Compressão lossless |
+| OGG Opus | OGG_OPUS | .ogg | Comum em webRTC/telemedicina |
+| MP3 | MP3 | .mp3 | Comum mas lossy |
+| WebM | WEBM_OPUS | .webm | Gravação browser |
+
+## Comparação de Resultados
+
+O endpoint `/api/transcribe/compare` deve retornar:
+
+```json
+{
+  "audioInfo": {
+    "fileName": "consulta_01.wav",
+    "durationSeconds": 120.5,
+    "format": "LINEAR16"
+  },
+  "results": [
+    {
+      "provider": "Speech-to-Text v1",
+      "transcription": "...",
+      "confidence": 0.92,
+      "latencyMs": 3200,
+      "wordCount": 450,
+      "medicalTermsDetected": ["dipirona", "cefaleia", "tomografia"],
+      "speakerSegments": ["..."]
+    }
+  ],
+  "comparison": {
+    "fastestProvider": "Chirp",
+    "highestConfidence": "Speech-to-Text v2",
+    "bestMedicalTermAccuracy": "..."
+  }
+}
+```
+
+## Regras
+
+1. **Sempre `pt-BR`** como language code
+2. **Speaker diarization** habilitada por padrão (min=2, max=2 para consultas)
+3. **Automatic punctuation** sempre habilitada
+4. **Word time offsets** habilitados para análise temporal
+5. **Modelo médico** quando disponível (`medical_dictation` para v1)
+6. **Timeout generoso** — áudios de consulta podem ter 30+ minutos
+7. **Streaming vs Batch** — usar batch para PoC (simpler), streaming como evolução futura
+8. **Não enviar PII em metadata** — mesmo com dados de teste

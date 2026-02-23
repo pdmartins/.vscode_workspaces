@@ -1,0 +1,7 @@
+# Skill Migration Massive
+
+- **date**: 2026-02-15
+- **status**: active
+- **context**: Skills em projetos específicos continham padrões genéricos misturados com dados específicos. 21 skills eram padrões universais com namespaces hardcoded
+- **decision**: Migração: (1) 4 skills genéricos movidos as-is, (2) 13 refatorados com placeholders + Config Loading, (3) 4 split — genéricos para core, provider-specific como SKILL.md complementar, (4) 1 eliminado. Core de 30 para 51 skills
+- **outcome**: Core contém todos os padrões genéricos. Projetos estendem via config.yml + SKILL.md opcional

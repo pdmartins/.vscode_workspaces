@@ -1,0 +1,40 @@
+---
+applyTo: '**'
+---# Workspace Context — Everyday Queries
+
+Repositório de conhecimento pessoal para registrar conceitos, ideias e decisões do dia a dia.
+
+## Sobre o Projeto
+
+Este não é um projeto de código — é um espaço para discussão e registro de:
+- **Conceitos**: Tópicos técnicos e não-técnicos explorados
+- **Ideias**: Hipóteses, propostas e explorações
+- **Decisões**: Registros de decisões tomadas e seus raciocínios
+
+## Convenções
+
+- **Idioma**: Português brasileiro
+- **Formato**: Markdown
+- **Estrutura**: Organizado por tópicos/categorias conforme evolução
+
+## Skills Core Disponíveis
+
+O projeto herda todos os skills do `.copilot-core`. Os mais relevantes para este contexto:
+
+| Skill | Uso |
+|-------|-----|
+| `agent-memory-register` | Registrar lições e decisões |
+| `agent-memory-query` | Consultar lições anteriores |
+| `project-context-update` | Atualizar contexto do projeto |
+
+## Regras
+
+1. O agente deve ajudar a **estruturar ideias** de forma clara 
+2. Respostas devem ser **didáticas** e bem fundamentadas
+3. Quando uma decisão for tomada, **registrar na memória** automaticamente
+4. Preferir **explicações com exemplos práticos**
+t-structure-analyze` |
+| "criar projeto" | Usar `project-workspace-create` |
+| "configurar projeto" | Usar `project-setup-bootstrap` |
+| "o que já existe" | Usar `project-codemap-query` |
+| "mostrar estrutura" | Usar `project-codemap-query` |

@@ -1,0 +1,180 @@
+---
+name: code-refactor-extract
+description: Extrai métodos, classes, interfaces; move responsabilidades; aplica SRP. Segue padrões do projeto via config.yml. Triggers: "extrair método", "refatorar", "separar responsabilidade", "mover para classe", "extrair interface", "dividir", "simplificar", "muito grande", "está complexo".
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: code
+  delegable: orchestrated
+---
+
+# Code Refactor Extract
+
+Extrai e reorganiza código aplicando princípios SOLID, configurável por projeto.
+
+## Quando Usar
+
+- Método/classe muito grande ou complexo
+- Violação de SRP (Single Responsibility Principle)
+- Código duplicado que pode ser extraído
+- Usuário pede "extrair", "refatorar", "separar", "simplificar"
+
+## Config Loading
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/code-refactor-extract/config.yml`
+2. Se existe, carregar padrões de extração do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/code-refactor-extract/SKILL.md`
+4. Se existe, carregar instruções complementares
+5. Se nenhum existe, usar padrões genéricos
+
+## Workflow
+
+### 1. Analisar código
+
+- Identificar responsabilidades distintas
+- Medir complexidade (métodos longos, muitos parâmetros)
+- Identificar código duplicado
+- Verificar acoplamento
+
+### 2. Consultar code-map
+
+Usar `project-codemap-query` para:
+- Verificar se já existe classe/método que cobre a responsabilidade
+- Entender onde colocar o código extraído
+- Identificar dependências afetadas
+
+### 3. Propor refatoração
+
+Antes de executar, apresentar o plano:
+
+```
+🔧 **Refatoração proposta**
+
+| Ação | De | Para | Motivo |
+|------|----|------|--------|
+| Extrair método | `ClassA.LongMethod` L50-80 | `ClassA.ExtractedMethod` | SRP |
+| Extrair classe | `ClassA` responsabilidade X | `NewClassB` | SRP |
+| Mover método | `ClassA.Method` | `ClassC.Method` | Coesão |
+
+Confirmar?
+```
+
+### 4. Executar refatoração
+
+- Extrair código mantendo a interface pública
+- Atualizar dependências e imports
+- Manter testes existentes passando
+- Adicionar testes para novos artefatos
+
+### 5. Atualizar code-map
+
+Usar `project-codemap-update` para registrar mudanças.
+
+## Tipos de Extração
+
+### Extract Method
+
+```
+Antes: método com 50+ linhas
+Depois: método chamando submétodos com responsabilidades claras
+```
+
+- Nome descritivo baseado na ação
+- Parâmetros mínimos necessários
+- Retorno claro
+
+### Extract Class
+
+```
+Antes: classe com múltiplas responsabilidades
+Depois: 2+ classes com responsabilidade única
+```
+
+- Mover para arquivo próprio
+- Extrair interface se necessário
+- Registrar no DI container
+
+### Extract Interface
+
+```
+Antes: dependência direta de implementação
+Depois: dependência via interface (testabilidade)
+```
+
+- Interface em `Contracts/` (ou conforme config)
+- Seguir naming: `I{ClassName}`
+
+### Move Method/Class
+
+```
+Antes: método/classe no lugar errado (baixa coesão)
+Depois: método/classe na camada/namespace correto
+```
+
+## Checklist
+
+- [ ] Funcionalidade preservada (testes passam)
+- [ ] Nenhum artefato órfão
+- [ ] Dependências atualizadas
+- [ ] Naming segue convenções do projeto
+- [ ] Code map atualizado
+- [ ] Novos testes para novos artefatos
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/code-refactor-extract/config.yml
+thresholds:
+  max-method-lines: 30
+  max-class-lines: 300
+  max-parameters: 5
+  max-cyclomatic-complexity: 10
+extraction:
+  interfaces-path: "Contracts/"
+  services-path: "Services/"
+  utils-path: "Helpers/"
+naming:
+  extracted-methods: descriptive-action  # descriptive-action | verb-noun
+  new-classes: "{Responsibility}{Type}"  # e.g., PaymentValidator
+conventions:
+  always-extract-interface: true
+  separate-file-per-class: true
+```
+
+## Subagent Pattern
+
+**Tipo**: `orchestrated` — 2-phase (análise → confirmação → execução)
+
+### Fase 1 — Análise (delegável)
+
+Subagent lê o código-alvo + config.yml e retorna proposta de refatoração:
+- Métodos/classes candidatos a extração
+- Justificativa (SRP, complexidade, duplicação)
+- Impacto estimado
+
+### Confirmação (main agent)
+
+Main agent apresenta a proposta ao usuário e coleta aprovação/ajustes.
+
+### Fase 2 — Execução (delegável)
+
+Subagent recebe o plano aprovado e executa:
+- Extrai métodos/classes
+- Atualiza dependências
+- Atualiza code-map via `project-codemap-update`
+
+### Prompt Exemplo
+
+```
+// Fase 1
+runSubagent({
+  description: "Analyze refactoring",
+  prompt: "Leia .copilot-core/skills/code/code-refactor-extract/SKILL.md. Analise {arquivo}. NÃO modifique nada. Retorne: lista de extrações recomendadas com justificativa."
+})
+
+// Fase 2 (após aprovação)
+runSubagent({
+  description: "Execute refactoring",
+  prompt: "Leia .copilot-core/skills/code/code-refactor-extract/SKILL.md. Aplique APENAS: {lista de ações aprovadas}. Retorne: arquivos modificados/criados."
+})
+```

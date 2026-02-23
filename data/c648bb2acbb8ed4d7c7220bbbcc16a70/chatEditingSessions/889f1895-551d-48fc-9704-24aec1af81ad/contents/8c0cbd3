@@ -1,0 +1,266 @@
+---
+name: infra-service-integrate
+description: Extensões específicas do projeto BeWiser Assistant para infra-service-integrate.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: infra
+---
+
+# External Services — BeWiser Assistant (Azure OpenAI, Twilio, Azure Search)
+
+> Este arquivo complementa o skill core `.copilot-core/skills/infra/infra-service-integrate/SKILL.md`.
+> Contém apenas especificidades do projeto BeWiser Assistant API.
+
+## Service Interfaces do Projeto
+
+```csharp
+namespace BeWiser.Assistant.Application.Interfaces.Services;
+
+public interface IAiService
+{
+    Task<string> GenerateResponseAsync(
+        Conversation conversation,
+        CancellationToken cancellationToken = default);
+
+    Task<string> GenerateResponseAsync(
+        string systemPrompt,
+        IReadOnlyList<ChatMessage> history,
+        CancellationToken cancellationToken = default);
+}
+
+public interface IWhatsAppService
+{
+    Task<string> SendMessageAsync(
+        string phoneNumber,
+        string message,
+        CancellationToken cancellationToken = default);
+
+    Task<string> SendTemplateAsync(
+        string phoneNumber,
+        string templateName,
+        Dictionary<string, string> parameters,
+        CancellationToken cancellationToken = default);
+}
+```
+
+## AzureOpenAiService
+
+```csharp
+using Azure;
+using Azure.AI.OpenAI;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
+
+namespace BeWiser.Assistant.Infrastructure.Services.AI;
+
+public class AzureOpenAiService : IAiService
+{
+    private readonly OpenAIClient _client;
+    private readonly AzureOpenAiOptions _options;
+    private readonly ILogger<AzureOpenAiService> _logger;
+
+    public AzureOpenAiService(
+        IOptions<AzureOpenAiOptions> options,
+        ILogger<AzureOpenAiService> logger)
+    {
+        _options = options.Value;
+        _logger = logger;
+        
+        _client = new OpenAIClient(
+            new Uri(_options.Endpoint),
+            new AzureKeyCredential(_options.ApiKey));
+    }
+
+    public async Task<string> GenerateResponseAsync(
+        Conversation conversation,
+        CancellationToken cancellationToken = default)
+    {
+        var assistant = conversation.Assistant;
+        var history = conversation.Messages
+            .OrderBy(m => m.CreatedAt)
+            .Select(m => new ChatRequestMessage(
+                m.Direction == MessageDirection.Incoming 
+                    ? ChatRole.User 
+                    : ChatRole.Assistant,
+                m.Content.Value))
+            .ToList();
+
+        return await GenerateResponseAsync(
+            assistant.SystemPrompt,
+            history,
+            cancellationToken);
+    }
+
+    public async Task<string> GenerateResponseAsync(
+        string systemPrompt,
+        IReadOnlyList<ChatMessage> history,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug(
+            "Generating response with {MessageCount} messages in history",
+            history.Count);
+
+        var chatOptions = new ChatCompletionsOptions(_options.DeploymentName)
+        {
+            Temperature = _options.Temperature,
+            MaxTokens = _options.MaxTokens,
+            Messages =
+            {
+                new ChatRequestSystemMessage(systemPrompt)
+            }
+        };
+
+        foreach (var message in history)
+        {
+            chatOptions.Messages.Add(message.Role == "user"
+                ? new ChatRequestUserMessage(message.Content)
+                : new ChatRequestAssistantMessage(message.Content));
+        }
+
+        var response = await _client.GetChatCompletionsAsync(
+            chatOptions,
+            cancellationToken);
+
+        var content = response.Value.Choices[0].Message.Content;
+        
+        _logger.LogDebug(
+            "Generated response with {TokenCount} tokens",
+            response.Value.Usage.TotalTokens);
+
+        return content;
+    }
+}
+```
+
+## TwilioWhatsAppService
+
+```csharp
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
+using Twilio;
+using Twilio.Rest.Api.V2010.Account;
+using Twilio.Types;
+
+namespace BeWiser.Assistant.Infrastructure.Services.WhatsApp;
+
+public class TwilioWhatsAppService : IWhatsAppService
+{
+    private readonly TwilioOptions _options;
+    private readonly ILogger<TwilioWhatsAppService> _logger;
+
+    public TwilioWhatsAppService(
+        IOptions<TwilioOptions> options,
+        ILogger<TwilioWhatsAppService> logger)
+    {
+        _options = options.Value;
+        _logger = logger;
+        
+        TwilioClient.Init(_options.AccountSid, _options.AuthToken);
+    }
+
+    public async Task<string> SendMessageAsync(
+        string phoneNumber,
+        string message,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "Sending WhatsApp message to {PhoneNumber}",
+            phoneNumber);
+
+        var messageResource = await MessageResource.CreateAsync(
+            to: new PhoneNumber($"whatsapp:{phoneNumber}"),
+            from: new PhoneNumber($"whatsapp:{_options.WhatsAppNumber}"),
+            body: message);
+
+        _logger.LogInformation(
+            "Message sent with SID {MessageSid}",
+            messageResource.Sid);
+
+        return messageResource.Sid;
+    }
+
+    public async Task<string> SendTemplateAsync(
+        string phoneNumber,
+        string templateName,
+        Dictionary<string, string> parameters,
+        CancellationToken cancellationToken = default)
+    {
+        var contentSid = await GetContentSidAsync(templateName);
+        
+        var messageResource = await MessageResource.CreateAsync(
+            to: new PhoneNumber($"whatsapp:{phoneNumber}"),
+            from: new PhoneNumber($"whatsapp:{_options.WhatsAppNumber}"),
+            contentSid: contentSid,
+            contentVariables: System.Text.Json.JsonSerializer.Serialize(parameters));
+
+        return messageResource.Sid;
+    }
+
+    private Task<string> GetContentSidAsync(string templateName)
+    {
+        return Task.FromResult(_options.Templates[templateName]);
+    }
+}
+```
+
+## Options Classes do Projeto
+
+```csharp
+namespace BeWiser.Assistant.Infrastructure.Options;
+
+public class AzureOpenAiOptions
+{
+    public const string SectionName = "AzureOpenAi";
+    
+    public required string Endpoint { get; init; }
+    public required string ApiKey { get; init; }
+    public required string DeploymentName { get; init; }
+    public float Temperature { get; init; } = 0.7f;
+    public int MaxTokens { get; init; } = 1000;
+}
+
+public class TwilioOptions
+{
+    public const string SectionName = "Twilio";
+    
+    public required string AccountSid { get; init; }
+    public required string AuthToken { get; init; }
+    public required string WhatsAppNumber { get; init; }
+    public Dictionary<string, string> Templates { get; init; } = new();
+}
+
+public class AzureSearchOptions
+{
+    public const string SectionName = "AzureSearch";
+    
+    public required string Endpoint { get; init; }
+    public required string ApiKey { get; init; }
+    public required string IndexName { get; init; }
+}
+```
+
+## Registro de Services do Projeto
+
+```csharp
+public static IServiceCollection AddExternalServices(
+    this IServiceCollection services,
+    IConfiguration configuration)
+{
+    // Azure OpenAI
+    services.Configure<AzureOpenAiOptions>(
+        configuration.GetSection(AzureOpenAiOptions.SectionName));
+    services.AddScoped<IAiService, AzureOpenAiService>();
+
+    // Twilio
+    services.Configure<TwilioOptions>(
+        configuration.GetSection(TwilioOptions.SectionName));
+    services.AddScoped<IWhatsAppService, TwilioWhatsAppService>();
+
+    // Azure Search
+    services.Configure<AzureSearchOptions>(
+        configuration.GetSection(AzureSearchOptions.SectionName));
+
+    return services;
+}
+```

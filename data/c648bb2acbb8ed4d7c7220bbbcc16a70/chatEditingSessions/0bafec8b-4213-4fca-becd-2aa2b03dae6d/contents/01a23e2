@@ -1,0 +1,21 @@
+scenario: "User asks to save the current session"
+evaluation_type: routing
+difficulty: easy
+
+user_message: "Salva esta sessão para eu continuar depois em outra máquina."
+
+context:
+  project_stack: ["dotnet", "8.0"]
+  existing_files:
+  has_copilot_project: true
+
+expected_skills:
+  - name: agent-chat-save
+    must_activate: true
+    reason: "Direct request matching agent-chat-save triggers"
+  - name: agent-chat-resume
+    must_activate: false
+    reason: "Saving, not resuming a session"
+  - name: agent-memory-update
+    must_activate: false
+    reason: "Not registering a lesson, saving a session"

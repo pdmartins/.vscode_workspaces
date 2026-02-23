@@ -1,0 +1,30 @@
+# LLM-as-Judge System
+
+- **date**: 2026-02-17
+- **status**: active
+- **context**: Necessidade de avaliar skills em 3 dimensões: routing, quality, hallucination
+
+## Estrutura
+
+- Branch isolada: `_test/llm-judge` com worktree em `.copilot-project-worktrees/_test/llm-judge/`
+- Cenários YAML: `scenarios/{routing|quality|hallucination}/NNN-slug.yaml` (112 cenários, 62+30+20)
+- Skill core: `code-skill-evaluate` (delegable: orchestrated)
+- Config: `skills/code-skill-evaluate/config.yml` (thresholds, pesos)
+
+## Scripts (`.copilot-core/.internal/scripts/`)
+
+- `generate-scenarios.py` — Gera cenários faltantes (`--report`, `--dry-run`, `--type`)
+- `run-evaluation.ps1` / `run-evaluation.sh` — Runner de avaliação (`-List`, `-Validate`, `-Type`, `-Skill`)
+- Validação pytest: `pytest tests/behavioral/test_evaluation_scenarios.py -q` (marker: `@pytest.mark.evaluation`)
+- Venv: `.copilot-core/.internal/.venv/`
+
+## Workflow
+
+1. Usuário pede "avalia a skill X" → ativa `code-skill-evaluate`
+2. Carrega cenários YAML da worktree
+3. Para cada cenário: prompt → análise vs rubric
+4. Score 0-5 por critério, média ponderada, pass/fail
+
+## Stats
+
+- 112 cenários, 100% cobertura routing, suite: 2590 passed, 0 failed

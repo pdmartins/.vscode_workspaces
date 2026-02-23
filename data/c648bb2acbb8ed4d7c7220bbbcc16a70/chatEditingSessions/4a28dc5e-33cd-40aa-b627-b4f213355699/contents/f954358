@@ -1,0 +1,58 @@
+# Contexto do Projeto — Copilot Core
+
+## Resumo
+
+Sistema de instruções e skills reutilizáveis para o Copilot Agent, seguindo o padrão [Agent Skills](https://agentskills.io). Fornece um core genérico (`.copilot-core`) plugado via git submodule ou clone na raiz de qualquer projeto, junto com repositório de dados por projeto (`.copilot-project`) com branch por projeto. Suporta modos **aberto** (submodule) e **stealth** (clone + gitignore).
+
+## Repos
+
+| Repo | URL | Propósito |
+|------|-----|-----------|
+| `.copilot-core` | `https://github.com/pdmartins/.copilot-core.git` | Skills genéricos, instruções globais, templates |
+| `.copilot-project` | `https://github.com/pdmartins/.copilot-project.git` | Contexto, memória e skills específicos por projeto (branch por projeto) |
+
+## Estado Atual
+
+- **Fase**: Ativo
+- **Skills Core**: 62 organizados em subpastas por tipo
+- **Modo**: Dual (aberto/stealth)
+
+## Subpastas
+
+| Subpasta | Conteúdo | Arquivos |
+|----------|----------|----------|
+| `architecture/` | Estrutura do sistema, branches, projetos consumidores | `system.md` |
+| `infrastructure/` | Stack, componentes adicionais | `stack.md` |
+| `conventions/` | Naming, commits, worktrees, padrões de skills | `standards.md` |
+| `business-rules/` | — | (vazio) |
+| `code-map/` | Inventário de artefatos | `index.md` |
+| `team-process/` | — | (vazio) |
+
+## Projetos Plugados
+
+| Branch (.copilot-project) | Projeto | Status |
+|---------------------------|---------|--------|
+| `main` | Template base | — |
+| `_pm/copilot-core` | Workspace de desenvolvimento do core | Ativo |
+| `_bw/bewiser.assistant.api` | BeWiser Assistant API | Ativo |
+| `_hv/STT` | VoiceTranscription.AI (Hapvida) | Ativo |
+| `_pm/docker-framework` | Docker Framework | — |
+| `_pm/everyday_queries` | Everyday Queries | Ativo |
+| `_pm/scripts` | Scripts de automação | Ativo |
+
+## Inconsistências Conhecidas
+
+| # | Issue | Local | Detalhe |
+|---|-------|-------|---------|
+| 1 | URLs hardcoded | `project-workspace-create` | `github.com/pdmartins/` não parametrizado |
+
+## Regras deste Workspace
+
+1. **Branch ativa**: `.copilot-project/` deve sempre ter `_pm/copilot-core` ativa
+2. **main como worktree**: Branch `main` em `.copilot-project-worktrees/main/`
+3. **Naming de branches**: Projetos pessoais usam `_pm/`, orgs usam `_{org}/`
+
+## Última Atualização
+
+- **Data**: 2026-02-17
+- **Motivo**: Reestruturação context/memory — migração de monolítico (project.md + lessons-learned.md) para folder-based lazy-loading (index.md + subpastas por tipo)

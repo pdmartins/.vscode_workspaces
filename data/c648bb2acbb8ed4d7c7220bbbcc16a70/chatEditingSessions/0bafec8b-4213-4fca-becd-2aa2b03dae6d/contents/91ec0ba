@@ -1,0 +1,20 @@
+scenario: "User asks to create a Dockerfile"
+evaluation_type: routing
+difficulty: easy
+
+user_message: "cria um Dockerfile para o projeto"
+
+context:
+  project_stack: ["dotnet", "8.0"]
+  existing_files: ["src/Api/Api.csproj", "src/Domain/Domain.csproj"]
+
+expected_skills:
+  - name: infra-docker-build
+    must_activate: true
+    reason: "Direct Dockerfile generation request"
+  - name: code-dotnet-service
+    must_activate: false
+    reason: "Not a service generation request"
+  - name: infra-k8s-deploy
+    must_activate: false
+    reason: "No mention of Kubernetes"

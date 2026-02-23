@@ -1,0 +1,98 @@
+---
+date: 2026-02-16
+topic: deep-audit-restructure
+status: completed
+---
+
+# Session: Auditoria Profunda + Reestruturação do Sistema de Skills
+
+## Resumo
+
+Sessão de auditoria e reestruturação completa do sistema Copilot Agent Skills. Iniciou com validação profunda de todas as 56 skills, instructions e templates, que identificou 22 findings em 8 categorias. Evoluiu para discussão de 5 propostas arquiteturais do usuário (lazy loading, validação pós-execução, memória MCP, symlinks, Copilot Spaces). Após decisões via ask_questions em 2 rodadas, foi criado e executado um plano de 27 steps em 5 fases. Sessão cruzou 3 turnos de conversa (token budget excedido 2x).
+
+## Progresso
+
+- [x] Auditoria profunda — 22 findings (4 alta, 9 média, 9 baixa)
+- [x] Pesquisa de Copilot Spaces, MCP Servers, Agentic Memory
+- [x] Decisões arquiteturais (2 rodadas ask_questions)
+- [x] Fix broken table in agent-skills-core.instructions.md
+- [x] Fix "Submodules" → "Método" header in template
+- [x] Add regras/estrutura categories to memory skills
+- [x] Capability Manifest compacto em 3 instruction files + project.md
+- [x] Deduplicate project.md (remover diagrama e tabela triplicada)
+- [x] Rename symlinks: default → agent-skills-core, workspace → agent-skills-project
+- [x] Extract setup scripts to templates/setup-scripts.md
+- [x] Create agent-impact-validate skill (cascata)
+- [x] Create agent-memory-sync skill (MCP sync)
+- [x] Evolve agent-action-review (chain + new filenames)
+- [x] Update agent-catalog-query (+2 skills)
+- [x] Update agent-subagent-delegate (+2 skills, count 47→49)
+- [x] Setup mcp-memory-service (.vscode/mcp.json + .gitattributes LFS)
+- [x] Evolve agent-memory-query v2.0 (MCP-first + fallback .md)
+- [x] Evolve agent-memory-register v2.0 (dual-write .md + MCP)
+- [x] Evolve project-context-query v2.0 (MCP semantic search)
+- [x] Update project.md final pass (counts, symlink names, architecture)
+- [x] Update skill-output-validate v2.0 (Manifest validation, MCP config)
+- [x] Fix skill counts across all manifests (agent=10, code=22, project=10, infra=12)
+- [x] Update QUICK-START.md (new symlink names)
+- [x] Register 6 lessons learned
+- [x] Save chat session
+
+## Próximos Passos
+
+Sessão completa. Items de follow-up para futuras sessões:
+
+1. **Testar MCP memory-service** — iniciar o server e fazer o primeiro sync full via agent-memory-sync
+2. **Cross-project consistency** — criar workspace.instructions.md nas 4 branches que não têm (bewiser, STT, docker-framework, scripts)
+3. **Standardize lessons-learned** — normalizar formato XML em worktrees _bw e _pm/everyday_queries (usam formato diferente)
+4. **Update main branch template** — template workspace.instructions.md em .copilot-project-worktrees/main/ ainda tem formato antigo
+5. **URLs hardcoded** — parametrizar `github.com/pdmartins/` em project-workspace-create
+
+## Arquivos Relevantes
+
+### Criados
+- `.copilot-core/skills/agent/agent-impact-validate/SKILL.md` — nova skill de validação de cascata
+- `.copilot-core/skills/agent/agent-memory-sync/SKILL.md` — nova skill de sync MCP
+- `.copilot-core/templates/setup-scripts.md` — scripts de setup compartilhados
+- `.vscode/mcp.json` — configuração do MCP memory-service
+- `.gitattributes` — Git LFS para memory.db
+
+### Modificados (renomeados)
+- `.copilot-core/instructions/agent-skills-core.instructions.md` (era default.instructions.md)
+- `.copilot-project/instructions/agent-skills-project.instructions.md` (era workspace.instructions.md)
+- `.github/instructions/` — symlinks recriados com novos nomes
+
+### Modificados (conteúdo)
+- `.copilot-project/context/project.md` — deduplicated, counts, architecture
+- `.copilot-core/templates/workspace.instructions.md` — new symlinks, Capability Manifest
+- `.copilot-core/skills/agent/agent-action-review/SKILL.md` — chain, filenames
+- `.copilot-core/skills/agent/agent-catalog-query/SKILL.md` — +2 skills
+- `.copilot-core/skills/agent/agent-subagent-delegate/SKILL.md` — +2 skills, counts
+- `.copilot-core/skills/agent/agent-memory-query/SKILL.md` — v2.0 MCP-first
+- `.copilot-core/skills/agent/agent-memory-register/SKILL.md` — v2.0 dual-write
+- `.copilot-core/skills/project/project-context-query/SKILL.md` — v2.0 MCP search
+- `.copilot-core/skills/project/project-workspace-create/SKILL.md` — template reference
+- `.copilot-core/skills/project/project-setup-bootstrap/SKILL.md` — template reference
+- `.copilot-core/skills/skill/skill-output-validate/SKILL.md` — v2.0 Manifest validation
+- `.copilot-core/QUICK-START.md` — new symlink names
+- `.copilot-project/memory/lessons-learned.md` — +6 lessons
+
+## Contexto Adicional
+
+### Decisões Arquiteturais Chave
+- **2 symlinks** (não 1): `agent-skills-core` + `agent-skills-project` — propósitos distintos (core genérico vs project específico)
+- **MCP = índice derivado**: fonte de verdade permanece nos .md; SQLite é descartável e reconstruível via agent-memory-sync
+- **Dual-write**: agent-memory-register grava .md primeiro, depois sync MCP (MCP failure não bloqueia registro)
+- **Capability Manifest**: ~10 linhas substituem tabela de 56 rows, catálogos como Stage 2 de descoberta
+- **Git LFS para memory.db**: evita bloat no repo git com database binário
+
+### Contagem Final de Skills
+| Tipo | Qtd |
+|------|-----|
+| agent | 10 |
+| code | 22 |
+| project | 10 |
+| infra | 12 |
+| skill | 2 |
+| editor | 2 |
+| **Total** | **58** |

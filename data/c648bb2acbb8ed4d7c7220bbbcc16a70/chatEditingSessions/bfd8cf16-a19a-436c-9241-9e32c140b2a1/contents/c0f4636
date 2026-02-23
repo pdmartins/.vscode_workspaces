@@ -1,0 +1,171 @@
+---
+name: project-app-create
+description: Guia para adicionar uma nova aplicação dentro de um project submodule. Inclui criação do df.yml, docker-compose.yml e init scripts. Triggers: "nova app", "adicionar aplicação", "criar app", "novo serviço no projeto", "adicionar {nome} ao project".
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: project
+---
+
+# App Create
+
+Guia para adicionar uma nova aplicação dentro de um project submodule.
+
+## Quando Usar
+
+- Nova aplicação/serviço precisa ser adicionada a um projeto de equipe
+- Migrar aplicação existente para o framework
+- Usuário diz "criar app", "adicionar {nome}"
+
+## Estrutura de uma App
+
+```
+project-{team}/{app_name}/
+├── df.yml                # Manifesto de dependências do framework
+├── docker-compose.yml    # Build e execução da aplicação
+└── init/                 # Scripts de inicialização (por dependência)
+    ├── sql_server.sql    # Idempotente: CREATE DATABASE IF NOT EXISTS
+    ├── kafka.sh          # Idempotente: create topics --if-not-exists
+    └── mongodb.js        # Idempotente: createCollection if not exists
+```
+
+## Workflow
+
+### 1. Criar diretório da app
+
+```bash
+mkdir -p project-{team}/{app_name}/init
+```
+
+Nome da app em **lowercase**, sem espaços, pode usar underscore ou hyphen: `autocid`, `comissao`, `order-service`.
+
+### 2. Criar df.yml
+
+```yaml
+name: {app_name}
+project: project-{team}
+dependencies:
+  - {recurso_1}    # Ex: sql_server
+  - {recurso_2}    # Ex: kafka
+```
+
+**Regras do df.yml:**
+- `name`: nome da app (deve coincidir com o nome do diretório)
+- `project`: nome do submodule pai
+- `dependencies`: lista de recursos de `infra/` que esta app precisa
+- Portas e credenciais NÃO ficam aqui — vêm de `config/ports.yml` e `config/credentials.yml`
+
+### 3. Registrar porta do projeto
+
+Em `{projeto}/config/ports.yml` do submodule:
+
+```yaml
+{app_name}: {porta}   # Ex: autocid: 5100
+```
+
+Verificar que a porta não conflita com nenhuma outra entrada.
+
+### 4. Criar docker-compose.yml
+
+Template para app C# (.NET):
+
+```yaml
+services:
+  {app_name}:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: {app_name}
+    ports:
+      - "${APP_PORT}:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ConnectionStrings__Default=Server=infra-sql_server,${SQL_PORT};Database={app_name};User Id=sa;Password=${SQL_SA_PASSWORD};TrustServerCertificate=true
+      - Kafka__BootstrapServers=infra-kafka:${KAFKA_PORT}
+    networks:
+      - df-network
+    labels:
+      managed-by: docker-framework
+      df.type: project
+      df.project: project-{team}
+      df.app: {app_name}
+    depends_on: []    # Deps são gerenciadas pelo CLI, não pelo compose
+
+networks:
+  df-network:
+    name: df-network
+    external: true
+```
+
+**Regras do compose:**
+- Container name: `{app_name}` (sem prefixo)
+- Network: `df-network` (external)
+- Labels obrigatórias para identificação pelo framework
+- `depends_on`: vazio — o CLI gerencia a ordem de startup
+- Variáveis de ambiente referenciam infra por container name (`infra-sql_server`, `infra-kafka`)
+- Portas e credenciais são injetadas via `.env` gerado pelo CLI a partir dos config YAMLs
+- NUNCA usar valores default (${VAR:-default}) no compose — `.env` é a fonte
+
+### 5. Criar init scripts
+
+Um init script por dependência. Cada um DEVE ser **idempotente**.
+
+**SQL Server** (`init/sql_server.sql`):
+```sql
+IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = '{app_name}')
+  CREATE DATABASE [{app_name}];
+GO
+```
+
+**Kafka** (`init/kafka.sh`):
+```bash
+#!/usr/bin/env bash
+kafka-topics --create --if-not-exists \
+  --topic {app_name}.events \
+  --partitions 3 \
+  --replication-factor 1 \
+  --bootstrap-server kafka:9092
+```
+
+**MongoDB** (`init/mongodb.js`):
+```javascript
+db = db.getSiblingDB('{app_name}');
+if (!db.getCollectionNames().includes('_init')) {
+  db.createCollection('_init');
+}
+```
+
+Ver `infra-initscript-create` skill para templates completos por tipo de recurso.
+
+## Checklist
+
+- [ ] Diretório `project-{team}/{app_name}/` criado
+- [ ] `df.yml` com name, project e dependencies
+- [ ] Porta registrada em `{projeto}/config/ports.yml` → `{app_name}: {porta}`
+- [ ] `docker-compose.yml` com labels, network, variáveis via env
+- [ ] Init script criado para cada dependência (idempotente)
+- [ ] Testado: `df start` na pasta da app sobe infra + app corretamente
+- [ ] Testado: init scripts executam sem erro quando rodados múltiplas vezes
+
+## Exemplo Completo: autocid
+
+```
+project-hv/autocid/
+├── df.yml
+│   name: autocid
+│   project: project-hv
+│   dependencies:
+│     - sql_server
+│     - kafka
+├── docker-compose.yml   (build C# + container autocid)
+└── init/
+    ├── sql_server.sql   (CREATE DATABASE autocid IF NOT EXISTS)
+    └── kafka.sh         (create topic autocid.events --if-not-exists)
+```
+
+Resultado de `df start`:
+```
+✓ sql_server  :1433  (já estava rodando)
+✓ kafka       :9092  (iniciado)
+✓ autocid     :5100  (build + iniciado)
+```

@@ -1,0 +1,31 @@
+# code-controller-generate — BeWiser Assistant API Configuration
+# Consumed by core skill: .copilot-core/skills/code/code-controller-generate/SKILL.md
+
+language: csharp
+framework: dotnet-8
+solution: BeWiser.Assistant
+
+project:
+  root_namespace: BeWiser.Assistant
+  api_namespace: Bewiser.Assistant.Api
+
+controllers:
+  namespace: Bewiser.Assistant.Api.Controllers
+  contracts_requests: Bewiser.Assistant.Api.Contracts.Requests
+  contracts_responses: Bewiser.Assistant.Api.Contracts.Responses
+  route_prefix: "api/[controller]"
+  id_type: guid
+
+domains:
+  - name: Assistant
+    plural: Assistants
+    route: assistants
+  - name: Conversation
+    plural: Conversations
+    route: conversations
+  - name: Message
+    plural: Messages
+    route: messages
+  - name: Tenant
+    plural: Tenants
+    route: tenants

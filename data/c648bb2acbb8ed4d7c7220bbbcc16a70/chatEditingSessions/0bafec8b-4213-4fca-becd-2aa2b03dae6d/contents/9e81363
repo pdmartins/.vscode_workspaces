@@ -1,0 +1,7 @@
+# Capability Manifest
+
+- **date**: 2026-02-16
+- **status**: active
+- **context**: Tabela completa de 56 skills nos instruction files consumia tokens desnecessários em TODA conversa
+- **decision**: Instruction files always-loaded contêm apenas tabela compacta com tipo, quantidade, catálogo e exemplos (~10 linhas). Descoberta completa via `{tipo}-catalog-query`. Lista "Always-Known" de ~10 skills inline para ativação direta
+- **outcome**: Redução de ~158 para ~15 linhas por instruction file. Catálogos como mecanismo principal de descoberta. Padrão aplicável a qualquer sistema com inventário grande que precisa ser lazy-loaded

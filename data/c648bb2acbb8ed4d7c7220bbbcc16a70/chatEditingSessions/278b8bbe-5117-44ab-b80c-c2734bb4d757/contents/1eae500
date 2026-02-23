@@ -1,0 +1,54 @@
+name: Sync Core Branch
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'instructions/**'
+      - 'skills/**'
+      - 'templates/**'
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Sync to core branch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create or switch to core branch
+          if git ls-remote --heads origin core | grep -q core; then
+            git checkout core
+            # Remove all tracked files
+            git rm -rf . 2>/dev/null || true
+          else
+            git checkout --orphan core
+            git rm -rf . 2>/dev/null || true
+          fi
+
+          # Bring only the needed folders from main
+          git checkout main -- instructions/
+          git checkout main -- skills/
+          git checkout main -- templates/
+
+          # Capture original commit message from main
+          ORIGINAL_MSG=$(git log main -1 --pretty=%s)
+
+          # Commit and push
+          git add -A
+          if git diff --cached --quiet; then
+            echo "No changes to sync."
+          else
+            git commit -m "sync: ${ORIGINAL_MSG}"
+            git push origin core --force
+            echo "Core branch updated with: sync: ${ORIGINAL_MSG}"
+          fi

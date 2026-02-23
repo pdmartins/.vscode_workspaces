@@ -1,0 +1,101 @@
+# Config for code-unittest-generate
+# Project: BeWiser Assistant API
+
+root_namespace: BeWiser.Assistant
+test_project: BeWiser.Assistant.UnitTests
+
+frameworks:
+  test: xUnit
+  mock: NSubstitute
+  assertion: FluentAssertions
+
+entities:
+  primary:
+    name: Conversation
+    properties:
+      - name: Id
+        type: Guid
+      - name: PhoneNumber
+        type: PhoneNumberVO
+      - name: AssistantPhoneNumber
+        type: PhoneNumberVO
+      - name: Status
+        type: ConversationStatus
+      - name: AssistantId
+        type: Guid
+      - name: CreatedAt
+        type: DateTime
+    statuses:
+      - Active
+      - Ended
+    children:
+      - entity: Message
+        collection: Messages
+  secondary:
+    - name: Message
+      properties:
+        - name: Id
+          type: Guid
+        - name: ConversationId
+          type: Guid
+        - name: Content
+          type: string
+        - name: Direction
+          type: MessageDirection
+        - name: SentAt
+          type: DateTime
+
+commands:
+  - name: ProcessMessageCommand
+    properties:
+      - name: From
+        type: string
+        default: "+5511999999999"
+      - name: To
+        type: string
+        default: "+5511888888888"
+      - name: Body
+        type: string
+        default: "Test message"
+      - name: MessageSid
+        type: string
+        default: "SM{Guid}"
+
+handlers:
+  - name: ProcessMessageCommandHandler
+    dependencies:
+      - IConversationRepository
+      - IMessagePublisher
+      - ILogger<ProcessMessageCommandHandler>
+
+queries:
+  - name: GetConversationQuery
+    handler: GetConversationQueryHandler
+    dependencies:
+      - IConversationRepository
+      - ILogger<GetConversationQueryHandler>
+
+value_objects:
+  - name: PhoneNumberVO
+    valid_examples:
+      - "+5511999999999"
+      - "+14155551234"
+    invalid_examples:
+      - ""
+      - "null"
+      - "invalid"
+      - "5511999999999"
+
+builders:
+  - name: ConversationBuilder
+    target: entity
+    entity: Conversation
+  - name: MessageBuilder
+    target: entity
+    entity: Message
+  - name: ProcessMessageCommandBuilder
+    target: command
+    command: ProcessMessageCommand
+  - name: MessageDtoBuilder
+    target: dto
+    dto: MessageDto

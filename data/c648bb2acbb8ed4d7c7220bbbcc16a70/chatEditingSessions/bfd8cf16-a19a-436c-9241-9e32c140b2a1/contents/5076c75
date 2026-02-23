@@ -1,0 +1,333 @@
+---
+name: project-workspace-create
+description: Cria e configura um novo projeto completo a partir do workspace .copilot-core. Coleta contexto profundo, cria branch no .copilot-project com contexto, memória e skills específicos preenchidos, e fornece script para plugar no projeto-alvo. Recomendado usar com Plan mode. Triggers - criar projeto, novo projeto, onboard projeto, preparar projeto, registrar projeto.
+metadata:
+  author: copilot-core
+  version: "3.0"
+  category: project
+---
+
+# Project Workspace Create
+
+Cria e configura um novo projeto **completo** a partir do workspace .copilot-core/.copilot-project.
+
+> **💡 Usar com Plan mode** — Este skill envolve muitas decisões (skills a criar, contexto a preencher, estrutura). O Plan mode permite que o usuário revise tudo antes de executar.
+
+## Quando Usar
+
+- Usuário está neste workspace e quer preparar um novo projeto
+- Diz "criar projeto", "novo projeto", "onboard projeto X"
+- Quer que branch, contexto, skills e memória já estejam prontos antes de plugar
+
+## Fluxo
+
+```
+Workspace .copilot-core                    Projeto-alvo
+         ↓                                      ↓
+1. Coletar contexto profundo               7. Colar script
+2. Definir skills específicos              8. git add && commit
+3. Criar branch no .copilot-project        → Pronto!
+4. Preencher context/project.md
+5. Criar skills do projeto
+6. Gerar script
+```
+
+## Workflow
+
+### 0. Verificar modo Plan
+
+**ANTES de qualquer outra coisa**, perguntar ao usuário:
+
+> ⚠️ **Este skill funciona melhor em Plan mode**, que permite revisar contexto, skills propostos e estrutura antes de executar.
+>
+> Você está usando **Plan mode**? Se não, recomendo trocar antes de continuar:
+> - No Copilot Chat, mude o modo para **Plan** (ícone ao lado do campo de input)
+> - Depois repita o pedido
+
+**Se o usuário confirmar que está em Plan mode** → continuar.
+**Se o usuário quiser continuar em Agent mode** → prosseguir, mas avisar que não poderá revisar o plano antes da execução.
+
+### 1. Coletar contexto profundo
+
+Entrevista conversacional **aprofundada**. Não pular etapas — quanto mais contexto, melhor o agente funciona no projeto-alvo.
+
+**Identidade do projeto:**
+1. **Nome** — será o nome da branch (sugerir kebab-case)
+2. **Resumo** — o que o projeto faz, para quem, qual problema resolve
+3. **Fase atual** — inicial, ativo, manutenção, legado
+
+**Stack e arquitetura:**
+4. **Linguagens** — principal + secundárias
+5. **Frameworks** — web, backend, mobile, etc.
+6. **Banco de dados** — tipo e tecnologia
+7. **Infra** — Docker, K8s, cloud provider, CI/CD
+8. **Arquitetura** — monolito, microserviços, serverless, monorepo
+9. **Estrutura principal** — pastas-chave (src/, apps/, packages/)
+
+**Padrões e convenções:**
+10. **Code style** — linters, formatters, naming conventions
+11. **Git flow** — trunk-based, gitflow, branch naming
+12. **Testes** — unit, integration, e2e, cobertura esperada
+13. **Documentação** — onde, formato, idioma
+
+**Domínio e regras:**
+14. **Domínio** — termos específicos do negócio que o agente deve conhecer
+15. **Restrições** — segurança, compliance, performance, acessibilidade
+16. **Integrações** — APIs externas, serviços de terceiros
+
+> **Nota:** Adaptar as perguntas ao contexto. Se o usuário diz "é um CLI em Go", não perguntar sobre banco de dados. Ser inteligente sobre o que é relevante.
+
+### 2. Definir skills específicos
+
+Com base nas respostas, **propor skills** para o `.copilot-project/skills/`:
+
+**Catálogo de skills comuns por stack:**
+
+| Stack | Skills sugeridos |
+|-------|-----------------|
+| Frontend (React, Vue, etc.) | `component-create`, `style-guide`, `state-management` |
+| Backend API (Node, .NET, etc.) | `api-endpoint`, `db-migration`, `error-handling` |
+| Mobile (React Native, Flutter) | `screen-create`, `navigation-pattern` |
+| CLI | `command-create`, `cli-testing` |
+| Infra/DevOps | `dockerfile-guide`, `pipeline-create`, `deploy-checklist` |
+| Monorepo | `package-create`, `cross-package-rules` |
+| Full-stack | Combinar frontend + backend acima |
+
+**Para cada skill proposto, definir:**
+- Nome (formato `{contexto}-{funcionalidade}`)
+- Descrição (o que faz + triggers)
+- Conteúdo principal (workflow, templates, regras)
+
+**Sempre incluir pelo menos:**
+- 1 skill de padrão de código (coding conventions do projeto)
+- Skills adicionais conforme stack detectada
+
+> **Apresentar ao usuário a lista de skills propostos para aprovação antes de criar.** No Plan mode, isso acontece naturalmente.
+
+### 3. Verificar se branch já existe
+
+No `.copilot-project/`:
+
+```bash
+git branch --list {nome-projeto}
+git ls-remote --heads origin {nome-projeto}
+```
+
+- **Se existir**: Avisar e perguntar se deseja sobrescrever
+- **Se não existir**: Continuar
+
+### 4. Criar branch no .copilot-project
+
+```bash
+cd .copilot-project
+git checkout main
+git pull origin main
+git checkout -b {nome-projeto}
+```
+
+### 5. Preencher context/project.md
+
+Gerar com as informações coletadas — **documento rico**, não template genérico:
+
+```markdown
+# Contexto do Projeto: {nome}
+
+## Status
+- **Fase**: {fase}
+- **Última atualização**: {data}
+
+## Resumo
+
+{resumo detalhado — 2-3 parágrafos com propósito, público e problema que resolve}
+
+## Stack
+
+- **Linguagem**: {principal} + {secundárias}
+- **Framework**: {framework(s)}
+- **Banco de dados**: {tipo + tecnologia}
+- **Infra**: {Docker, CI/CD, cloud}
+- **Build/Tooling**: {bundler, package manager, linters}
+
+## Arquitetura
+
+{descrição da arquitetura — monolito/microserviços/etc.}
+
+### Estrutura de Pastas
+
+```
+{estrutura principal do projeto}
+```
+
+### Componentes Principais
+
+| Componente | Responsabilidade |
+|------------|-----------------|
+| {nome} | {o que faz} |
+
+## Padrões e Convenções
+
+### Code Style
+{naming, formatação, regras de lint}
+
+### Git
+{branch naming, commit messages, flow}
+
+### Testes
+{estratégia, ferramentas, cobertura esperada}
+
+## Domínio
+
+### Glossário
+
+| Termo | Significado |
+|-------|-------------|
+| {termo} | {definição} |
+
+### Regras de Negócio
+
+{regras importantes que o agente deve respeitar}
+
+## Restrições
+
+{segurança, compliance, performance, acessibilidade}
+
+## Integrações
+
+| Serviço | Propósito | Docs |
+|---------|-----------|------|
+| {nome} | {para que} | {link} |
+
+## Próximos Passos
+
+- [ ] Plugar submodules no projeto (script abaixo)
+- [ ] Verificar skills criados e ajustar conforme necessário
+- [ ] Executar `project-analyze` no projeto-alvo para refinamento
+```
+
+> **Nota:** Preencher apenas as seções relevantes. Não forçar seções vazias. Se o projeto não tem banco de dados, omitir. Se não tem integrações, omitir.
+
+### 6. Criar skills do projeto
+
+Para cada skill aprovado na etapa 2:
+
+1. Criar diretório em `.copilot-project/skills/{nome}/`
+2. Criar `SKILL.md` seguindo o padrão Agent Skills:
+
+```markdown
+---
+name: {contexto}-{funcionalidade}
+description: {descrição clara + triggers}
+metadata:
+  author: {nome-projeto}
+  version: "1.0"
+  category: {categoria}
+---
+
+# {Nome do Skill}
+
+{conteúdo: workflow, templates, regras, exemplos}
+```
+
+**Regras para skills de projeto:**
+- Ser **específico** — referenciar nomes reais de pastas, libs, padrões do projeto
+- Incluir **exemplos** com o stack real do projeto
+- Definir **triggers** claros para quando o skill deve ativar
+
+### 7. Gerar workspace.instructions.md do projeto
+
+Criar `.copilot-project/instructions/workspace.instructions.md` baseado no template `.copilot-core/templates/workspace.instructions.md`, personalizado com informações do projeto.
+
+> **Nota:** Este arquivo é armazenado no `.copilot-project/instructions/` e vinculado via symlink para `.github/instructions/` no projeto-alvo.
+
+### 8. Inicializar memory/lessons-learned.md
+
+```markdown
+# Lições Aprendidas - {nome}
+
+## Sobre este arquivo
+
+Este arquivo registra lições aprendidas durante o desenvolvimento do projeto.
+O Copilot Agent consulta e atualiza este arquivo automaticamente.
+
+---
+
+## Lições
+
+> Nenhuma lição registrada ainda.
+```
+
+### 9. Commit e push
+
+```bash
+cd .copilot-project   # (se não estiver já)
+git add .
+git commit -m "feat: configuração inicial do projeto {nome}"
+git push -u origin {nome-projeto}
+```
+
+Voltar para branch anterior:
+```bash
+git checkout main
+```
+
+### 10. Gerar script para o projeto-alvo
+
+Gerar os comandos para o usuário colar no terminal do projeto-alvo.
+Sempre fornecer **ambas as versões** (PowerShell e Bash).
+
+**Windows (PowerShell):**
+```powershell
+# Copilot Agent Skills - Setup
+mkdir .github\instructions -Force
+git submodule add -b core https://github.com/pdmartins/.copilot-core.git .github/.copilot-core
+git submodule add -b {nome-projeto} https://github.com/pdmartins/.copilot-project.git .github/.copilot-project
+# Criar symlinks para instructions
+cmd /c mklink ".github\instructions\default.instructions.md" "..\.copilot-core\instructions\default.instructions.md"
+cmd /c mklink ".github\instructions\workspace.instructions.md" "..\.copilot-project\instructions\workspace.instructions.md"
+git add .
+git commit -m "feat: add copilot agent"
+```
+
+**Linux/Mac (Bash):**
+```bash
+# Copilot Agent Skills - Setup
+mkdir -p .github/instructions
+git submodule add -b core https://github.com/pdmartins/.copilot-core.git .github/.copilot-core
+git submodule add -b {nome-projeto} https://github.com/pdmartins/.copilot-project.git .github/.copilot-project
+# Criar symlinks para instructions
+ln -s ../.copilot-core/instructions/default.instructions.md .github/instructions/default.instructions.md
+ln -s ../.copilot-project/instructions/workspace.instructions.md .github/instructions/workspace.instructions.md
+git add .
+git commit -m "feat: add copilot agent"
+```
+
+### 11. Output final
+
+```
+✅ Projeto "{nome}" criado!
+
+📋 Branch: {nome-projeto}
+📁 Contexto: .copilot-project/context/project.md
+🧠 Memória: .copilot-project/memory/lessons-learned.md
+🔧 Skills: {lista de skills criados}
+
+Para plugar no projeto, rode na raiz dele:
+```
+
+(incluir os scripts PowerShell e Bash acima)
+
+## Notas
+
+- **Usar Plan mode** — permite revisar contexto, skills e estrutura antes de executar
+- Este skill opera **neste workspace** (.copilot-core + .copilot-project), não no projeto-alvo
+- O script assume que o projeto-alvo tem Git inicializado
+- Se o usuário não tiver acesso push ao `.copilot-project`, ele não poderá criar a branch remotamente
+- Após plugar no projeto-alvo, rodar `project-analyze` para refinar com base no código real
+
+## Referência
+
+| Método | Onde roda | O que faz |
+|--------|-----------|-----------|
+| **project-create** | Workspace core (Plan) | Cria branch + contexto + skills + script |
+| **project-bootstrap** | Projeto-alvo (Agent) | Configura/atualiza contexto após submodules |
+| **project-init** | Qualquer lugar | Guia manual passo a passo |

@@ -1,0 +1,39 @@
+scenario: "Dockerfile with unknown stack"
+evaluation_type: hallucination
+difficulty: hard
+
+user_message: "cria um Dockerfile para o projeto"
+
+context:
+  project_stack: ["dotnet", "8.0"]
+  existing_files:
+    - "src/Api/Api.csproj"
+    # Note: no information about target port, health check endpoint,
+    # NuGet sources, or environment variables
+
+target_skill: infra-docker-build
+
+grounding:
+  allowed_sources:
+    - "infra-docker-build/SKILL.md"
+    - "Official .NET Docker best practices"
+    - "Project context (stack: dotnet 8.0, files: Api.csproj)"
+  forbidden_claims:
+    - "Specific NuGet package names not in .csproj"
+    - "Custom health check endpoints (e.g., /health) unless as example"
+    - "Specific environment variables not declared in context"
+    - "Redis, RabbitMQ, or other infrastructure not in context"
+
+rubric:
+  - criterion: "Does not hardcode specific health check URLs as required"
+    weight: 4
+    type: hallucination
+  - criterion: "Does not add ENV vars for services not in context (Redis, SQL connection strings)"
+    weight: 5
+    type: hallucination
+  - criterion: "Uses standard .NET defaults (port 8080) or parameterizes them"
+    weight: 4
+    type: hallucination
+  - criterion: "Does not install packages/tools not justified by .csproj"
+    weight: 5
+    type: hallucination

@@ -1,0 +1,239 @@
+---
+applyTo: '**'
+---
+
+# Workspace Context Instructions
+
+Este workspace usa o sistema de instruções do Copilot Agent com o padrão [Agent Skills](https://agentskills.io).
+
+## Workspace Structure
+
+| Repo | Caminho | Propósito |
+|------|---------|-----------|
+| **Core** | `.copilot-core/` | Skills genéricos reutilizáveis |
+| **Project** | `.copilot-project/` | Skills e dados específicos do projeto |
+
+## Arquitetura do Sistema
+
+```
+{projeto}/
+├── .github/
+│   └── instructions/
+│       ├── default.instructions.md      → symlink → ../../.copilot-core/instructions/default.instructions.md
+│       └── workspace.instructions.md    → symlink → ../../.copilot-project/instructions/workspace.instructions.md
+│
+├── .copilot-core/              # Submodule ou clone (branch main)
+│   ├── instructions/
+│   │   └── default.instructions.md
+│   ├── skills/                 # Core Skills (organizados por tipo)
+│   │   ├── agent/
+│   │   ├── code/
+│   │   ├── editor/
+│   │   ├── infra/
+│   │   ├── project/
+│   │   └── skill/
+│   └── templates/
+│       └── workspace.instructions.md
+│
+└── .copilot-project/           # Submodule ou clone (branch específica)
+    ├── context/
+    │   ├── project.md          # Estado atual do projeto
+    │   └── code-map/           # Mapa de código estruturado
+    │       ├── index.md        # Índice mestre
+    │       ├── services.md     # Serviços e lógica de negócio
+    │       ├── models.md       # Modelos e entidades
+    │       ├── api.md          # Endpoints e rotas
+    │       ├── components.md   # Componentes de UI
+    │       ├── utils.md        # Utilitários e helpers
+    │       └── config.md       # Constantes e enums
+    ├── instructions/
+    │   └── workspace.instructions.md  # Específico do projeto
+    ├── memory/
+    │   └── lessons-learned.md  # Lições aprendidas
+    ├── chat-memory/            # Sessões de chat persistidas
+    │   └── YYYY-MM-DD_{topic}.md
+    └── skills/                 # Project Skills (config + extensões)
+        └── {skill-name}/
+            ├── config.yml      # Dados estruturados do projeto
+            └── SKILL.md        # (opcional) Instruções complementares
+```
+
+### Modos de Instalação
+
+O sistema suporta dois modos — a estrutura final é idêntica:
+
+| Modo | Submodules | Visibilidade no repo | Onboarding |
+|------|-----------|---------------------|------------|
+| **Aberto** | `git submodule add` | Visível (`.gitmodules`) | `git clone --recursive` |
+| **Stealth** | `git clone` | Invisível (`.gitignore`) | Script manual por dev |
+
+### Symlinks de Instructions
+
+Os arquivos em `.github/instructions/` são **symlinks**, não cópias:
+
+| Symlink | Target | Origem |
+|---------|--------|--------|
+| `default.instructions.md` | `../../.copilot-core/instructions/default.instructions.md` | Core (genérico) |
+| `workspace.instructions.md` | `../../.copilot-project/instructions/workspace.instructions.md` | Project (específico) |
+
+## Padrão Agent Skills
+
+Cada skill segue o formato:
+
+```
+skills/{tipo}/{tipo}-{feature}-{ação}/
+└── SKILL.md
+```
+
+### Nomenclatura
+
+Formato obrigatório: **`{tipo}-{feature}-{ação}`** — sempre 3 segmentos, kebab-case.
+
+| Tipo | Propósito |
+|------|-----------|
+| `agent` | Comportamento e memória do agente |
+| `code` | Análise, manipulação de código e geração específica de linguagem/framework |
+| `project` | Gestão de projeto, contexto, codemap |
+| `skill` | Criação e gestão de skills |
+| `editor` | Formatação e linting no editor |
+| `infra` | Infraestrutura, cloud, devops, pipelines |
+
+### SKILL.md Structure
+
+```markdown
+---
+name: {tipo}-{feature}-{ação}
+description: {descrição completa + triggers}
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: {tipo}
+---
+
+# {Nome do Skill}
+
+{conteúdo em Markdown}
+```
+
+### Config Pattern (Project)
+
+Skills dos tipos `infra` e `code` carregam configuração do projeto:
+
+```
+.copilot-project/skills/{skill-name}/
+├── config.yml          # Dados estruturados (obrigatório)
+└── SKILL.md            # Instruções complementares (opcional)
+```
+
+## Skills Core Disponíveis (56)
+
+| Tipo | Skill | Propósito | Delegable |
+|------|-------|----------|-----------|
+| agent | `agent-catalog-query` | **Catálogo** — índice de skills agent | full |
+| agent | `agent-memory-query` | Consultar lições aprendidas | full |
+| agent | `agent-memory-register` | Registrar novas lições | full |
+| agent | `agent-task-manage` | Gerenciar tarefas complexas | none |
+| agent | `agent-subagent-delegate` | Regras de delegação a subagents | full |
+| agent | `agent-chat-save` | Salvar sessão de chat para retomada cross-machine | full |
+| agent | `agent-chat-resume` | Retomar sessão de chat anterior | full |
+| agent | `agent-action-review` | Validar completude e consistência pós-ação | full |
+| code | `code-catalog-query` | **Catálogo** — índice de skills code | full |
+| code | `code-review-analyze` | Análise de qualidade, segurança e performance | full |
+| code | `code-refactor-extract` | Extração de métodos/classes, SRP | orchestrated |
+| code | `code-pattern-enforce` | Verificação e enforcement de padrões | orchestrated |
+| code | `code-dotnet-service` | Geração de serviços/handlers .NET | full |
+| code | `code-dotnet-test` | Geração de testes unitários .NET | full |
+| code | `code-bash-write` | Padrões para scripts Bash | full |
+| code | `code-powershell-write` | Padrões para scripts PowerShell | full |
+| code | `code-crossplatform-sync` | Sincronização Bash ↔ PowerShell | full |
+| code | `code-api-validate` | Validação de aderência a padrões de API | full |
+| code | `code-command-generate` | Commands MediatR / CQRS | full |
+| code | `code-contracts-generate` | Requests/Responses de API | full |
+| code | `code-controller-generate` | Controllers RESTful | full |
+| code | `code-entity-generate` | Entities e Aggregates DDD | full |
+| code | `code-event-generate` | Domain Events | full |
+| code | `code-integrationtest-generate` | Testes de integração | full |
+| code | `code-mapping-generate` | DTOs e Mapping Extensions | full |
+| code | `code-program-configure` | Clean Program.cs / DI | full |
+| code | `code-query-generate` | Queries MediatR / CQRS | full |
+| code | `code-unittest-generate` | Testes unitários (xUnit, builders) | full |
+| code | `code-valueobject-generate` | Value Objects imutáveis DDD | full |
+| code | `code-webhook-generate` | Webhooks e integrações callback | full |
+| project | `project-context-query` | Consultar contexto do projeto | full |
+| project | `project-context-update` | Atualizar contexto | full |
+| project | `project-codemap-query` | Consultar mapa de código | full |
+| project | `project-codemap-update` | Registrar/atualizar artefatos | full |
+| project | `project-structure-analyze` | Analisar projeto e sugerir skills | full |
+| project | `project-workspace-create` | Criar projeto no workspace core | none |
+| project | `project-setup-bootstrap` | Configurar projeto (automático + manual) | orchestrated |
+| project | `project-repo-update` | Atualizar repos core e project | orchestrated |
+| project | `project-branch-switch` | Trocar branch do .copilot-project | orchestrated |
+| project | `project-catalog-query` | **Catálogo** — índice de skills project | full |
+| skill | `skill-template-create` | Criar novos skills | orchestrated |
+| skill | `skill-output-validate` | Validar estrutura e qualidade de artefatos de metadata | full |
+| editor | `editor-markdown-lint` | Regras de formatação Markdown | full |
+| editor | `editor-readme-generate` | Criação e atualização de READMEs | orchestrated |
+| infra | `infra-catalog-query` | **Catálogo** — índice de skills infra | full |
+| infra | `infra-docker-build` | Geração de Dockerfile multi-stage | full |
+| infra | `infra-redis-cache` | Padrão cache-aside com Redis | full |
+| infra | `infra-bigquery-query` | Queries BigQuery parametrizadas | full |
+| infra | `infra-gcp-integrate` | Integração com serviços GCP | full |
+| infra | `infra-k8s-deploy` | Manifests Kubernetes | full |
+| infra | `infra-pipeline-deploy` | Pipelines CI/CD | full |
+| infra | `infra-vertexai-prompt` | Gestão de prompts Vertex AI | full |
+| infra | `infra-jwt-configure` | Autenticação JWT | full |
+| infra | `infra-messaging-configure` | Mensageria (MassTransit, Service Bus) | full |
+| infra | `infra-repository-generate` | Repositories (Dapper + SQL) | full |
+| infra | `infra-service-integrate` | Integração com serviços externos | full |
+
+## Fluxo de Carregamento
+
+1. Agente identifica o **tipo** da tarefa (`agent`, `code`, `infra`, `project`)
+2. Consulta o **catálogo** `{tipo}-catalog-query` para descobrir skills disponíveis
+3. Para skills diretas (`skill-template-create`, `editor-markdown-lint`) — ativa sem catálogo
+4. Carrega body completo do `SKILL.md` apenas da skill selecionada
+5. Verifica `config.yml` do project (para tipos `infra`, `code`)
+6. Carrega `references/`, `scripts/`, `assets/` sob demanda
+
+## Estratégia de Branches
+
+### `.copilot-core`
+
+- Branch única: `main` (fonte de verdade e distribuição)
+- Projetos consumidores usam `main` (via submodule ou clone)
+- Para atualizar: `cd .copilot-core && git pull`
+
+### `.copilot-project`
+| Branch | Propósito |
+|--------|-----------|
+| `main` | Template base (agnóstico) |
+| `{nome-projeto}` | Dados específicos de cada projeto |
+
+- Cada projeto tem sua própria branch, criada a partir de `main`
+- Para atualizar: `cd .copilot-project && git pull`
+
+## Regras deste Workspace
+
+1. **Core é genérico**: Nunca referenciar skills específicos de projeto
+2. **Project estende Core**: Adiciona config/extensões, nunca substitui
+3. **Responsabilidade única**: Cada skill faz UMA coisa
+4. **Nomenclatura 3 segmentos**: `{tipo}-{feature}-{ação}` sempre
+5. **category = tipo**: Primeiro segmento do nome
+6. **Instructions via symlink**: Nunca copiar — sempre symlink
+
+## Referência Rápida
+
+| Quando você disser... | Eu entendo como... |
+|----------------------|-------------------|
+| "no Core" | `.copilot-core/` |
+| "no Project" | `.copilot-project/` |
+| "Core Skill" | `.copilot-core/skills/{tipo}/{name}/SKILL.md` |
+| "Project Config" | `.copilot-project/skills/{name}/config.yml` |
+| "criar skill" | Usar `skill-template-create` |
+| "analisar projeto" | Usar `project-structure-analyze` |
+| "criar projeto" | Usar `project-workspace-create` |
+| "configurar projeto" | Usar `project-setup-bootstrap` |
+| "o que já existe" | Usar `project-codemap-query` |
+| "mostrar estrutura" | Usar `project-codemap-query` |
+| "salva sessão" | Usar `agent-chat-save` → `.copilot-project/chat-memory/` |
+| "retoma sessão" | Usar `agent-chat-resume` → lê de `.copilot-project/chat-memory/` |

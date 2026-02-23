@@ -1,0 +1,86 @@
+---
+name: project-repo-update
+description: Atualiza os repositórios core e project para versões mais recentes. Use quando usuário pedir para "atualizar prompts", "pull updates", ou periodicamente para manter skills atualizados. Triggers: "atualizar prompts", "atualizar core", "pull updates", "sincronizar skills".
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: project
+---
+
+# Project Repo Update
+
+Atualiza os repositórios core e project para versões mais recentes.
+
+## Quando Usar
+
+- Usuário pede para "atualizar prompts"
+- Usuário pede "pull updates" ou "sincronizar"
+- Periodicamente para manter skills atualizados
+- Após saber que há nova versão disponível
+
+## Workflow
+
+### 1. Verificar estrutura
+
+Verificar se existem:
+- `.copilot-core/`
+- `.copilot-project/`
+
+**Se não existem:**
+→ Informar que projeto não está inicializado
+→ Sugerir usar `project-setup-bootstrap`
+
+### 2. Atualizar core
+
+```bash
+cd .copilot-core
+git pull
+```
+
+**Output**:
+```
+🔄 Core atualizado
+- Branch: {branch-atual}
+- Status: {n} arquivos atualizados
+```
+
+### 3. Atualizar project
+
+Verificar branch atual:
+```bash
+cd .copilot-project
+git branch --show-current
+```
+
+Atualizar:
+```bash
+git pull origin {branch-atual}
+```
+
+**Output**:
+```
+🔄 Project atualizado
+- Branch: {branch-atual}
+- Status: {n} arquivos atualizados
+```
+
+### 4. Verificar conflitos
+
+**Se há conflitos:**
+→ Listar arquivos em conflito
+→ Perguntar ao usuário como resolver
+
+### 5. Confirmar atualização
+
+**Output**:
+```
+✅ **Repositórios atualizados**
+- Core: core (up-to-date)
+- Project: {branch} (up-to-date)
+```
+
+## Notas
+
+- O `.copilot-core/` sempre usa branch `main`
+- O `.copilot-project/` usa branch específica do projeto
+- Os repositórios estão no `.gitignore` do projeto principal

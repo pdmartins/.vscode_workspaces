@@ -1,0 +1,32 @@
+---
+applyTo: '**'
+---
+
+# Workspace Context — STT (Speech-To-Text) + AutoCid
+
+Multi-repo workspace com 7 repositórios e 6+ serviços integrados para transcrição de voz e predição de CID-10 no fluxo médico Hapvida.
+
+## Sobre o Projeto
+
+- **STT**: Upload áudio → GCS → Pub/Sub → Vertex AI (Gemini) → transcrição com sintomas e CIDs
+- **AutoCid**: Anamnese → BERT/Gemini → sugestão de CID-10
+- **Stack principal**: Angular 5, Python/Django, Java 8/WildFly, .NET 6/8, GCP (Vertex AI, BigQuery, Pub/Sub, GCS)
+
+## Convenções
+
+- **Idioma chat**: Português brasileiro
+- **Idioma código**: Inglês
+- **Multi-repo**: Cada repo tem sua stack e versão — respeitar tecnologia de cada um
+
+## Skills Core Relevantes
+
+| Skill | Uso |
+|-------|-----|
+| `code-dotnet-service` | Serviços .NET (VoiceTranscription, CidPrediction) |
+| `infra-gcp-integrate` | Integração GCP (Pub/Sub, GCS, BigQuery) |
+| `infra-vertexai-prompt` | Gestão de prompts Vertex AI |
+| `infra-bigquery-query` | Queries BigQuery parametrizadas |
+| `infra-docker-build` | Dockerfile multi-stage |
+| `infra-k8s-deploy` | Manifests Kubernetes |
+| `agent-memory-query` | Consultar lições aprendidas |
+| `project-context-query` | Consultar contexto do projeto |

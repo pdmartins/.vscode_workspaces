@@ -1,0 +1,48 @@
+# Project Skills — Scripts
+
+Skills específicos deste projeto seguindo o padrão [Agent Skills](https://agentskills.io).
+
+## Nomenclatura
+
+Formato obrigatório: **`{tipo}-{feature}-{ação}`** — sempre 3 segmentos, kebab-case.
+
+| Tipo | Propósito |
+|------|-----------|
+| `code` | Análise e manipulação de código |
+| `editor` | Documentação e formatação |
+| `code` | Análise, manipulação de código e geração específica de linguagem/framework |
+
+## Estrutura
+
+```
+skills/
+└── {tipo}-{feature}-{ação}/
+    └── SKILL.md
+```
+
+## Skills Disponíveis (5)
+
+| Tipo | Skill | Propósito |
+|------|-------|-----------|
+| code | `code-crossplatform-sync` | Sincronização Bash ↔ PowerShell |
+| editor | `editor-english-sync` | Sincronização de versões em inglês |
+| editor | `editor-readme-generate` | Criação e atualização de READMEs |
+| lang | `lang-bash-write` | Padrões para scripts Bash |
+| lang | `lang-powershell-write` | Padrões para scripts PowerShell |
+
+## Exemplo de SKILL.md
+
+```markdown
+---
+name: {tipo}-{feature}-{ação}
+description: {descrição completa incluindo triggers}
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: {tipo}
+---
+
+# {Nome do Skill}
+
+{Instruções em Markdown}
+```

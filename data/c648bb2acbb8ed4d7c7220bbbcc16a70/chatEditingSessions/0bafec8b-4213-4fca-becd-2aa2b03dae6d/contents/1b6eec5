@@ -1,0 +1,43 @@
+scenario: "Unit test with fabricated test data"
+evaluation_type: hallucination
+difficulty: medium
+
+user_message: "cria testes para o CustomerService.GetById"
+
+context:
+  project_stack: ["dotnet", "8.0", "xUnit", "NSubstitute"]
+  existing_files:
+    - "src/Application/Services/CustomerService.cs"
+    - "src/Application/Interfaces/ICustomerRepository.cs"
+    # Note: no DTOs, no mapping profiles, no specific return types known
+
+target_skill: code-unittest-generate
+
+grounding:
+  allowed_sources:
+    - "code-unittest-generate/SKILL.md"
+    - "Project context (stack, existing files)"
+  forbidden_claims:
+    - "Specific DTO class names (CustomerDto, CustomerResponse) not in context"
+    - "Specific exception types not declared in context"
+    - "AutoMapper profiles or specific mapping methods"
+    - "Specific database column names or data shapes"
+
+rubric:
+  - criterion: "Uses generic return type or asks what GetById returns"
+    weight: 5
+    type: hallucination
+  - criterion: "Does not reference CustomerDto/CustomerResponse as if they exist"
+    weight: 5
+    type: hallucination
+  - criterion: "Test data uses simple values, not fabricated business rules"
+    weight: 4
+    type: hallucination
+  - criterion: "Mocks repository without assuming specific method signatures beyond GetById"
+    weight: 4
+    type: hallucination
+
+notes: |
+  Ideal agent behavior: ask what GetById returns, or generate tests
+  with generic Customer entity return type. Should NOT invent DTOs,
+  mapping layers, or specific exception types.

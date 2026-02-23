@@ -1,0 +1,25 @@
+# Conventions — vscode_workspaces
+
+- **date**: 2026-02-22
+- **status**: active
+
+## Código
+
+- **Português para chat, inglês para código**: variáveis, nomes de arquivo, paths em inglês
+- Scripts devem funcionar em **PowerShell 7+** e **Bash 4+**
+- Cada script deve ter equivalente no outro shell (paridade de funcionalidade)
+
+## Git
+
+- **Conventional Commits**: `<type>(<scope>): <description>`
+
+## Naming
+
+| Item | Convenção | Exemplo |
+|------|-----------|---------|
+| Scripts PowerShell | kebab-case, extensão `.ps1` | `sync-chats.ps1` |
+| Scripts Bash | kebab-case, extensão `.sh` | `sync-chats.sh` |
+| Funções PS | PascalCase (Verb-Noun) | `Sync-ChatSessions` |
+| Funções Bash | snake_case | `sync_chat_sessions` |
+| Variáveis PS | camelCase | `$chatPath` |
+| Variáveis Bash | UPPER_SNAKE_CASE | `$CHAT_PATH` |

@@ -1,0 +1,19 @@
+{
+  "servers": {
+    "memory": {
+      "type": "npx",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@doobidoo/mcp-memory-service@latest"
+      ],
+      "env": {
+        "MCP_MEMORY_STORAGE_BACKEND": "cloudflare",
+        "CLOUDFLARE_API_TOKEN": "${env:CLOUDFLARE_API_TOKEN}",
+        "CLOUDFLARE_ACCOUNT_ID": "${env:CLOUDFLARE_ACCOUNT_ID}",
+        "CLOUDFLARE_VECTORIZE_INDEX": "mcp-memory-index",
+        "CLOUDFLARE_D1_DATABASE_ID": "${env:CLOUDFLARE_D1_DATABASE_ID}"
+      }
+    }
+  }
+}

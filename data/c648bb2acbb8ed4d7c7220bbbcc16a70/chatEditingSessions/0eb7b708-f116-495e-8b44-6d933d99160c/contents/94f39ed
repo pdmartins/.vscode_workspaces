@@ -1,0 +1,27 @@
+# Contexto do Projeto — SHY HubAI
+
+Catálogo de contexto do projeto. O agente lê este índice primeiro e carrega subpastas sob demanda.
+
+---
+
+## Subtipos
+
+| Tipo | Pasta | Descrição | Status |
+|------|-------|-----------|--------|
+| Architecture | `architecture/` | Clean Architecture, microserviços, estrutura de camadas | `system.md` |
+| Business Rules | `business-rules/` | Regras de domínio, restrições de negócio | — |
+| Code Map | `code-map/` | Inventário de artefatos e módulos | — |
+| Conventions | `conventions/` | Naming .NET, estilo de código | `standards.md` |
+| Infrastructure | `infrastructure/` | Stack .NET, Azure App Service | `stack.md` |
+| Team Process | `team-process/` | — | — |
+
+## Resumo do Projeto
+
+**Objetivo**: Automação de tarefas com AI para a SKY. Backend API que integra serviços de inteligência artificial para processos de automação.
+**Stack principal**: .NET (C#) — Clean Architecture — Microserviços
+**Fase**: Manutenção
+
+## Última Atualização
+
+**Data**: 2026-02-18
+**Motivo**: Configuração inicial do projeto

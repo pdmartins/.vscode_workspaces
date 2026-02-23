@@ -1,0 +1,24 @@
+---
+project: copilot-core
+updated: 2026-02-17
+---
+
+# Backlog
+
+## Alta Prioridade
+
+- [ ] `BKL-001` **Onboarding de projetos em andamento** — Criar solução/skill para que o agente consiga entender e mapear um projeto já em andamento quando o .copilot-core é plugado pela primeira vez (deep scan de estrutura, stack, dependências, padrões existentes, estado atual). Deve preencher automaticamente project.md, code-map e contexto relevante a partir da análise do repositório existente. `[research]` _2026-02-17_
+
+## Média Prioridade
+
+- [ ] `BKL-002` **Avaliar renaming do projeto .copilot-core** — Avaliar a necessidade de renomear o projeto .copilot-core (e possivelmente .copilot-project) para evitar confusão com o termo "Copilot" do GitHub Copilot. Considerar impacto em repos existentes, symlinks, instruções, documentação e branding do Agent Skills. `[research]` _2026-02-17_
+
+
+## Baixa Prioridade
+
+
+## Ideias / Explorar
+
+
+## Concluídos
+

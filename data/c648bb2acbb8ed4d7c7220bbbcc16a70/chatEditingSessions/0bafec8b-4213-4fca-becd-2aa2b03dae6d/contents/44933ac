@@ -1,0 +1,31 @@
+scenario: "Generate PowerShell script"
+evaluation_type: quality
+difficulty: easy
+
+user_message: "cria um script PowerShell para limpar artefatos de build"
+
+context:
+  project_stack: ["dotnet", "8.0"]
+  existing_files:
+    - "src/Api/Api.csproj"
+    - "tests/Api.Tests/Api.Tests.csproj"
+
+target_skill: code-powershell-write
+
+rubric:
+  - criterion: "Uses approved verbs (Remove-Item, not del/rm)"
+    weight: 4
+  - criterion: "Has param() block with documented parameters"
+    weight: 4
+  - criterion: "Includes error handling (try/catch or -ErrorAction)"
+    weight: 4
+  - criterion: "Uses Write-Host/Write-Verbose appropriately (not echo)"
+    weight: 3
+  - criterion: "Removes bin/, obj/, TestResults/ directories"
+    weight: 5
+  - criterion: "Supports -WhatIf or -DryRun parameter"
+    weight: 3
+  - criterion: "Cross-drive compatible paths (no hardcoded drive letters)"
+    weight: 3
+  - criterion: "Has comment-based help block"
+    weight: 2

@@ -1,0 +1,210 @@
+"""Shared fixtures and helpers for Agent Skills test suite."""
+
+import re
+import yaml
+from pathlib import Path
+from dataclasses import dataclass, field
+
+import pytest
+
+# --- Constants ---
+
+CORE_ROOT = Path(__file__).resolve().parent.parent  # .copilot-core/
+SKILLS_ROOT = CORE_ROOT / "skills"
+INSTRUCTIONS_ROOT = CORE_ROOT / "instructions"
+TEMPLATES_ROOT = CORE_ROOT / "templates"
+
+VALID_TYPES = {"agent", "code", "infra", "project", "skill", "editor"}
+VALID_DELEGABLE = {"full", "orchestrated", "none"}
+NAME_PATTERN = re.compile(
+    r"^(agent|code|infra|project|skill|editor)-[a-z]+-[a-z]+$"
+)
+
+REQUIRED_FRONTMATTER = {"name", "description", "metadata"}
+REQUIRED_METADATA = {"author", "version", "category"}
+
+
+# --- Data Classes ---
+
+
+@dataclass
+class SkillInfo:
+    """Parsed skill information."""
+
+    path: Path
+    name: str = ""
+    description: str = ""
+    author: str = ""
+    version: str = ""
+    category: str = ""
+    delegable: str = ""
+    content: str = ""
+    frontmatter: dict = field(default_factory=dict)
+    headings: list = field(default_factory=list)
+    line_count: int = 0
+    directory_name: str = ""
+    type_folder: str = ""
+
+
+# --- Helpers ---
+
+
+def parse_frontmatter(content: str) -> dict:
+    """Parse YAML frontmatter from markdown content.
+
+    Falls back to regex extraction if YAML parsing fails
+    (common when description contains unquoted colons).
+    """
+    if not content.startswith("---"):
+        return {}
+    parts = content.split("---", 2)
+    if len(parts) < 3:
+        return {}
+    raw = parts[1]
+    try:
+        return yaml.safe_load(raw) or {}
+    except yaml.YAMLError:
+        pass
+
+    # Fallback: regex-based extraction for resilient parsing
+    result: dict = {}
+    name_m = re.search(r"^name:\s*(.+)$", raw, re.MULTILINE)
+    if name_m:
+        result["name"] = name_m.group(1).strip().strip('"')
+
+    desc_m = re.search(r"^description:\s*(.+?)(?=\n\w+:|\Z)", raw, re.MULTILINE | re.DOTALL)
+    if desc_m:
+        result["description"] = " ".join(desc_m.group(1).split()).strip().strip('"')
+
+    metadata: dict = {}
+    author_m = re.search(r"author:\s*(.+)$", raw, re.MULTILINE)
+    if author_m:
+        metadata["author"] = author_m.group(1).strip()
+    version_m = re.search(r'version:\s*"?([^"\n]+)"?', raw, re.MULTILINE)
+    if version_m:
+        metadata["version"] = version_m.group(1).strip()
+    category_m = re.search(r"category:\s*(.+)$", raw, re.MULTILINE)
+    if category_m:
+        metadata["category"] = category_m.group(1).strip()
+    delegable_m = re.search(r"delegable:\s*(.+)$", raw, re.MULTILINE)
+    if delegable_m:
+        metadata["delegable"] = delegable_m.group(1).strip()
+
+    if metadata:
+        result["metadata"] = metadata
+
+    return result
+
+
+def extract_headings(content: str) -> list[tuple[str, str]]:
+    """Extract all markdown headings as (level, text) tuples."""
+    return re.findall(r"^(#{1,6})\s+(.+)$", content, re.MULTILINE)
+
+
+def discover_skills() -> list[SkillInfo]:
+    """Discover all SKILL.md files and parse their metadata."""
+    skills = []
+    for skill_md in sorted(SKILLS_ROOT.rglob("SKILL.md")):
+        content = skill_md.read_text(encoding="utf-8")
+        fm = parse_frontmatter(content)
+        metadata = fm.get("metadata", {}) or {}
+        headings = extract_headings(content)
+
+        # Expected: skills/{type}/{type}-{feature}-{action}/SKILL.md
+        rel_parts = skill_md.relative_to(SKILLS_ROOT).parts
+        type_folder = rel_parts[0] if len(rel_parts) > 1 else ""
+        directory_name = (
+            rel_parts[1]
+            if len(rel_parts) > 2
+            else rel_parts[0] if len(rel_parts) > 1 else ""
+        )
+
+        info = SkillInfo(
+            path=skill_md,
+            name=fm.get("name", ""),
+            description=fm.get("description", ""),
+            author=metadata.get("author", ""),
+            version=str(metadata.get("version", "")),
+            category=metadata.get("category", ""),
+            delegable=metadata.get("delegable", ""),
+            content=content,
+            frontmatter=fm,
+            headings=headings,
+            line_count=len(content.splitlines()),
+            directory_name=directory_name,
+            type_folder=type_folder,
+        )
+        skills.append(info)
+
+    return skills
+
+
+# --- Cached discovery ---
+
+_all_skills: list[SkillInfo] | None = None
+
+
+def _get_all_skills() -> list[SkillInfo]:
+    global _all_skills
+    if _all_skills is None:
+        _all_skills = discover_skills()
+    return _all_skills
+
+
+# --- Parametrization ---
+
+
+def pytest_generate_tests(metafunc):
+    """Auto-parametrize tests that use the 'skill' fixture."""
+    if "skill" in metafunc.fixturenames:
+        skills = _get_all_skills()
+        metafunc.parametrize(
+            "skill",
+            skills,
+            ids=[s.name or s.directory_name for s in skills],
+        )
+
+
+# --- Session-scoped fixtures ---
+
+
+@pytest.fixture(scope="session")
+def all_skills() -> list[SkillInfo]:
+    """All discovered skills."""
+    return _get_all_skills()
+
+
+@pytest.fixture(scope="session")
+def skills_by_type(all_skills) -> dict[str, list[SkillInfo]]:
+    """Skills grouped by type folder."""
+    grouped: dict[str, list[SkillInfo]] = {}
+    for skill in all_skills:
+        grouped.setdefault(skill.type_folder, []).append(skill)
+    return grouped
+
+
+@pytest.fixture(scope="session")
+def core_instructions() -> str:
+    """Content of agent-skills-core.instructions.md."""
+    path = INSTRUCTIONS_ROOT / "agent-skills-core.instructions.md"
+    return path.read_text(encoding="utf-8") if path.exists() else ""
+
+
+@pytest.fixture(scope="session")
+def template_instructions() -> str:
+    """Content of template agent-skills-project.instructions.md."""
+    path = TEMPLATES_ROOT / "agent-skills-project.instructions.md"
+    return path.read_text(encoding="utf-8") if path.exists() else ""
+
+
+@pytest.fixture(scope="session")
+def catalogs() -> dict[str, str]:
+    """Content of all catalog-query skills, keyed by type."""
+    result = {}
+    for type_name in VALID_TYPES:
+        catalog_path = (
+            SKILLS_ROOT / type_name / f"{type_name}-catalog-query" / "SKILL.md"
+        )
+        if catalog_path.exists():
+            result[type_name] = catalog_path.read_text(encoding="utf-8")
+    return result

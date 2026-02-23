@@ -1,0 +1,127 @@
+---
+name: infra-gcp-integrate
+description: Define padrões de integração GCP (auth, credential provider, Options, DI). Padrão genérico, lê config.yml do project para auth method, serviços habilitados, DI lifetimes. Triggers: "integração GCP", "Google Cloud", "Pub/Sub", "GCS", "BigQuery", "credential", "service account", ao configurar novos serviços GCP.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: infra
+  delegable: full
+---
+
+# Infra GCP Integrate
+
+Padrões de integração com Google Cloud Platform, configuráveis por projeto.
+
+## Quando Usar
+
+- Criar nova integração com serviço GCP
+- Modificar autenticação/credenciais
+- Adicionar novo client GCP (Storage, PubSub, BigQuery, Vertex AI)
+- Configurar Options pattern para GCP
+
+## Config Loading
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/infra-gcp-integrate/config.yml`
+2. Se existe, carregar configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/infra-gcp-integrate/SKILL.md`
+4. Se existe, carregar instruções complementares
+5. Se nenhum existe, usar padrões genéricos
+
+## Padrões Genéricos
+
+### Autenticação
+
+| Método | Uso |
+|--------|-----|
+| Service Account (Base64) | Armazenado em appsettings, decoded no startup |
+| Application Default Credentials | Ambiente GKE/Cloud Run |
+| Service Account JSON file | Desenvolvimento local |
+
+### Credential Provider Pattern
+
+```csharp
+public interface ICredentialProvider
+{
+    GoogleCredential GetCredential();
+}
+```
+
+### Options Pattern
+
+```csharp
+services.Configure<GcpSettings>(configuration.GetSection("Core:Gcp"));
+```
+
+Settings class com `SessionName` const, validação fail-fast no startup.
+
+### DI Lifetimes
+
+| Tipo | Lifetime |
+|------|----------|
+| Credential Provider | Singleton |
+| GCP Clients | Singleton (padrão) |
+| Wrappers | Singleton |
+
+### Wrapper Pattern
+
+Sempre criar wrapper para SDKs GCP — thin delegation layer para testabilidade.
+
+```csharp
+public interface IGcsClientWrapper
+{
+    Task<Stream> DownloadObjectAsync(string bucket, string objectName, CancellationToken ct);
+    Task UploadObjectAsync(string bucket, string objectName, Stream content, CancellationToken ct);
+}
+```
+
+## Serviços GCP Comuns
+
+| Serviço | SDK NuGet |
+|---------|-----------|
+| BigQuery | Google.Cloud.BigQuery.V2 |
+| Cloud Storage | Google.Cloud.Storage.V1 |
+| Pub/Sub | Google.Cloud.PubSub.V1 |
+| Vertex AI | Google.GenAI |
+| Secret Manager | Google.Cloud.SecretManager.V1 |
+
+## Checklist
+
+- [ ] Credencial via método definido no config (nunca arquivo solto em produção)
+- [ ] Options pattern com `IOptions<T>`
+- [ ] Validação fail-fast no startup
+- [ ] Wrapper para testabilidade
+- [ ] Singleton para clients GCP
+- [ ] CancellationToken propagado
+- [ ] Logging estruturado
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/infra-gcp-integrate/config.yml
+auth:
+  method: base64                    # base64 | adc | json-file
+  config-key: "Core:Gcp:CredentialsBase64"
+services:
+  - name: BigQuery
+    sdk: Google.Cloud.BigQuery.V2
+    version: "3.11.0"
+    used-by: [Api, Consumer]
+  - name: CloudStorage
+    sdk: Google.Cloud.Storage.V1
+    version: "4.13.0"
+    used-by: [Api]
+  - name: PubSub
+    sdk: Google.Cloud.PubSub.V1
+    version: "3.30.0"
+    used-by: [Consumer]
+  - name: VertexAI
+    sdk: Google.GenAI
+    version: "0.6.0"
+    used-by: [Consumer]
+di:
+  credential-provider: Singleton
+  clients: Singleton
+config-paths:
+  api: "Core:GoogleCloudStorage"
+  worker: "Core:VoiceTranscription"
+```

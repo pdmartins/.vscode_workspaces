@@ -1,0 +1,75 @@
+# infra-gcp-integrate — STT Project Configuration
+# Consumed by core skill: .copilot-core/skills/infra-gcp-integrate/SKILL.md
+
+cloud_provider: gcp
+auth_method: service_account_base64
+
+services:
+  - name: BigQuery
+    sdk: Google.Cloud.BigQuery.V2
+    version: "3.11.0"
+    used_by: [api, consumer]
+  - name: Cloud Storage
+    sdk: Google.Cloud.Storage.V1
+    version: "4.13.0"
+    used_by: [api]
+  - name: Pub/Sub
+    sdk: Google.Cloud.PubSub.V1
+    version: "3.30.0"
+    used_by: [consumer]
+  - name: Vertex AI
+    sdk: Google.GenAI
+    version: "0.6.0"
+    used_by: [consumer]
+  - name: Auth
+    sdk: Google.Apis.Auth
+    version: "1.71.0"
+    used_by: [api]
+
+credential:
+  section: "Core:VoiceTranscription:Credential"
+  property: Base64JsonFile
+  scope: "https://www.googleapis.com/auth/cloud-platform"
+  provider_pattern:
+    consumer:
+      class: GoogleCredentialProvider
+      interface: IGoogleCredentialProvider
+      injection: "IOptions<GoogleCredentialSettings>"
+    api:
+      inline: true   # Decodes Base64 in service constructor directly
+
+di_lifetimes:
+  credential_provider: Singleton
+  bigquery_wrapper: "Singleton (Consumer) / Scoped (API)"
+  gcs_service: Singleton
+  vertex_wrapper: Singleton
+  pubsub_subscriber: BackgroundService
+
+options_pattern:
+  settings_class: "public sealed class {Name}Settings"
+  session_name: "Core:{ServiceSection}"
+  validation: fail_fast   # ArgumentNullException.ThrowIfNull in Bootstrapper
+
+config_keys:
+  api:
+    - "Core:GoogleCloudStorage:ProjectId"
+    - "Core:GoogleCloudStorage:BucketName"
+    - "Core:GoogleCloudStorage:CredentialsBase64"
+    - "Core:GoogleCloudStorage:UrlExpirationMinutes"
+    - "Core:GoogleCloudStorage:DefaultUploadContentType"
+    - "Core:GoogleCloudStorage:DefaultExtension"
+    - "Core:GoogleCloudStorage:GoogleBigQuery:DataSet"
+    - "Core:GoogleCloudStorage:GoogleBigQuery:Table"
+  consumer:
+    - "Core:VoiceTranscription:Credential:Base64JsonFile"
+    - "Core:VoiceTranscription:PubSub:Project"
+    - "Core:VoiceTranscription:PubSub:Subscriber"
+    - "Core:VoiceTranscription:BigQuery:ProjectId"
+    - "Core:VoiceTranscription:BigQuery:Dataset"
+    - "Core:VoiceTranscription:BigQuery:ResultsTable"
+    - "Core:VoiceTranscription:BigQuery:PromptsTable"
+    - "Core:VoiceTranscription:BigQuery:TokenDataTable"
+    - "Core:VoiceTranscription:Vertex:Endpoint"
+    - "Core:VoiceTranscription:Vertex:Project"
+    - "Core:VoiceTranscription:Vertex:Location"
+    - "Core:VoiceTranscription:Vertex:Model"

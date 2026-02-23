@@ -1,0 +1,39 @@
+scenario: "Full turn-reflect cycle with all phases"
+description: |
+  In a complex turn, all 4 phases of agent-turn-reflect
+  should be applicable with correct automation rules.
+
+expected_behavior:
+  agent_turn_reflect:
+    triage_questions:
+      - question: "Houve decisão arquitetural, técnica ou de processo?"
+        maps_to: "Fase 3"
+      - question: "Houve mudança de stack, restrição, integração ou estado?"
+        maps_to: "Fase 1"
+      - question: "Houve gap, erro ou melhoria identificada em skill?"
+        maps_to: "Fase 2"
+      - question: "Houve progresso reportável?"
+        maps_to: "Fase 4"
+    phase_automation:
+      - phase: 1
+        automatic: true
+        delegates_to: project-context-update
+      - phase: 2
+        automatic: false
+        asks_user: true
+      - phase: 3
+        automatic: true
+        delegates_to: agent-memory-register
+      - phase: 4
+        automatic: true
+        delegates_to: agent-chat-save
+
+expected_skills:
+  - name: agent-turn-reflect
+    must_exist: true
+  - name: project-context-update
+    must_exist: true
+  - name: agent-memory-register
+    must_exist: true
+  - name: agent-chat-save
+    must_exist: true

@@ -1,0 +1,54 @@
+# infra-redis-cache — STT Project Configuration
+# Consumed by core skill: .copilot-core/skills/infra-redis-cache/SKILL.md
+
+library: StackExchange.Redis
+abstraction: IDistributedCache
+pattern: cache-aside
+
+settings:
+  class: CacheSettings
+  section: "Core:Cache"
+  properties:
+    - ConnectionString
+    - InstanceName
+    - MinutesToExpireToken  # Dictionary<string, int>
+
+ttl_enum:
+  name: TimeToExpireTokenType
+  values:
+    DefaultTime: 60        # minutes
+    SystemParameter: 120
+    SystemRegister: 30
+
+projects:
+  api:
+    namespace: Hapvida.TI.VoiceTranscription.Infra.Cache.Services.v1
+    interface: ICacheService
+    methods: [GetCacheAsync, SetCacheAsync, "SetCacheAsync(key, value, ttlType, ct)"]
+    di_lifetime: Singleton
+    settings_injection: IOptions<CacheSettings>
+    error_handling:
+      read: swallow       # return string.Empty
+      write: swallow      # log only, do NOT rethrow
+    enum_namespace: Hapvida.TI.VoiceTranscription.Domain.Fixed.v1
+
+  consumer:
+    namespace: Hapvida.TI.VoiceTranscription.AI.Infra.Cache.Services.v1
+    interface: ICacheService
+    methods: [SetCacheAsync, GetCacheAsync]
+    di_lifetime: Singleton
+    settings_injection: direct  # CacheSettings as direct singleton
+    error_handling:
+      read: swallow       # return string.Empty
+      write: throw        # rethrow — critical difference from API
+    enum_namespace: Hapvida.TI.VoiceTranscription.Ai.Domain.Fixed
+
+key_naming: "{domain}:{entity}:{identifier}"
+
+k8s_integration:
+  type: sidecar           # Redis runs as sidecar container
+  image: redis:7.0.0-bullseye
+  port: 6379
+  config:
+    maxmemory: 4928307200
+    maxmemory_policy: allkeys-lru

@@ -1,0 +1,31 @@
+# code-api-validate — BeWiser Assistant API Configuration
+# Consumed by core skill: .copilot-core/skills/code/code-api-validate/SKILL.md
+
+language: csharp
+framework: dotnet-8
+solution: BeWiser.Assistant
+
+project:
+  root_namespace: BeWiser.Assistant
+  api_namespace: Bewiser.Assistant.Api
+
+validation:
+  controllers:
+    namespace: Bewiser.Assistant.Api.Controllers
+    route_prefix: "api/[controller]"
+    id_type: guid
+  contracts:
+    requests_namespace: Bewiser.Assistant.Api.Contracts.Requests
+    responses_namespace: Bewiser.Assistant.Api.Contracts.Responses
+    requests_path: Contracts/Requests
+    responses_path: Contracts/Responses
+
+domains:
+  - name: Assistant
+    plural: Assistants
+  - name: Conversation
+    plural: Conversations
+  - name: Message
+    plural: Messages
+  - name: Tenant
+    plural: Tenants

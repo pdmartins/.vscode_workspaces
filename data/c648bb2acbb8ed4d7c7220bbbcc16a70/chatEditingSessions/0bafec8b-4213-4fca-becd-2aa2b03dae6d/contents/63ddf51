@@ -1,0 +1,115 @@
+````skill
+---
+name: agent-memory-sync
+description: Sincroniza arquivos .md (memory/*, context/*) com o MCP memory-service (Cloudflare Vectorize) para busca semântica. Fonte de verdade são os .md — o índice Cloudflare é derivado e pode ser reconstruído. Triggers - sincronizar memória, sync mcp, indexar, reindexar, atualizar índice semântico, rebuild memory.
+metadata:
+  author: copilot-core
+  version: "2.0"
+  category: agent
+  delegable: full
+---
+
+# Agent Memory Sync
+
+Sincroniza arquivos .md com o MCP memory-service (backend Cloudflare) para busca semântica híbrida (BM25 + vector).
+
+## Princípio Fundamental
+
+```
+Fonte de verdade: arquivos .md no git
+Cloudflare (Vectorize + D1): índice derivado, descartável e reconstruível
+```
+
+**Nunca** escrever apenas no MCP sem atualizar o .md correspondente.
+
+## Quando Usar
+
+- Após `agent-memory-update` criar/alterar entrada (sync incremental)
+- Após `project-context-update` alterar contexto (sync incremental)
+- Após `project-codemap-update` alterar code-map (sync incremental)
+- Sob demanda: "sincronizar memória", "reindexar", "rebuild memory"
+- Quando busca semântica retorna resultados vazios/desatualizados
+
+## Arquivos Sincronizados
+
+| Fonte | Entidades MCP | Tipo |
+|-------|---------------|------|
+| `memory/preferences/*.md` | Uma entidade por arquivo | `preference` |
+| `memory/patterns/*.md` | Uma entidade por arquivo | `pattern` |
+| `memory/decisions/*.md` | Uma entidade por arquivo | `decision` |
+| `memory/concepts/*.md` | Uma entidade por arquivo | `concept` |
+| `context/index.md` | Uma entidade (resumo do projeto) | `context-index` |
+| `context/architecture/*.md` | Uma entidade por arquivo | `context-architecture` |
+| `context/business-rules/*.md` | Uma entidade por arquivo | `context-rules` |
+| `context/conventions/*.md` | Uma entidade por arquivo | `context-conventions` |
+| `context/infrastructure/*.md` | Uma entidade por arquivo | `context-infra` |
+| `context/code-map/index.md` | Uma entidade por módulo | `codemap` |
+
+## Config Loading
+
+Ler credenciais de `.copilot-core/.internal/config/credentials.yml`.
+
+## Workflow — Sync Incremental
+
+### 1. Identificar o que mudou
+
+```
+Input: { pasta: "memory/patterns", arquivo: "naming-conventions.md" }
+```
+
+### 2. Parsear conteúdo
+
+Ler o arquivo .md e extrair bullet entries.
+
+### 3. Criar/atualizar entidade MCP
+
+```
+mcp_memory_create_entities({
+  entities: [{
+    name: "{tipo}-{slug}",
+    entityType: "{tipo}",
+    observations: [
+      "categoria: {pasta}",
+      "arquivo: {path}",
+      "conteúdo: {texto do .md}"
+    ]
+  }]
+})
+```
+
+## Workflow — Sync Full (Rebuild)
+
+### 1. Limpar entidades existentes
+
+```
+mcp_memory_search_nodes({ query: "*" })
+mcp_memory_delete_entities({ entityNames: [...] })
+```
+
+### 2. Parsear todos os arquivos
+
+Para cada subpasta de `memory/` e `context/`:
+- Listar arquivos `.md` (excluindo `.gitkeep`)
+- Parsear conteúdo de cada arquivo
+
+### 3. Criar entidades em batch
+
+### 4. Confirmar
+
+```
+✅ Sync completo!
+📋 Entidades criadas: {N}
+  - Memory: {X} (preferences: {a}, patterns: {b}, decisions: {c}, concepts: {d})
+  - Context: {Y} (architecture: {e}, rules: {f}, conventions: {g}, infra: {h})
+  - Codemap: {Z}
+```
+
+## Tratamento de Erros
+
+| Erro | Ação |
+|------|------|
+| MCP server não disponível | Reportar: "MCP memory-service não está ativo" |
+| Cloudflare não acessível | Verificar CLOUDFLARE_API_TOKEN |
+| .md vazio/template | Não sincronizar |
+
+````

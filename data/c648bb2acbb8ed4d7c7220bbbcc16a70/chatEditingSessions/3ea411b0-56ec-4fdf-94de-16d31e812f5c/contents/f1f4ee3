@@ -1,0 +1,361 @@
+---
+name: code-program-configure
+description: Padrões para estrutura do Program.cs com extensões por camada. Lê config.yml do project para convenções específicas. Use ao configurar Program.cs, adicionar nova camada, ou registrar serviços. Triggers: Program.cs, AddServices, UseMiddleware, configuração de camadas, DI.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: code
+  delegable: full
+---
+
+# Program.cs Architecture Skill
+
+Padrões para estrutura limpa do Program.cs com extensões por camada.
+
+## Config Loading
+
+Antes de gerar código, carregar configurações do projeto:
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/code-program-configure/config.yml`
+2. Se existe, carregar e usar as configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/code-program-configure/SKILL.md`
+4. Se existe, carregar como instruções complementares (extensões específicas do projeto)
+5. Se nenhum existe, usar apenas os padrões genéricos abaixo
+
+## Princípio
+
+O `Program.cs` deve ser **minimal e declarativo**. Cada camada é responsável por:
+- Criar sua própria extensão de configuração
+- Registrar seus próprios serviços
+- Configurar suas próprias dependências
+
+## Estrutura do Program.cs
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// ------------------------------
+// 1. Presentation Layer
+// ------------------------------
+builder.AddPresentation();
+
+// ------------------------------
+// 2. Domain Layer
+// ------------------------------
+builder.Services.AddDomainServices();
+
+// ------------------------------
+// 3. Application Layer
+// ------------------------------
+builder.Services.AddApplication();
+
+// ------------------------------
+// 4. Infrastructure Layers
+// ------------------------------
+builder.Services.AddPersistence(builder.Configuration);
+builder.Services.AddAuthentication(builder.Configuration);
+builder.Services.AddExternalServices(builder.Configuration);
+
+// ------------------------------
+// 5. Build
+// ------------------------------
+var app = builder.Build();
+
+// ------------------------------
+// 6. HTTP Pipeline (Presentation)
+// ------------------------------
+app.UsePresentation();
+
+// ------------------------------
+// 7. Run Application
+// ------------------------------
+app.Run();
+```
+
+## Convenções de Extensões
+
+### Nomenclatura
+
+| Camada | Extensão Builder | Extensão App |
+|--------|------------------|--------------|
+| Presentation | `AddPresentation()` | `UsePresentation()` |
+| Domain | `AddDomainServices()` | - |
+| Application | `AddApplication()` | - |
+| Infrastructure | `Add{Feature}Infrastructure()` | `Use{Feature}()` |
+
+### Localização
+
+```
+src/
+├── Api/                          # Presentation Layer
+│   ├── Program.cs                # Minimal, apenas chamadas de extensão
+│   └── DependencyInjection/
+│       └── ServiceCollectionExtensions.cs  # AddPresentation(), UsePresentation()
+│
+├── Application/
+│   └── DependencyInjection/
+│       └── ServiceCollectionExtensions.cs  # AddApplication()
+│
+├── Domain/
+│   └── DependencyInjection/
+│       └── ServiceCollectionExtensions.cs  # AddDomainServices()
+│
+└── Infrastructure.{Provider}/
+    └── DependencyInjection/
+        └── ServiceCollectionExtensions.cs  # Add{Feature}Infrastructure()
+```
+
+## Templates
+
+### Presentation Layer (Api/DependencyInjection/ServiceCollectionExtensions.cs)
+
+```csharp
+namespace {RootNamespace}.Api;
+
+public static class ServiceCollectionExtensions
+{
+    public static WebApplicationBuilder AddPresentation(this WebApplicationBuilder builder)
+    {
+        builder.Services.AddControllers();
+        builder.Services.AddEndpointsApiExplorer();
+        builder.Services.AddSwaggerGen(options =>
+        {
+            options.SwaggerDoc("v1", new() { Title = "{ApiTitle}", Version = "v1" });
+            
+            // JWT Bearer config for Swagger (se usar autenticação JWT)
+            options.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+            {
+                Description = "JWT Authorization header using the Bearer scheme.",
+                Name = "Authorization",
+                In = ParameterLocation.Header,
+                Type = SecuritySchemeType.Http,
+                Scheme = "bearer"
+            });
+            
+            options.AddSecurityRequirement(new OpenApiSecurityRequirement
+            {
+                {
+                    new OpenApiSecurityScheme
+                    {
+                        Reference = new OpenApiReference
+                        {
+                            Type = ReferenceType.SecurityScheme,
+                            Id = "Bearer"
+                        }
+                    },
+                    Array.Empty<string>()
+                }
+            });
+        });
+
+        builder.Services.AddProblemDetails();
+        
+        return builder;
+    }
+
+    public static WebApplication UsePresentation(this WebApplication app)
+    {
+        if (app.Environment.IsDevelopment())
+        {
+            app.UseSwagger();
+            app.UseSwaggerUI();
+        }
+
+        app.UseExceptionHandler();
+        app.UseHttpsRedirection();
+        
+        app.UseAuthentication();
+        app.UseAuthorization();
+        
+        app.MapControllers();
+
+        return app;
+    }
+}
+```
+
+### Application Layer (Application/DependencyInjection/ServiceCollectionExtensions.cs)
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+namespace {RootNamespace}.Application;
+
+public static class ServiceCollectionExtensions
+{
+    public static IServiceCollection AddApplication(this IServiceCollection services)
+    {
+        // MediatR
+        services.AddMediatR(cfg => 
+            cfg.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly));
+
+        // FluentValidation
+        services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
+
+        // AutoMapper
+        services.AddAutoMapper(typeof(DependencyInjection).Assembly);
+
+        // Application Services
+        // Ex: services.AddScoped<IOrderService, OrderService>();
+        // Ex: services.AddScoped<IProductService, ProductService>();
+
+        return services;
+    }
+}
+```
+
+### Domain Layer (Domain/DependencyInjection/ServiceCollectionExtensions.cs)
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+
+namespace {RootNamespace}.Domain;
+
+public static class ServiceCollectionExtensions
+{
+    public static IServiceCollection AddDomainServices(this IServiceCollection services)
+    {
+        // Domain Services (se houver)
+        // services.AddScoped<IDomainService, DomainService>();
+
+        return services;
+    }
+}
+```
+
+### Infrastructure Layer (Infrastructure.{Provider}/DependencyInjection/ServiceCollectionExtensions.cs)
+
+```csharp
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace {RootNamespace}.Infrastructure;
+
+public static class ServiceCollectionExtensions
+{
+    public static IServiceCollection AddPersistence(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        // Adaptar provider conforme config: UseSqlServer, UseNpgsql, UseSqlite, etc.
+        services.AddDbContext<ApplicationDbContext>(options =>
+            options.UseSqlServer(configuration.GetConnectionString("DefaultConnection")));
+
+        // Repositories
+        // Ex: services.AddScoped<IOrderRepository, OrderRepository>();
+        // Ex: services.AddScoped<IProductRepository, ProductRepository>();
+        services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddAuthentication(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        // Adaptar conforme tipo de autenticação do projeto
+        // Exemplo JWT:
+        services.Configure<AuthSettings>(configuration.GetSection("Auth"));
+        
+        var authSettings = configuration
+            .GetSection("Auth")
+            .Get<AuthSettings>()!;
+
+        services
+            .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = authSettings.Issuer,
+                    ValidAudience = authSettings.Audience,
+                    IssuerSigningKey = new SymmetricSecurityKey(
+                        Encoding.UTF8.GetBytes(authSettings.Secret)),
+                    ClockSkew = TimeSpan.Zero
+                };
+            });
+
+        services.AddAuthorization();
+        services.AddScoped<ITokenService, TokenService>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddExternalServices(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        // Registrar serviços externos conforme config do projeto
+        // Ex: services.Configure<PaymentSettings>(configuration.GetSection("Payment"));
+        // Ex: services.AddScoped<IPaymentService, StripePaymentService>();
+
+        // Ex: services.Configure<NotificationSettings>(configuration.GetSection("Notification"));
+        // Ex: services.AddScoped<INotificationService, EmailNotificationService>();
+
+        return services;
+    }
+}
+```
+
+## Regras
+
+1. **Program.cs não deve ter lógica** - apenas chamadas de extensão
+2. **Cada camada registra suas dependências** - não misturar responsabilidades
+3. **Configuration vem via parâmetro** - não acessar diretamente
+4. **Retornar o tipo para fluent API** - `return services;` ou `return builder;`
+5. **Usar extension methods** - `this IServiceCollection` ou `this WebApplicationBuilder`
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/code-program-configure/config.yml
+
+root_namespace: "{RootNamespace}"        # Ex: MyCompany.MyApp
+api_title: "{ApiTitle}"                  # Ex: My Application API
+
+layers:
+  presentation:
+    namespace: "{RootNamespace}.Api"
+    extensions:
+      builder: AddPresentation           # Nome do extension method para builder
+      app: UsePresentation               # Nome do extension method para app
+  domain:
+    namespace: "{RootNamespace}.Domain"
+    extensions:
+      services: AddDomainServices
+  application:
+    namespace: "{RootNamespace}.Application"
+    extensions:
+      services: AddApplication
+    services:                            # Application services a registrar
+      - interface: IOrderService
+        implementation: OrderService
+  infrastructure:
+    namespace: "{RootNamespace}.Infrastructure"
+    persistence:
+      provider: SqlServer                # SqlServer | PostgreSQL | Sqlite
+      method: UseSqlServer               # UseSqlServer | UseNpgsql | UseSqlite
+      connection_string_name: DefaultConnection
+      repositories:
+        - interface: IOrderRepository
+          implementation: OrderRepository
+    authentication:
+      type: JWT                          # JWT | OAuth | ApiKey | None
+      settings_class: AuthSettings
+      settings_section: Auth
+    external_services:
+      - name: "{ServiceName}"
+        settings_class: "{SettingsClass}"
+        settings_section: "{Section}"
+        interface: "{IServiceInterface}"
+        implementation: "{ServiceImpl}"
+
+swagger:
+  security_scheme: Bearer                # Bearer | ApiKey | None
+  security_type: JWT
+```

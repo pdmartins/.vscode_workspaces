@@ -1,0 +1,27 @@
+# Context Index
+
+Catálogo de contexto do projeto. O agente lê este índice primeiro e carrega subpastas sob demanda.
+
+---
+
+## Subtipos
+
+| Tipo | Pasta | Descrição | Status |
+|------|-------|-----------|--------|
+| Architecture | `architecture/` | Decisões arquiteturais, estrutura do sistema, padrões adotados | `overview.md` |
+| Business Rules | `business-rules/` | Regras de domínio, restrições de negócio, requisitos | `domain.md` |
+| Code Map | `code-map/` | Inventário de artefatos, módulos, dependências | — |
+| Conventions | `conventions/` | Nomenclatura, estilo, processos de desenvolvimento | — |
+| Infrastructure | `infrastructure/` | Stack tecnológico, ferramentas, integrações, deploy | `stack.md` |
+| Team Process | `team-process/` | SDLC, normas da equipe, workflows (opt-in) | — |
+
+## Resumo do Projeto
+
+**Objetivo**: PoC de Speech-to-Text (STT) usando Google Cloud Platform para ambiente hospitalar — avaliar múltiplas soluções GCP (STT v1/v2, Chirp, Vertex AI) para transcrição de conversas médico-paciente e laudos em Português PT-BR, com foco em vocabulário médico especializado.
+**Stack principal**: .NET 8 / C# (Minimal API)
+**Fase**: PoC (inicial)
+
+## Última Atualização
+
+**Data**: 2026-02-17
+**Motivo**: Criação inicial do projeto

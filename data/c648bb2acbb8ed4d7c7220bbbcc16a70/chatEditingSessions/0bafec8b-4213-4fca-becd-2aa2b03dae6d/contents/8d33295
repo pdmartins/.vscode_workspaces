@@ -1,0 +1,127 @@
+---
+name: agent-turn-reflect
+description: Reflexão automática ao final de cada turno do agente. Analisa o conteúdo da conversa para detectar atualizações necessárias em contexto do projeto, skills, memórias e chat-memory. Comportamento adaptativo — triage rápido em todos os turnos, aprofunda apenas quando detecta algo relevante. Silencioso quando nada há a fazer. Triggers: automático no final de cada turno do agente.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: agent
+  delegable: none
+---
+
+# Agent Turn Reflect
+
+Reflexão automática per-turn. Analisa a conversa e atualiza contexto, memórias e chat-memory incrementalmente.
+
+## Quando Usar
+
+- **Automaticamente** ao final de cada turno do agente (após completar a resposta ao usuário)
+- É a ÚLTIMA coisa que o agente faz antes de entregar a resposta
+
+## Quando NÃO Usar
+
+- Nunca pular — o triage rápido (Fase 0) é quem decide se há algo a fazer
+- Não usar como substituto de `agent-action-review` (que valida completude pós-task-manage)
+
+## Workflow
+
+### Fase 0 — Triage Rápido
+
+Checklist mental (NÃO exibir ao usuário):
+
+| Pergunta | Se "sim" → prosseguir para |
+|----------|---------------------------|
+| Houve decisão arquitetural, técnica ou de processo? | Fase 3 (Memórias) |
+| Houve mudança de stack, restrição, integração ou estado do projeto? | Fase 1 (Contexto) |
+| Houve gap, erro ou melhoria identificada em alguma skill? | Fase 2 (Skills) |
+| Houve progresso reportável (arquivos criados/editados, tarefas concluídas)? | Fase 4 (Chat Memory) |
+
+**Se TODAS "não"** → skip silencioso, sem output algum.
+
+**Se QUALQUER "sim"** → executar apenas as fases aplicáveis (não precisa executar todas).
+
+### Fase 1 — Contexto do Projeto
+
+Analisar se a conversa revelou:
+- Mudança de stack tecnológico
+- Nova restrição ou remoção de restrição
+- Nova integração ou serviço
+- Mudança de fase ou objetivo do projeto
+- Informação factual sobre o projeto não registrada
+
+**Se detectar** → executar `project-context-update` automaticamente (sem perguntar).
+
+### Fase 2 — Skills
+
+Analisar se a conversa revelou:
+- Gap num skill existente (funcionalidade esperada mas ausente)
+- Comportamento incorreto descrito num skill
+- Necessidade de novo skill
+- Skill que deveria ser atualizado com nova regra ou padrão
+
+**Se detectar** → **PERGUNTAR ao usuário** antes de qualquer alteração:
+
+```
+❓ **Preciso de clarificação**: Detectei que {descrição do gap/melhoria} no skill `{nome}`. Faz sentido atualizar?
+```
+
+Só prosseguir com a alteração se o usuário confirmar.
+
+### Fase 3 — Memórias e Lições
+
+Analisar se a conversa contém:
+- Decisões implícitas (tomadas naturalmente, sem frase-gatilho como "guarda isso")
+- Padrões estabelecidos durante a conversa
+- Conhecimento que seria perdido sem registro
+- Erros resolvidos com aprendizado útil
+
+**Nota**: Não duplicar o que os auto-registers reativos já capturam (correções explícitas de código, correções de regras). Esta fase captura o que ficaria PERDIDO sem reflexão ativa.
+
+**Se detectar** → executar `agent-memory-register` automaticamente.
+
+### Fase 4 — Chat Memory Incremental
+
+Fazer append ao arquivo de chat-memory da sessão atual.
+
+**Primeiro turno substantivo da sessão:**
+1. Criar arquivo `YYYY-MM-DD_{topico}.md` em `.copilot-project/chat-memory/`
+2. Usar frontmatter com `status: in-progress`
+3. Incluir seção `## Resumo` inicial + `## Progresso`
+
+**Turnos seguintes:**
+1. Localizar arquivo da sessão atual (mesmo dia, mesmo tópico ou mais recente do dia)
+2. Fazer append de seção `## Turn: HH:MM`
+3. Conteúdo do append (2-3 frases):
+   - O que aconteceu neste turno
+   - Arquivos tocados (se houver)
+   - Decisões tomadas (se houver)
+
+**Se já existe arquivo do mesmo dia e tópico** → append ao existente.
+
+**Turnos triviais** (apenas consulta, sem ação): NÃO fazer append — Fase 0 já filtrou.
+
+## Output
+
+**Quando nada detecta**: Silêncio total — sem output.
+
+**Quando atualiza algo**: Uma linha por atualização, formato mínimo:
+
+```
+🔄 {tipo}: {descrição curta}
+```
+
+Exemplos:
+- `🔄 Contexto: adicionada restrição de rate-limiting`
+- `🔄 Memória: decisão de usar Redis para cache`
+- `🔄 Chat: sessão atualizada`
+
+**Quando propõe alteração de skill**: Usa formato de pergunta (Fase 2).
+
+## Interação com Outros Skills
+
+| Skill | Relação |
+|-------|---------|
+| `agent-memory-register` | Delegado pela Fase 3 |
+| `project-context-update` | Delegado pela Fase 1 |
+| `agent-chat-save` | Fase 4 usa modo incremental do chat-save |
+| `agent-action-review` | Independente — action-review valida pós-task-manage; turn-reflect analisa per-turn |
+| Auto-registers reativos | Complementar — turn-reflect captura o que os reativos NÃO capturam |

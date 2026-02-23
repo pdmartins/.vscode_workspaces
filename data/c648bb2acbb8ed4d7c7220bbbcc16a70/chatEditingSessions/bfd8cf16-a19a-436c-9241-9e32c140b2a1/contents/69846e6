@@ -1,0 +1,309 @@
+---
+name: lang-entity-generate
+description: Padrões para Entities do Domain Layer. Use ao criar entidades de domínio com identidade. Triggers: entity, entidade, criar entidade, BaseEntity, pasta Entities/, Domain/.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: lang
+---
+
+# Domain Entity Skill
+
+Padrões para Entities do Domain Layer seguindo DDD.
+
+## Quando Usar
+
+- Criar entidades com identidade (ID)
+- Definir agregados
+- Implementar regras de negócio em entidades
+
+## Estrutura
+
+```
+src/BeWiser.Assistant.Domain/
+├── Entities/
+│   ├── BaseEntity.cs
+│   ├── Conversation.cs
+│   ├── Message.cs
+│   ├── Tenant.cs
+│   └── Assistant.cs
+├── Enums/
+│   ├── MessageStatus.cs
+│   └── ConversationStatus.cs
+├── Exceptions/
+│   ├── DomainException.cs
+│   └── ConversationNotFoundException.cs
+└── Interfaces/
+    └── Repositories/
+        ├── IConversationRepository.cs
+        └── IMessageRepository.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Entity | `[Nome]` (sem sufixo) | `Conversation`, `Message`, `Tenant` |
+| Enum | `[Nome]` (singular) | `MessageStatus`, `ConversationStatus` |
+| Exception | `[Domínio]Exception` | `ConversationNotFoundException` |
+| Repository Interface | `I[Entidade]Repository` | `IConversationRepository` |
+
+## Templates
+
+### Base Entity
+
+```csharp
+namespace BeWiser.Assistant.Domain.Entities;
+
+/// <summary>
+/// Base class for all domain entities.
+/// </summary>
+public abstract class BaseEntity
+{
+    public Guid Id { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    
+    private readonly List<IDomainEvent> _domainEvents = [];
+    
+    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    
+    protected void AddDomainEvent(IDomainEvent domainEvent)
+    {
+        _domainEvents.Add(domainEvent);
+    }
+    
+    public void ClearDomainEvents()
+    {
+        _domainEvents.Clear();
+    }
+}
+```
+
+### Domain Entity
+
+```csharp
+namespace BeWiser.Assistant.Domain.Entities;
+
+/// <summary>
+/// Represents a conversation between a user and an assistant.
+/// </summary>
+public class Conversation : BaseEntity
+{
+    public PhoneNumberVO PhoneNumber { get; set; } = null!;
+    public PhoneNumberVO AssistantPhoneNumber { get; set; } = null!;
+    public ConversationStatus Status { get; set; }
+    public DateTime? EndedAt { get; set; }
+    
+    // Navigation properties
+    public Guid AssistantId { get; set; }
+    public Assistant Assistant { get; set; } = null!;
+    
+    public ICollection<Message> Messages { get; set; } = new List<Message>();
+    
+    // Domain methods
+    public void End()
+    {
+        if (Status == ConversationStatus.Ended)
+            throw new InvalidOperationException("Conversation already ended");
+            
+        Status = ConversationStatus.Ended;
+        EndedAt = DateTime.UtcNow;
+        
+        AddDomainEvent(new ConversationEndedEvent(Id));
+    }
+    
+    public Message AddMessage(string content, MessageDirection direction)
+    {
+        if (Status == ConversationStatus.Ended)
+            throw new InvalidOperationException("Cannot add message to ended conversation");
+            
+        var message = new Message
+        {
+            Id = Guid.NewGuid(),
+            ConversationId = Id,
+            Content = new MessageContentVO(content),
+            Direction = direction
+        };
+        
+        Messages.Add(message);
+        AddDomainEvent(new MessageAddedEvent(Id, message.Id));
+        
+        return message;
+    }
+}
+```
+
+### Entity com Value Objects
+
+```csharp
+namespace BeWiser.Assistant.Domain.Entities;
+
+/// <summary>
+/// Represents a message in a conversation.
+/// </summary>
+public class Message : BaseEntity
+{
+    public Guid ConversationId { get; set; }
+    public MessageContentVO Content { get; set; } = null!;
+    public MessageDirection Direction { get; set; }
+    public MessageStatus Status { get; set; }
+    public string? ExternalId { get; set; }
+    
+    // Navigation
+    public Conversation Conversation { get; set; } = null!;
+    
+    // Domain methods
+    public void MarkAsDelivered()
+    {
+        Status = MessageStatus.Delivered;
+    }
+    
+    public void MarkAsFailed(string reason)
+    {
+        Status = MessageStatus.Failed;
+        // Could add failure reason property
+    }
+}
+```
+
+### Enum
+
+```csharp
+namespace BeWiser.Assistant.Domain.Enums;
+
+/// <summary>
+/// Status of a conversation.
+/// </summary>
+public enum ConversationStatus
+{
+    Active = 1,
+    Ended = 2,
+    Archived = 3
+}
+
+/// <summary>
+/// Direction of a message.
+/// </summary>
+public enum MessageDirection
+{
+    Incoming = 1,
+    Outgoing = 2
+}
+
+/// <summary>
+/// Status of a message.
+/// </summary>
+public enum MessageStatus
+{
+    Pending = 1,
+    Sent = 2,
+    Delivered = 3,
+    Read = 4,
+    Failed = 5
+}
+```
+
+### Domain Exception
+
+```csharp
+namespace BeWiser.Assistant.Domain.Exceptions;
+
+/// <summary>
+/// Base exception for domain errors.
+/// </summary>
+public abstract class DomainException : Exception
+{
+    protected DomainException(string message) : base(message) { }
+    
+    protected DomainException(string message, Exception innerException) 
+        : base(message, innerException) { }
+}
+
+/// <summary>
+/// Exception when a conversation is not found.
+/// </summary>
+public class ConversationNotFoundException : DomainException
+{
+    public Guid ConversationId { get; }
+    
+    public ConversationNotFoundException(Guid conversationId)
+        : base($"Conversation with ID {conversationId} was not found")
+    {
+        ConversationId = conversationId;
+    }
+}
+```
+
+### Repository Interface
+
+```csharp
+namespace BeWiser.Assistant.Domain.Interfaces.Repositories;
+
+/// <summary>
+/// Repository interface for Conversation aggregate.
+/// </summary>
+public interface IConversationRepository
+{
+    Task<Conversation?> GetByIdAsync(
+        Guid id, 
+        CancellationToken cancellationToken = default);
+    
+    Task<Conversation?> GetByPhoneNumberAsync(
+        string phoneNumber, 
+        CancellationToken cancellationToken = default);
+    
+    Task<IReadOnlyList<Conversation>> ListByAssistantAsync(
+        Guid assistantId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+    
+    Task AddAsync(
+        Conversation conversation, 
+        CancellationToken cancellationToken = default);
+    
+    Task UpdateAsync(
+        Conversation conversation, 
+        CancellationToken cancellationToken = default);
+    
+    Task AddMessageAsync(
+        Message message, 
+        CancellationToken cancellationToken = default);
+}
+```
+
+## Regras de Entidades
+
+1. **Identidade**: Toda entidade tem um `Id` único
+2. **Encapsulamento**: Regras de negócio dentro da entidade
+3. **Invariantes**: Validar estado consistente
+4. **Domain Events**: Emitir eventos para mudanças importantes
+5. **Value Objects**: Usar para conceitos sem identidade
+
+## Agregados
+
+```csharp
+// Conversation é o Aggregate Root
+// Messages só podem ser acessadas através de Conversation
+
+public class Conversation : BaseEntity  // Aggregate Root
+{
+    public ICollection<Message> Messages { get; set; }  // Entidade filha
+    
+    public Message AddMessage(string content, MessageDirection direction)
+    {
+        // Controle de acesso via aggregate root
+    }
+}
+```
+
+## Checklist
+
+- [ ] Entidade herda de `BaseEntity`
+- [ ] Nome sem sufixo (apenas o domínio)
+- [ ] Value Objects para conceitos complexos
+- [ ] Métodos de domínio para regras de negócio
+- [ ] Domain Events para mudanças importantes
+- [ ] Repository interface em `Domain/Interfaces/Repositories/`
+- [ ] Exceptions específicas do domínio

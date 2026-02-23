@@ -1,0 +1,681 @@
+---
+name: code-unittest-generate
+description: Padrões para testes unitários com xUnit, NSubstitute e FluentAssertions. Lê config.yml do project para convenções específicas. Use ao criar testes de handlers, services, ou validadores. Triggers: teste unitário, xUnit, mock, NSubstitute, FluentAssertions, arquivos *Tests.cs, pasta UnitTests/.
+metadata:
+  author: copilot-core
+  version: "2.0"
+  category: code
+  delegable: full
+---
+
+# Unit Testing Skill
+
+Padrões para testes unitários em .NET com xUnit, NSubstitute e FluentAssertions.
+
+## Quando Usar
+
+- Testar Command/Query Handlers
+- Testar Services isolados
+- Testar Validators
+- Testar Domain logic
+
+## Config Loading
+
+Antes de gerar código, carregar configurações do projeto:
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/code-unittest-generate/config.yml`
+2. Se existe, carregar e usar as configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/code-unittest-generate/SKILL.md`
+4. Se existe, carregar como instruções complementares (extensões específicas do projeto)
+5. Se nenhum existe, usar apenas os padrões genéricos abaixo
+
+## Estrutura
+
+```
+tests/{RootNamespace}.UnitTests/
+├── Application/
+│   ├── Commands/
+│   │   └── CreateOrderCommandHandlerTests.cs
+│   └── Queries/
+│       └── GetOrderQueryHandlerTests.cs
+├── Domain/
+│   ├── Entities/
+│   │   └── OrderTests.cs
+│   └── ValueObjects/
+│       └── MoneyVOTests.cs
+└── Builders/
+    ├── OrderBuilder.cs
+    ├── OrderItemBuilder.cs
+    └── CreateOrderCommandBuilder.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Classe de Teste | `[Classe]Tests` | `CreateOrderCommandHandlerTests` |
+| Método de Teste | `[Método]_[Cenário]_[Esperado]` | `Handle_ValidOrder_ReturnsSuccess` |
+| Builder | `[Entidade]Builder` | `OrderBuilder`, `OrderItemBuilder` |
+| Fake | `Fake[Interface]` | `FakeOrderRepository` |
+
+## Templates
+
+### Command Handler Test
+
+```csharp
+using FluentAssertions;
+using NSubstitute;
+using Xunit;
+
+namespace {RootNamespace}.UnitTests.Application.Commands;
+
+public class CreateOrderCommandHandlerTests
+{
+    private readonly IOrderRepository _orderRepository;
+    private readonly IEventPublisher _eventPublisher;
+    private readonly ILogger<CreateOrderCommandHandler> _logger;
+    private readonly CreateOrderCommandHandler _sut;
+
+    public CreateOrderCommandHandlerTests()
+    {
+        _orderRepository = Substitute.For<IOrderRepository>();
+        _eventPublisher = Substitute.For<IEventPublisher>();
+        _logger = Substitute.For<ILogger<CreateOrderCommandHandler>>();
+        
+        _sut = new CreateOrderCommandHandler(
+            _orderRepository,
+            _eventPublisher,
+            _logger);
+    }
+
+    [Fact]
+    public async Task Handle_ValidOrder_ReturnsSuccessResult()
+    {
+        // Arrange
+        var command = new CreateOrderCommandBuilder().Build();
+        var order = new OrderBuilder().Build();
+        
+        _orderRepository
+            .GetByIdAsync(command.OrderId, Arg.Any<CancellationToken>())
+            .Returns(order);
+
+        // Act
+        var result = await _sut.Handle(command, CancellationToken.None);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Success.Should().BeTrue();
+        result.OrderId.Should().Be(order.Id);
+    }
+
+    [Fact]
+    public async Task Handle_NewOrder_CreatesOrder()
+    {
+        // Arrange
+        var command = new CreateOrderCommandBuilder().Build();
+        
+        _orderRepository
+            .GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns((Order?)null);
+
+        // Act
+        var result = await _sut.Handle(command, CancellationToken.None);
+
+        // Assert
+        await _orderRepository
+            .Received(1)
+            .AddAsync(Arg.Any<Order>(), Arg.Any<CancellationToken>());
+            
+        result.Success.Should().BeTrue();
+    }
+
+    [Fact]
+    public async Task Handle_ValidOrder_PublishesEvent()
+    {
+        // Arrange
+        var command = new CreateOrderCommandBuilder().Build();
+        var order = new OrderBuilder().Build();
+        
+        _orderRepository
+            .GetByIdAsync(command.OrderId, Arg.Any<CancellationToken>())
+            .Returns(order);
+
+        // Act
+        await _sut.Handle(command, CancellationToken.None);
+
+        // Assert
+        await _eventPublisher
+            .Received(1)
+            .PublishAsync(
+                Arg.Is<OrderCreatedEvent>(e => 
+                    e.OrderId == order.Id),
+                Arg.Any<CancellationToken>());
+    }
+}
+```
+
+### Query Handler Test
+
+```csharp
+using FluentAssertions;
+using NSubstitute;
+using Xunit;
+
+namespace {RootNamespace}.UnitTests.Application.Queries;
+
+public class GetOrderQueryHandlerTests
+{
+    private readonly IOrderRepository _repository;
+    private readonly GetOrderQueryHandler _sut;
+
+    public GetOrderQueryHandlerTests()
+    {
+        _repository = Substitute.For<IOrderRepository>();
+        _sut = new GetOrderQueryHandler(
+            _repository,
+            Substitute.For<ILogger<GetOrderQueryHandler>>());
+    }
+
+    [Fact]
+    public async Task Handle_ExistingOrder_ReturnsResult()
+    {
+        // Arrange
+        var order = new OrderBuilder().Build();
+        var query = new GetOrderQuery { Id = order.Id };
+        
+        _repository
+            .GetByIdAsync(order.Id, Arg.Any<CancellationToken>())
+            .Returns(order);
+
+        // Act
+        var result = await _sut.Handle(query, CancellationToken.None);
+
+        // Assert
+        result.Should().NotBeNull();
+        result!.Id.Should().Be(order.Id);
+        result.CustomerName.Should().Be(order.CustomerName);
+    }
+
+    [Fact]
+    public async Task Handle_NonExistingOrder_ReturnsNull()
+    {
+        // Arrange
+        var query = new GetOrderQuery { Id = Guid.NewGuid() };
+        
+        _repository
+            .GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+            .Returns((Order?)null);
+
+        // Act
+        var result = await _sut.Handle(query, CancellationToken.None);
+
+        // Assert
+        result.Should().BeNull();
+    }
+}
+```
+
+### Validator Test
+
+```csharp
+using FluentAssertions;
+using Xunit;
+
+namespace {RootNamespace}.UnitTests.Application.Commands;
+
+public class CreateOrderCommandValidatorTests
+{
+    private readonly CreateOrderCommandValidator _sut = new();
+
+    [Fact]
+    public void Validate_ValidCommand_IsValid()
+    {
+        // Arrange
+        var command = new CreateOrderCommandBuilder().Build();
+
+        // Act
+        var result = _sut.Validate(command);
+
+        // Assert
+        result.IsValid.Should().BeTrue();
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData(null)]
+    public void Validate_InvalidCustomerName_HasError(string? customerName)
+    {
+        // Arrange
+        var command = new CreateOrderCommandBuilder()
+            .WithCustomerName(customerName!)
+            .Build();
+
+        // Act
+        var result = _sut.Validate(command);
+
+        // Assert
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == "CustomerName");
+    }
+
+    [Fact]
+    public void Validate_EmptyItems_HasError()
+    {
+        // Arrange
+        var command = new CreateOrderCommandBuilder()
+            .WithItems([])
+            .Build();
+
+        // Act
+        var result = _sut.Validate(command);
+
+        // Assert
+        result.IsValid.Should().BeFalse();
+        result.Errors.Should().Contain(e => e.PropertyName == "Items");
+    }
+}
+```
+
+### Entity Test
+
+```csharp
+using FluentAssertions;
+using Xunit;
+
+namespace {RootNamespace}.UnitTests.Domain.Entities;
+
+public class OrderTests
+{
+    [Fact]
+    public void Cancel_ActiveOrder_SetsStatusToCancelled()
+    {
+        // Arrange
+        var order = new OrderBuilder()
+            .WithStatus(OrderStatus.Active)
+            .Build();
+
+        // Act
+        order.Cancel();
+
+        // Assert
+        order.Status.Should().Be(OrderStatus.Cancelled);
+        order.CancelledAt.Should().NotBeNull();
+    }
+
+    [Fact]
+    public void Cancel_AlreadyCancelled_ThrowsException()
+    {
+        // Arrange
+        var order = new OrderBuilder()
+            .WithStatus(OrderStatus.Cancelled)
+            .Build();
+
+        // Act
+        var act = () => order.Cancel();
+
+        // Assert
+        act.Should().Throw<InvalidOperationException>()
+            .WithMessage("*already cancelled*");
+    }
+
+    [Fact]
+    public void AddItem_ActiveOrder_AddsItem()
+    {
+        // Arrange
+        var order = new OrderBuilder().Build();
+
+        // Act
+        var item = order.AddItem("Product A", quantity: 2, unitPrice: 10.0m);
+
+        // Assert
+        order.Items.Should().Contain(item);
+        item.ProductName.Should().Be("Product A");
+    }
+}
+```
+
+### Value Object Test
+
+```csharp
+using FluentAssertions;
+using Xunit;
+
+namespace {RootNamespace}.UnitTests.Domain.ValueObjects;
+
+public class MoneyVOTests
+{
+    [Theory]
+    [InlineData(10.50, "USD")]
+    [InlineData(99.99, "BRL")]
+    public void Constructor_ValidMoney_CreatesInstance(decimal amount, string currency)
+    {
+        // Act
+        var money = new MoneyVO(amount, currency);
+
+        // Assert
+        money.Amount.Should().Be(amount);
+        money.Currency.Should().Be(currency);
+    }
+
+    [Theory]
+    [InlineData(-1, "USD")]
+    [InlineData(0, "")]
+    [InlineData(10, null)]
+    public void Constructor_InvalidMoney_ThrowsException(decimal amount, string? currency)
+    {
+        // Act
+        var act = () => new MoneyVO(amount, currency!);
+
+        // Assert
+        act.Should().Throw<ArgumentException>();
+    }
+
+    [Fact]
+    public void Add_SameCurrency_ReturnsSummed()
+    {
+        // Arrange
+        var a = new MoneyVO(10.00m, "USD");
+        var b = new MoneyVO(5.50m, "USD");
+
+        // Act
+        var result = a.Add(b);
+
+        // Assert
+        result.Amount.Should().Be(15.50m);
+    }
+}
+```
+
+## Builders
+
+### Entity Builder
+
+```csharp
+namespace {RootNamespace}.UnitTests.Builders;
+
+/// <summary>
+/// Builder for creating Order test instances.
+/// </summary>
+public class OrderBuilder
+{
+    private Guid _id = Guid.NewGuid();
+    private string _customerName = "John Doe";
+    private string _customerEmail = "john@example.com";
+    private OrderStatus _status = OrderStatus.Active;
+    private Guid _customerId = Guid.NewGuid();
+    private DateTime _createdAt = DateTime.UtcNow;
+    private readonly List<OrderItem> _items = [];
+
+    public OrderBuilder WithId(Guid id)
+    {
+        _id = id;
+        return this;
+    }
+
+    public OrderBuilder WithCustomerName(string name)
+    {
+        _customerName = name;
+        return this;
+    }
+
+    public OrderBuilder WithStatus(OrderStatus status)
+    {
+        _status = status;
+        return this;
+    }
+
+    public OrderBuilder WithCustomerId(Guid customerId)
+    {
+        _customerId = customerId;
+        return this;
+    }
+
+    public OrderBuilder WithItem(OrderItem item)
+    {
+        _items.Add(item);
+        return this;
+    }
+
+    public OrderBuilder WithItems(int count)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            _items.Add(new OrderItemBuilder()
+                .WithOrderId(_id)
+                .Build());
+        }
+        return this;
+    }
+
+    public Order Build()
+    {
+        var order = new Order
+        {
+            Id = _id,
+            CustomerName = _customerName,
+            CustomerEmail = _customerEmail,
+            Status = _status,
+            CustomerId = _customerId,
+            CreatedAt = _createdAt
+        };
+
+        foreach (var item in _items)
+        {
+            order.Items.Add(item);
+        }
+
+        return order;
+    }
+}
+```
+
+### Command Builder
+
+```csharp
+namespace {RootNamespace}.UnitTests.Builders;
+
+/// <summary>
+/// Builder for creating CreateOrderCommand test instances.
+/// </summary>
+public class CreateOrderCommandBuilder
+{
+    private string _customerName = "John Doe";
+    private string _customerEmail = "john@example.com";
+    private List<OrderItemDto> _items = [new() { ProductName = "Product A", Quantity = 1, UnitPrice = 10.0m }];
+    private Guid _orderId = Guid.NewGuid();
+
+    public CreateOrderCommandBuilder WithCustomerName(string name)
+    {
+        _customerName = name;
+        return this;
+    }
+
+    public CreateOrderCommandBuilder WithCustomerEmail(string email)
+    {
+        _customerEmail = email;
+        return this;
+    }
+
+    public CreateOrderCommandBuilder WithItems(List<OrderItemDto> items)
+    {
+        _items = items;
+        return this;
+    }
+
+    public CreateOrderCommandBuilder WithOrderId(Guid orderId)
+    {
+        _orderId = orderId;
+        return this;
+    }
+
+    public CreateOrderCommand Build() => new()
+    {
+        CustomerName = _customerName,
+        CustomerEmail = _customerEmail,
+        Items = _items,
+        OrderId = _orderId
+    };
+}
+```
+
+### DTO/Result Builder
+
+```csharp
+namespace {RootNamespace}.UnitTests.Builders;
+
+/// <summary>
+/// Builder for creating OrderItemDto test instances.
+/// </summary>
+public class OrderItemDtoBuilder
+{
+    private Guid _id = Guid.NewGuid();
+    private Guid _orderId = Guid.NewGuid();
+    private string _productName = "Product A";
+    private int _quantity = 1;
+    private decimal _unitPrice = 10.0m;
+
+    public OrderItemDtoBuilder WithId(Guid id)
+    {
+        _id = id;
+        return this;
+    }
+
+    public OrderItemDtoBuilder WithProductName(string name)
+    {
+        _productName = name;
+        return this;
+    }
+
+    public OrderItemDto Build() => new()
+    {
+        Id = _id,
+        OrderId = _orderId,
+        ProductName = _productName,
+        Quantity = _quantity,
+        UnitPrice = _unitPrice
+    };
+}
+```
+
+## Mocking Patterns
+
+### NSubstitute
+
+```csharp
+// Setup return value
+_repository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+    .Returns(entity);
+
+// Setup for specific arg
+_repository.GetByIdAsync(specificId, Arg.Any<CancellationToken>())
+    .Returns(entity);
+
+// Setup exception
+_repository.GetByIdAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
+    .ThrowsAsync(new Exception("Error"));
+
+// Verify call was made
+await _repository.Received(1).AddAsync(
+    Arg.Any<Order>(), 
+    Arg.Any<CancellationToken>());
+
+// Verify call was not made
+await _repository.DidNotReceive().DeleteAsync(
+    Arg.Any<Guid>(), 
+    Arg.Any<CancellationToken>());
+
+// Capture argument
+var capturedOrder = Arg.Do<Order>(o => { /* capture */ });
+```
+
+## FluentAssertions
+
+```csharp
+// Basic assertions
+result.Should().NotBeNull();
+result.Should().BeNull();
+result.Should().Be(expected);
+result.Should().BeTrue();
+
+// Collections
+list.Should().HaveCount(3);
+list.Should().Contain(item);
+list.Should().BeEmpty();
+list.Should().AllSatisfy(x => x.Status.Should().Be(Status.Active));
+
+// Exceptions
+act.Should().Throw<ArgumentException>()
+    .WithMessage("*invalid*");
+    
+await act.Should().ThrowAsync<ValidationException>();
+
+// Object comparison
+result.Should().BeEquivalentTo(expected);
+result.Should().BeEquivalentTo(expected, opt => opt
+    .Excluding(x => x.CreatedAt));
+```
+
+## Checklist
+
+- [ ] Projeto: `{RootNamespace}.UnitTests`
+- [ ] Estrutura espelha `src/`
+- [ ] Padrão AAA (Arrange/Act/Assert)
+- [ ] Nome: `[Método]_[Cenário]_[Esperado]`
+- [ ] Builders para dados complexos
+- [ ] FluentAssertions para asserts
+- [ ] NSubstitute para mocks
+- [ ] Um assert lógico por teste
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/code-unittest-generate/config.yml
+
+root_namespace: "{RootNamespace}"        # Ex: MyCompany.MyApp
+test_project: "{RootNamespace}.UnitTests"
+
+frameworks:
+  test: xUnit                            # xUnit | NUnit | MSTest
+  mock: NSubstitute                      # NSubstitute | Moq | FakeItEasy
+  assertion: FluentAssertions            # FluentAssertions | Shouldly | native
+
+entities:
+  primary:
+    name: "{EntityName}"                 # Entidade principal do domínio
+    properties:                          # Propriedades para builders
+      - name: Id
+        type: Guid
+      - name: "{PropertyName}"
+        type: "{PropertyType}"
+    statuses: []                         # Enum de status se houver
+    children:
+      - entity: "{ChildEntity}"
+        collection: "{CollectionName}"
+
+commands:
+  - name: "{CommandName}"
+    properties:
+      - name: "{PropertyName}"
+        type: "{PropertyType}"
+        default: "{DefaultValue}"
+
+handlers:
+  - name: "{HandlerName}"
+    dependencies:
+      - "{IDependency}"
+
+queries:
+  - name: "{QueryName}"
+    handler: "{QueryHandler}"
+    dependencies:
+      - "{IDependency}"
+
+value_objects:
+  - name: "{VOName}"
+    valid_examples: []
+    invalid_examples: []
+
+builders:
+  - name: "{BuilderName}"
+    target: "{TargetType}"               # entity | command | dto
+```

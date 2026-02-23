@@ -1,0 +1,147 @@
+---
+name: project-context-query
+description: Consulta o contexto atual do projeto - stack tecnológico, restrições, integrações e estado. Prioriza busca semântica via MCP memory-service (se disponível) para localizar seções específicas, com fallback para leitura direta do .md. Triggers: "qual é o contexto", "que tecnologias usamos", antes de codificar, verificar restrições.
+metadata:
+  author: copilot-core
+  version: "2.0"
+  category: project
+  delegable: full
+---
+
+# Project Context Query
+
+Consulta o contexto atual do projeto para guiar implementações. Prioriza MCP para busca semântica de seções específicas.
+
+## Quando Usar
+
+- Início de sessão ou tarefa complexa
+- Verificar stack/tecnologias antes de implementar
+- Confirmar restrições antes de codificar
+- Usuário pergunta "qual é o contexto do projeto?"
+
+## Estratégia de Busca
+
+```
+1. MCP memory-service disponível?
+   ├── SIM → Busca semântica por seção específica (stack, restrições, etc.)
+   │         Retorna seções relevantes sem carregar o .md inteiro
+   └── NÃO → Fallback: leitura direta do project.md completo
+```
+
+## Workflow
+
+### 1. Tentar busca via MCP (preferencial)
+
+Se MCP memory-service estiver configurado:
+
+```
+mcp_memory_search_nodes({
+  query: "{termos: stack, restrições, integrações, etc.}"
+})
+```
+
+Filtrar resultados por `entityType: "context"` e apresentar seções relevantes.
+
+**Se MCP não disponível ou retornar vazio** → passar para passo 2.
+
+### 2. Fallback — Leitura direta do .md
+
+Ler: `{workspace}/.copilot-project/context/project.md`
+
+**Se arquivo não existe:**
+→ Criar automaticamente a estrutura de contexto (ver seção "Auto-Init" abaixo)
+→ Coletar informações do usuário ou inferir do código para preencher
+→ Depois prosseguir com a consulta
+
+### 3. Extrair informações relevantes
+
+Identificar seções:
+- **Objetivo**: O que o projeto faz
+- **Stack**: Tecnologias em uso
+- **Restrições**: O que NÃO pode fazer
+- **Integrações**: Sistemas conectados
+- **Estado**: Fase atual do projeto
+
+### 4. Aplicar restrições
+
+- Identificar restrições aplicáveis à tarefa
+- Validar que ações planejadas não violam restrições
+
+**Se ação viola restrição:**
+→ **PARAR** e informar usuário
+→ Sugerir alternativa dentro das restrições
+
+### 5. Confirmar stack
+
+- Usar APENAS tecnologias listadas no contexto
+- Se precisar de tecnologia não listada, perguntar ao usuário
+
+### 6. Apresentar resumo
+
+**Output**:
+```
+📋 **Contexto carregado**
+- Stack: {tecnologias principais}
+- Restrições ativas: {número}
+- Estado: {fase do projeto}
+```
+
+## Seções do Contexto
+
+| Seção | Conteúdo |
+|-------|----------|
+| Objetivo | Descrição do projeto |
+| Stack | Linguagens, frameworks, ferramentas |
+| Restrições | Limitações técnicas ou de negócio |
+| Integrações | APIs, serviços externos |
+| Estado | Fase atual (MVP, produção, etc) |
+
+## Auto-Init
+
+Quando `context/` ou `project.md` não existir, criar automaticamente:
+
+1. Criar diretório: `{workspace}/.copilot-project/context/`
+2. Coletar informações do projeto (inferir do código ou perguntar ao usuário)
+3. Criar `project.md` com template:
+
+```markdown
+# Project Context
+
+Estado atual do projeto para referência do Copilot.
+
+---
+
+## Objetivo
+
+{descrição do objetivo principal}
+
+## Stack
+
+| Componente | Tecnologia |
+|------------|------------|
+| Linguagem | {linguagem} |
+| Framework | {framework} |
+| Database | {database} |
+| Infra | {infra} |
+
+## Restrições
+
+- {restrição 1}
+
+## Integrações
+
+| Sistema | Propósito | Status |
+|---------|-----------|--------|
+
+## Estado Atual
+
+**Fase**: {MVP/Beta/Produção/Manutenção}
+**Status**: {descrição}
+
+## Última Atualização
+
+**Data**: {YYYY-MM-DD}
+**Motivo**: Criação inicial
+```
+
+4. Informar: `✅ Contexto inicializado automaticamente`

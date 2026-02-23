@@ -1,0 +1,18 @@
+# Git Guard Creation
+
+- **date**: 2026-02-16
+- **status**: active
+- **context**: Agente executava operações git livremente em qualquer projeto. Alguns projetos querem revisão via Source Control antes de commit
+- **decision**: Skill `agent-git-guard` (delegable: none) com config.yml por projeto. Toda operação git DEVE passar pela skill. Default sem config = tudo bloqueado (seguro)
+- **outcome**: Controle granular por projeto. Default seguro. Subagents não executam git
+
+---
+
+# Git Guard — Proibição Absoluta
+
+- **date**: 2026-02-17
+- **status**: active
+- **supersedes**: reforça decisão acima
+- **context**: Durante criação do projeto `_poc/stt_gcp`, o agente tentou executar `git add`, `git commit` e `git push` diretamente — violando a própria skill `agent-git-guard`. Mesmo que a skill defina "default = bloqueado", o agente tentou delegar para subagent, o que contorna a proteção
+- **decision**: O agente NUNCA deve executar `git add`, `git commit` ou `git push` — nem diretamente, nem via subagent, nem como parte de um workflow automatizado. Sem exceções. O usuário revisa e executa operações git manualmente via Source Control do VS Code
+- **outcome**: Regra absoluta. Inclui subagents e workflows de skills como `project-workspace-create` (cujos steps de commit/push devem ser apresentados como instruções para o usuário, nunca executados pelo agente)

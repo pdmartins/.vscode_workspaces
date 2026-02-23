@@ -1,0 +1,7 @@
+# Inconsistency Tracking
+
+- **date**: 2026-02-10
+- **status**: active
+- **context**: Análise revelou inconsistências: workspace.instructions.md desatualizado, categorias divergentes entre frontmatter e tabelas, notas incorretas sobre branches, URLs hardcoded
+- **decision**: Documentar inconsistências no contexto do projeto para rastreamento e correção futura. Priorizar: (1) corrigir instructions, (2) alinhar categorias, (3) corrigir notas incorretas
+- **outcome**: Inconsistências catalogadas em `context/index.md` seção "Inconsistências Conhecidas". Algumas resolvidas em migrações posteriores

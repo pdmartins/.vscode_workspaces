@@ -1,0 +1,159 @@
+---
+name: agent-subagent-delegate
+description: Define regras para delegação de skills a subagents via runSubagent. Classifica skills por viabilidade (full, orchestrated, none) e padroniza o fluxo de delegação. Consultar antes de usar runSubagent para executar qualquer skill. Triggers - delegar skill, usar subagent, executar skill autonomamente, paralelizar tarefas.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: agent
+  delegable: full
+---
+
+# Agent Subagent Delegate
+
+Define quando e como delegar skills a subagents via `runSubagent`.
+
+## Quando Usar
+
+- Antes de delegar qualquer skill a um subagent
+- Quando quiser paralelizar execução de skills independentes
+- Para consultar viabilidade de delegação de uma skill
+
+## Conceito
+
+O `runSubagent` permite que o agente principal despache tarefas para um agente autônomo e stateless. O subagent recebe um prompt único, executa, e retorna uma mensagem ao agente principal.
+
+### Restrições do Subagent
+
+| Capacidade | Disponível |
+|---|---|
+| Ler/escrever arquivos | ✅ |
+| Rodar terminal | ✅ |
+| Pesquisar código | ✅ |
+| `ask_questions` (interação com usuário) | ❌ |
+| `manage_todo_list` (tracking de estado) | ❌ |
+| Estado entre invocações | ❌ |
+| Múltiplos turnos de conversa | ❌ |
+
+## Classificação de Skills
+
+Cada skill tem um campo `delegable` no frontmatter metadata:
+
+| Valor | Significado | Ação |
+|---|---|---|
+| `full` | Totalmente delegável — execução autônoma sem interação | Delegar diretamente via `runSubagent` |
+| `orchestrated` | Parcialmente delegável — requer coleta prévia de input do usuário | Main agent coleta inputs → delega execução ao subagent |
+| `none` | Não delegável — depende de ferramentas/estado exclusivo do main agent | Executar no main agent |
+
+### Skills `full` (49)
+
+Skills que podem ser delegadas integralmente. O subagent recebe o SKILL.md + inputs e executa sozinho.
+
+> **Nota**: `code-pattern-enforce` aparece também nesta lista *(modo análise)* mas é canonicamente `orchestrated` (modo fix). A contagem (49) reflete os skills com `delegable: full` no frontmatter.
+
+**Catálogos e Referência (5):**
+`agent-catalog-query`, `code-catalog-query`, `infra-catalog-query`, `project-catalog-query`, `agent-subagent-delegate`
+
+**Leitura/Consulta (7):**
+`agent-memory-query`, `project-context-query`, `project-codemap-query`, `project-structure-analyze`, `code-review-analyze`, `code-api-validate`, `code-pattern-enforce` *(modo análise)*
+
+**Escrita com Inputs Definidos (3):**
+`agent-memory-register`, `project-context-update`, `project-codemap-update`
+
+**Validação e Review (4):**
+`agent-action-review`, `agent-impact-validate`, `skill-output-validate`, `agent-memory-sync`
+
+**Persistência de Sessão (2):**
+`agent-chat-save`, `agent-chat-resume`
+
+**Geração de Código (18):**
+`code-dotnet-service`, `code-dotnet-test`, `code-command-generate`, `code-query-generate`, `code-entity-generate`, `code-valueobject-generate`, `code-event-generate`, `code-mapping-generate`, `code-program-configure`, `code-controller-generate`, `code-contracts-generate`, `code-webhook-generate`, `code-unittest-generate`, `code-integrationtest-generate`, `code-bash-write`, `code-powershell-write`, `code-crossplatform-sync`, `editor-markdown-lint`
+
+**Geração de Infra (11):**
+`infra-docker-build`, `infra-redis-cache`, `infra-bigquery-query`, `infra-gcp-integrate`, `infra-k8s-deploy`, `infra-pipeline-deploy`, `infra-vertexai-prompt`, `infra-jwt-configure`, `infra-messaging-configure`, `infra-repository-generate`, `infra-service-integrate`
+
+### Skills `orchestrated` (7)
+
+Skills que requerem split: main agent coleta input, subagent executa.
+
+| Skill | Interação | Padrão |
+|---|---|---|
+| `code-refactor-extract` | Confirmação do plano de refatoração | **2-phase**: subagent analisa → main confirma → subagent executa |
+| `code-pattern-enforce` *(modo fix)* | Confirmação de quais violações corrigir | **2-phase**: subagent detecta → main confirma → subagent aplica fixes |
+| `editor-readme-generate` | Pode precisar perguntar tipo do projeto | **Auto-detect + fallback**: subagent tenta inferir, main agent passa tipo se já souber |
+| `project-setup-bootstrap` | 3 perguntas conversacionais | **Pre-collect**: main faz 3 perguntas → subagent executa setup completo |
+| `project-repo-update` | Pode falhar com conflitos git | **Direct + error handling**: subagent executa, retorna status/erros |
+| `project-branch-switch` | Escolha de branch + decisão stash/commit | **Pre-collect**: main pergunta branch e ação → subagent executa git |
+| `skill-template-create` | 6 perguntas sobre o skill | **Pre-collect**: main coleta 6 respostas → subagent gera SKILL.md |
+
+### Skills `none` (3)
+
+| Skill | Motivo |
+|---|---|
+| `agent-task-manage` | Usa `manage_todo_list` — ferramenta exclusiva do main agent para tracking de estado entre turnos. Delegação seria circular |
+| `project-workspace-create` | 16+ perguntas interativas interdependentes, verificação de Plan mode, aprovações sequenciais. Workflow intencionalmente conversacional |
+| `agent-git-guard` | Permissões de git são decisão do main agent — subagents não devem executar operações git autonomamente |
+
+## Padrões de Delegação
+
+### Padrão 1: Direct Delegation (`full`)
+
+O main agent monta o prompt com tudo que o subagent precisa e despacha.
+
+```
+runSubagent({
+  description: "Execute {skill-name}",
+  prompt: `
+    Leia o skill em {path-to-SKILL.md}.
+    Leia o config em .copilot-project/skills/{skill-name}/config.yml (se existir).
+    Leia o contexto em .copilot-project/context/project.md (se relevante).
+    
+    Execute a skill com os seguintes inputs:
+    {inputs específicos da tarefa}
+    
+    Retorne: {o que o main agent precisa de volta}
+  `
+})
+```
+
+### Padrão 2: Pre-collect (`orchestrated` — interação prévia)
+
+```
+1. Main agent usa ask_questions para coletar inputs do usuário
+2. Main agent monta prompt com respostas coletadas
+3. runSubagent executa a skill com inputs completos
+4. Main agent processa resultado e apresenta ao usuário
+```
+
+### Padrão 3: Two-phase (`orchestrated` — confirmação mid-flow)
+
+```
+1. runSubagent fase 1: análise/proposta → retorna plano
+2. Main agent apresenta plano ao usuário
+3. Usuário aprova/ajusta
+4. runSubagent fase 2: execução com plano aprovado
+```
+
+## Composição de Subagents
+
+Skills independentes podem ser delegadas em paralelo como múltiplos `runSubagent` calls. Mas atenção: `runSubagent` **não roda em paralelo** — cada invocação é sequencial. A vantagem é a autonomia e isolamento, não o paralelismo.
+
+**Exemplo de composição sequencial eficiente:**
+```
+1. runSubagent: consultar project-context-query + agent-memory-query (combinar no mesmo prompt)
+2. Com o contexto, runSubagent: executar code-command-generate com inputs
+3. runSubagent: executar project-codemap-update com artefatos criados
+```
+
+## Template de Prompt
+
+Usar o template padronizado em `.copilot-core/templates/subagent-prompt.md` para montar prompts consistentes.
+
+## Boas Práticas
+
+| Prática | Descrição |
+|---|---|
+| Checar `delegable` | Consultar frontmatter antes de delegar |
+| Prompt completo | Incluir todos os inputs no prompt — subagent não pode perguntar |
+| Combinar consultas | Agrupar skills read-only no mesmo subagent quando possível |
+| Tratar erros | Sempre processar o retorno do subagent para detectar falhas |
+| Não delegar cascata | Subagent não deve invocar outro subagent — manter 1 nível |

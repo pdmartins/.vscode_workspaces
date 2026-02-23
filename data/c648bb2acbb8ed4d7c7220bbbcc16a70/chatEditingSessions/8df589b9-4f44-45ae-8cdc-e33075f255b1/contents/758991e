@@ -1,0 +1,55 @@
+# code-dotnet-service — STT Project Extension
+# Complementa o core skill com instruções específicas do projeto STT
+
+## Namespace Quirk
+
+O projeto `Infra.Data.Queries` tem um RootNamespace com duplo 'v':
+
+```
+Hapvvida.TI.VoiceTranscription.Infra.Data.Queries
+```
+
+Manter essa inconsistência em todo código gerado para este projeto.
+
+## Wrapper Pattern — Exemplos do Projeto
+
+### BigQueryClientWrapper (API)
+
+```csharp
+public interface IBigQueryClientWrapper
+{
+    Task<IEnumerable<RowDto>> ExecuteQueryAsync(
+        string sql,
+        BigQueryParameter[] parameters,
+        QueryOptions? options = null,
+        CancellationToken cancellationToken = default);
+}
+```
+
+### VertexClientWrapper (Consumer)
+
+```csharp
+public interface IVertexClientWrapper
+{
+    Task<GenerateContentResponse> GenerateAsync(
+        Content[] contents,
+        GenerateContentConfig config,
+        CancellationToken ct);
+}
+```
+
+## DI Lifetimes — Regra do Projeto
+
+| Tipo | API | Consumer |
+|------|-----|----------|
+| Services de domínio | **Scoped** | **Singleton** |
+| Wrappers GCP | **Singleton** | **Singleton** |
+| MediatR Handlers | **Scoped** (auto) | N/A |
+| BackgroundService | N/A | **via Host** |
+
+## Log Templates
+
+- **API**: `LogsTemplate.StartHandler`, `LogsTemplate.ErrorHandler`
+- **Consumer**: `LogTemplate.StartHandler`, `LogTemplate.ErrorHandler`
+
+Sempre usar a classe de template, nunca string inline.

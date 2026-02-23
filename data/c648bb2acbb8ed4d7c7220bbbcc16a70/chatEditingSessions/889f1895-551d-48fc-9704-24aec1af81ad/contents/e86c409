@@ -1,0 +1,44 @@
+# code-event-generate — BeWiser Assistant API Configuration
+# Consumed by core skill: .copilot-core/skills/code/code-event-generate/SKILL.md
+
+language: csharp
+framework: dotnet-8
+solution: BeWiser.Assistant
+
+project:
+  root_namespace: BeWiser.Assistant
+
+events:
+  domain_namespace: "BeWiser.Assistant.Domain.Events"
+  handler_namespace: "BeWiser.Assistant.Application.EventHandlers"
+  mediator: mediatr
+  items:
+    - entity: Message
+      actions:
+        - Received
+      properties:
+        - name: ConversationId
+          type: Guid
+        - name: MessageId
+          type: Guid
+        - name: PhoneNumber
+          type: string
+        - name: Content
+          type: string
+    - entity: Conversation
+      actions:
+        - Started
+        - Ended
+      properties:
+        - name: ConversationId
+          type: Guid
+        - name: PhoneNumber
+          type: string
+        - name: AssistantId
+          type: Guid
+        - name: Reason
+          type: string
+        - name: TotalMessages
+          type: int
+  outbox:
+    enabled: true

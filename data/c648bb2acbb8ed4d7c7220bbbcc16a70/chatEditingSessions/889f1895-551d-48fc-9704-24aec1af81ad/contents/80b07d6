@@ -1,0 +1,351 @@
+---
+name: code-command-generate
+description: Padrões para Commands CQRS com MediatR. Use ao criar operações de escrita (criar, atualizar, deletar). Lê config.yml do project para convenções específicas. Triggers: command, criar, atualizar, deletar, MediatR, CQRS, pasta Commands/.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: code
+---
+
+# Command Skill (CQRS)
+
+Padrões para Commands em arquitetura CQRS com MediatR.
+
+## Config Loading
+
+Antes de gerar código, carregar configurações do projeto:
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/code-command-generate/config.yml`
+2. Se existe, carregar e usar as configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/code-command-generate/SKILL.md`
+4. Se existe, carregar como instruções complementares (extensões específicas do projeto)
+5. Se nenhum existe, usar apenas os padrões genéricos abaixo
+
+## Quando Usar
+
+- Criar entidades (Create)
+- Atualizar entidades (Update)
+- Deletar entidades (Delete)
+- Processar ações (Process, Send, etc.)
+
+## Estrutura
+
+```
+src/{RootNamespace}.Application/
+└── Commands/
+    └── {Entity}/
+        ├── {Verb}{Entity}Command.cs
+        ├── {Verb}{Entity}CommandHandler.cs
+        ├── {Verb}{Entity}CommandResult.cs
+        └── {Verb}{Entity}CommandValidator.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Command | `{Verb}{Entity}Command` | `CreateOrderCommand`, `ProcessPaymentCommand` |
+| Handler | `{Verb}{Entity}CommandHandler` | `CreateOrderCommandHandler` |
+| Result | `{Verb}{Entity}CommandResult` | `CreateOrderCommandResult` |
+| Validator | `{Verb}{Entity}CommandValidator` | `CreateOrderCommandValidator` |
+
+### Verbos Comuns
+
+| Verbo | Uso |
+|-------|-----|
+| `Create` | Criar nova entidade |
+| `Update` | Atualizar entidade existente |
+| `Delete` | Remover entidade |
+| `Process` | Processar algo (mensagem, pagamento) |
+| `Send` | Enviar algo (email, notificação) |
+| `Start` | Iniciar processo |
+| `Cancel` | Cancelar processo |
+
+## Templates
+
+### Command
+
+```csharp
+using MediatR;
+
+namespace {RootNamespace}.Application.Commands.{Entity};
+
+/// <summary>
+/// Command to {verb} a {Entity}.
+/// </summary>
+public record {Verb}{Entity}Command : IRequest<{Verb}{Entity}CommandResult>
+{
+    public required string Name { get; init; }
+    // Add properties specific to the {Entity}
+}
+```
+
+### Command Result
+
+```csharp
+namespace {RootNamespace}.Application.Commands.{Entity};
+
+/// <summary>
+/// Result of {verb} {Entity}.
+/// </summary>
+public record {Verb}{Entity}CommandResult
+{
+    public Guid Id { get; init; }
+    public bool Success { get; init; }
+    public string? ErrorMessage { get; init; }
+
+    public static {Verb}{Entity}CommandResult Succeeded(Guid id) => new()
+    {
+        Id = id,
+        Success = true
+    };
+
+    public static {Verb}{Entity}CommandResult Failed(string error) => new()
+    {
+        Success = false,
+        ErrorMessage = error
+    };
+}
+```
+
+### Command Handler
+
+```csharp
+using MediatR;
+using Microsoft.Extensions.Logging;
+
+namespace {RootNamespace}.Application.Commands.{Entity};
+
+/// <summary>
+/// Handles the {Verb}{Entity}Command.
+/// </summary>
+public class {Verb}{Entity}CommandHandler 
+    : IRequestHandler<{Verb}{Entity}Command, {Verb}{Entity}CommandResult>
+{
+    private readonly I{Entity}Repository _{entity}Repository;
+    private readonly ILogger<{Verb}{Entity}CommandHandler> _logger;
+
+    public {Verb}{Entity}CommandHandler(
+        I{Entity}Repository {entity}Repository,
+        ILogger<{Verb}{Entity}CommandHandler> logger)
+    {
+        _{entity}Repository = {entity}Repository;
+        _logger = logger;
+    }
+
+    public async Task<{Verb}{Entity}CommandResult> Handle(
+        {Verb}{Entity}Command request,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation(
+            "{Verb} {Entity} with name {Name}", 
+            request.Name);
+
+        // 1. Create domain entity
+        var entity = new Domain.Entities.{Entity}
+        {
+            Id = Guid.NewGuid(),
+            Name = request.Name
+        };
+
+        // 2. Save entity
+        await _{entity}Repository.AddAsync(entity, cancellationToken);
+
+        return {Verb}{Entity}CommandResult.Succeeded(entity.Id);
+    }
+}
+```
+
+### Command Validator (FluentValidation)
+
+```csharp
+using FluentValidation;
+
+namespace {RootNamespace}.Application.Commands.{Entity};
+
+/// <summary>
+/// Validates the {Verb}{Entity}Command.
+/// </summary>
+public class {Verb}{Entity}CommandValidator 
+    : AbstractValidator<{Verb}{Entity}Command>
+{
+    public {Verb}{Entity}CommandValidator()
+    {
+        RuleFor(x => x.Name)
+            .NotEmpty()
+            .WithMessage("{Entity} name is required")
+            .MaximumLength(100)
+            .WithMessage("{Entity} name too long");
+    }
+}
+```
+
+## Validation Behavior (Pipeline)
+
+```csharp
+using FluentValidation;
+using MediatR;
+
+namespace {RootNamespace}.Application.Behaviors;
+
+/// <summary>
+/// MediatR pipeline behavior for validation.
+/// </summary>
+public class ValidationBehavior<TRequest, TResponse> 
+    : IPipelineBehavior<TRequest, TResponse>
+    where TRequest : IRequest<TResponse>
+{
+    private readonly IEnumerable<IValidator<TRequest>> _validators;
+
+    public ValidationBehavior(IEnumerable<IValidator<TRequest>> validators)
+    {
+        _validators = validators;
+    }
+
+    public async Task<TResponse> Handle(
+        TRequest request,
+        RequestHandlerDelegate<TResponse> next,
+        CancellationToken cancellationToken)
+    {
+        if (!_validators.Any())
+            return await next();
+
+        var context = new ValidationContext<TRequest>(request);
+        
+        var validationResults = await Task.WhenAll(
+            _validators.Select(v => v.ValidateAsync(context, cancellationToken)));
+
+        var failures = validationResults
+            .SelectMany(r => r.Errors)
+            .Where(f => f is not null)
+            .ToList();
+
+        if (failures.Count > 0)
+            throw new ValidationException(failures);
+
+        return await next();
+    }
+}
+```
+
+## Exemplo Completo — Create Command
+
+Exemplo concreto com `Order` como entidade. Substituir por `{Entity}` do projeto.
+
+### CreateOrderCommand.cs
+
+```csharp
+using MediatR;
+
+namespace {RootNamespace}.Application.Commands.Order;
+
+public record CreateOrderCommand : IRequest<CreateOrderCommandResult>
+{
+    public required string Name { get; init; }
+    public required string Email { get; init; }
+    public string? Description { get; init; }
+}
+```
+
+### CreateOrderCommandResult.cs
+
+```csharp
+namespace {RootNamespace}.Application.Commands.Order;
+
+public record CreateOrderCommandResult
+{
+    public Guid Id { get; init; }
+    public required string Name { get; init; }
+    public DateTime CreatedAt { get; init; }
+}
+```
+
+### CreateOrderCommandHandler.cs
+
+```csharp
+using MediatR;
+
+namespace {RootNamespace}.Application.Commands.Order;
+
+public class CreateOrderCommandHandler 
+    : IRequestHandler<CreateOrderCommand, CreateOrderCommandResult>
+{
+    private readonly IOrderRepository _repository;
+
+    public CreateOrderCommandHandler(IOrderRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<CreateOrderCommandResult> Handle(
+        CreateOrderCommand request,
+        CancellationToken cancellationToken)
+    {
+        var entity = request.ToEntity();
+        
+        await _repository.AddAsync(entity, cancellationToken);
+
+        return entity.ToCommandResult();
+    }
+}
+```
+
+### CreateOrderCommandValidator.cs
+
+```csharp
+using FluentValidation;
+
+namespace {RootNamespace}.Application.Commands.Order;
+
+public class CreateOrderCommandValidator 
+    : AbstractValidator<CreateOrderCommand>
+{
+    public CreateOrderCommandValidator()
+    {
+        RuleFor(x => x.Name)
+            .NotEmpty()
+            .MaximumLength(100);
+
+        RuleFor(x => x.Email)
+            .NotEmpty()
+            .EmailAddress();
+    }
+}
+```
+
+## Checklist
+
+- [ ] Pasta: `Commands/{Entity}/`
+- [ ] Nomenclatura: `{Verb}{Entity}Command`
+- [ ] Command implementa `IRequest<TResult>`
+- [ ] Result com factory methods (Succeeded/Failed)
+- [ ] Handler implementa `IRequestHandler<TRequest, TResponse>`
+- [ ] Validator com FluentValidation
+- [ ] Logs no handler
+- [ ] CancellationToken propagado
+
+## Config Schema
+
+```yaml
+# config.yml schema for code-command-generate
+language: string                    # e.g., csharp
+framework: string                   # e.g., dotnet-8
+solution: string                    # Solution name
+
+project:
+  root_namespace: string            # e.g., MyApp
+  api_namespace: string             # e.g., MyApp.Api
+
+commands:
+  base_path: string                 # e.g., src/MyApp.Application/Commands
+  domain_examples:                  # Domain-specific command examples
+    - domain: string                # Entity/domain name
+      verbs: [string]               # Applicable verbs
+      example_command: string       # Concrete command name
+
+  validation:
+    library: string                 # e.g., FluentValidation
+    pipeline_behavior: boolean      # Whether to use pipeline behavior
+    behavior_class: string          # e.g., ValidationBehavior
+    behavior_namespace: string      # Full namespace for behavior
+```

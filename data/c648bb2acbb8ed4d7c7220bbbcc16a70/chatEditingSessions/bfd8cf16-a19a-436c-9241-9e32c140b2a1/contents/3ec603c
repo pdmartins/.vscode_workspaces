@@ -1,0 +1,123 @@
+# Copilot Project - BeWiser.Assistant API
+
+Branch de configuração do Copilot Agent para o projeto BeWiser.Assistant API.
+
+## Sobre o Projeto
+
+**BeWiser.Assistant** é um assistente de IA para WhatsApp que:
+- Recebe mensagens via webhook do Twilio
+- Processa via Azure OpenAI
+- Devolve respostas ao usuário
+
+Características: Multi-tenant, múltiplos assistentes, RAG, Function Calling, processamento assíncrono.
+
+## Estrutura
+
+```
+.copilot-project/
+├── context/
+│   └── project.md          # Estado e escopo do projeto
+├── memory/
+│   └── lessons-learned.md  # Lições aprendidas
+└── skills/                 # Skills por camada ({tipo}-{feature}-{ação})
+    │
+    ├── project-scope-validate/        # ⚠️ Validação ANTES
+    ├── code-api-validate/             # ⚠️ Validação DEPOIS
+    │
+    ├── lang-controller-generate/      # API - Controllers
+    ├── lang-webhook-generate/         # API - Webhooks
+    ├── lang-contracts-generate/       # API - Requests/Responses
+    │
+    ├── lang-command-generate/         # Application - Commands CQRS
+    ├── lang-query-generate/           # Application - Queries CQRS
+    ├── lang-mapping-generate/         # Application - DTOs e Mappings
+    │
+    ├── lang-entity-generate/          # Domain - Entities
+    ├── lang-valueobject-generate/     # Domain - Value Objects
+    ├── lang-event-generate/           # Domain - Events
+    │
+    ├── infra-repository-generate/     # Infrastructure - Dapper + SQL
+    ├── infra-messaging-configure/     # Infrastructure - Service Bus
+    ├── infra-service-integrate/       # Infrastructure - External Services
+    │
+    ├── lang-program-configure/        # Clean Program.cs
+    ├── infra-jwt-configure/           # JWT Authentication
+    │
+    ├── lang-unittest-generate/        # Unit Tests + Builders
+    ├── lang-integrationtest-generate/ # Integration + Architecture Tests
+    │
+    └── infra-docker-deploy/           # Docker + CI/CD
+```
+
+## Skills por Categoria
+
+### ⚠️ Validação (Usar Sempre!)
+
+| Skill | Quando |
+|-------|--------|
+| `project-scope-validate` | **ANTES** de implementar qualquer feature |
+| `code-api-validate` | **DEPOIS** de implementar, para validar aderência |
+
+### API Layer
+
+| Skill | Descrição |
+|-------|-----------|
+| `lang-controller-generate` | Controllers RESTful, rotas, status codes |
+| `lang-webhook-generate` | Webhooks Twilio, validação de assinatura |
+| `lang-contracts-generate` | `[Verbo][Domínio]Request/Response` em `Contracts/` |
+
+### Application Layer (CQRS)
+
+| Skill | Descrição |
+|-------|-----------|
+| `lang-command-generate` | Commands + Handlers + Validators (MediatR) |
+| `lang-query-generate` | Queries + Handlers + Validators (MediatR) |
+| `lang-mapping-generate` | DTOs e Mapping Extensions |
+
+### Domain Layer (DDD)
+
+| Skill | Descrição |
+|-------|-----------|
+| `lang-entity-generate` | Entities, Aggregates, Exceptions |
+| `lang-valueobject-generate` | Value Objects imutáveis |
+| `lang-event-generate` | Domain Events com MediatR |
+
+### Infrastructure Layer
+
+| Skill | Descrição |
+|-------|-----------|
+| `infra-repository-generate` | Repositories com ADO.NET + Dapper |
+| `infra-messaging-configure` | Azure Service Bus com MassTransit |
+| `infra-service-integrate` | Twilio, Azure OpenAI, Search |
+
+### Testes
+
+| Skill | Descrição |
+|-------|-----------|
+| `lang-unittest-generate` | xUnit, NSubstitute, Builders |
+| `lang-integrationtest-generate` | WebApplicationFactory, TestContainers, NetArchTest |
+
+### Cross-cutting
+
+| Skill | Descrição |
+|-------|-----------|
+| `lang-program-configure` | Clean Program.cs com layer extensions |
+| `infra-jwt-configure` | JWT via Infrastructure layer |
+| `infra-docker-deploy` | Docker, docker-compose, GitHub Actions |
+
+## Stack
+
+| Categoria | Tecnologia |
+|-----------|------------|
+| Runtime | .NET 8 |
+| CQRS | MediatR |
+| Validação | FluentValidation |
+| ORM | ADO.NET + Dapper |
+| Mensageria | Azure Service Bus (MassTransit) |
+| IA | Azure OpenAI |
+| WhatsApp | Twilio |
+| Testes | xUnit, FluentAssertions, NSubstitute |
+
+## Padrão
+
+Este projeto segue o padrão [Agent Skills](https://agentskills.io).

@@ -1,0 +1,62 @@
+"""Validate mandatory sections in SKILL.md."""
+
+import pytest
+
+
+# Skills that are catalogs/indexes — don't need "Quando Usar"
+CATALOG_SKILLS = {
+    "agent-catalog-query",
+    "code-catalog-query",
+    "infra-catalog-query",
+    "project-catalog-query",
+}
+
+# Skills that are config/reference rather than action-driven
+CONFIG_REFERENCE_SKILLS = {
+    "code-program-configure",
+}
+
+
+@pytest.mark.structural
+class TestSections:
+    def test_has_quando_usar(self, skill):
+        """Action skills must have 'Quando Usar' or equivalent usage section."""
+        if skill.name in CATALOG_SKILLS | CONFIG_REFERENCE_SKILLS:
+            pytest.skip(f"{skill.name} is catalog/config — no 'Quando Usar' needed")
+        heading_texts = [h[1] for h in skill.headings]
+        has_section = any("Quando Usar" in h for h in heading_texts)
+        has_alt = any("Quando NÃO Usar" in h for h in heading_texts)
+        assert has_section or has_alt, (
+            f"{skill.path}: missing '## Quando Usar' section"
+        )
+
+    def test_has_workflow_or_equivalent(self, skill):
+        """Skills must have Workflow, or an equivalent structural pattern."""
+        heading_texts = [h[1] for h in skill.headings]
+        # Direct workflow indicators
+        has_workflow = any("Workflow" in h for h in heading_texts)
+        has_catalog_table = any("Disponíveis" in h for h in heading_texts)
+        has_steps = any("Steps" in h for h in heading_texts)
+        has_phases = any("Fase" in h for h in heading_texts)
+        # Generator/template pattern: Templates + Checklist or Config Schema
+        has_templates = any("Template" in h for h in heading_texts)
+        has_checklist = any("Checklist" in h for h in heading_texts)
+        has_config_schema = any("Config Schema" in h for h in heading_texts)
+        has_config_loading = any("Config Loading" in h for h in heading_texts)
+        # Reference/pattern skills: Padrões, Estrutura, Regras, Princípio
+        has_patterns = any(
+            kw in h
+            for h in heading_texts
+            for kw in ("Padrões", "Estrutura", "Regras", "Princípio", "Instruções")
+        )
+        generator_pattern = (has_templates or has_config_loading) and (
+            has_checklist or has_config_schema
+        )
+        assert (
+            has_workflow
+            or has_catalog_table
+            or has_steps
+            or has_phases
+            or generator_pattern
+            or has_patterns
+        ), f"{skill.path}: missing '## Workflow' or equivalent section"

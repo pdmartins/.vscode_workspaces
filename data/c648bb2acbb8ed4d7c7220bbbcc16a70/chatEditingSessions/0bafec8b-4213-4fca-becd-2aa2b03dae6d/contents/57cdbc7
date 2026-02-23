@@ -1,0 +1,22 @@
+# Convenções — Copilot Core
+
+- **date**: 2026-02-17
+- **status**: active
+
+## Código
+
+- **Português para chat, inglês para código**: variáveis, nomes de arquivo, paths em inglês
+
+## Git
+
+- **Conventional Commits**: `<type>(<scope>): <description>` (single-line, ≤250 chars)
+
+## Worktrees
+
+- `.copilot-project` usa git worktrees em `.copilot-project-worktrees/`
+- Nomes dos diretórios espelham exatamente os nomes das branches
+
+## Instructions
+
+- Arquivos em `.github/instructions/` são **symlinks**, nunca cópias
+- Nomes com prefixo `agent-skills-*` para evitar conflitos

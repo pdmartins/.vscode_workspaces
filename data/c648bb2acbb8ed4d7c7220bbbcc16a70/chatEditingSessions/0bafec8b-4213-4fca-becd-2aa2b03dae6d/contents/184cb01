@@ -1,0 +1,7 @@
+# Chat Naming Convention
+
+- **date**: 2026-02-15
+- **status**: active
+- **context**: Skills de sessão inicialmente nomeados agent-session-save e agent-session-resume
+- **decision**: Renomear para agent-chat-save e agent-chat-resume. Feature segment deve espelhar a pasta onde dados são armazenados (chat-memory/ → chat-*)
+- **outcome**: Regra: quando skill opera sobre pasta específica, feature segment alinha com nome da pasta. Exemplos: chat-memory/ → agent-chat-*, memory/ → agent-memory-*

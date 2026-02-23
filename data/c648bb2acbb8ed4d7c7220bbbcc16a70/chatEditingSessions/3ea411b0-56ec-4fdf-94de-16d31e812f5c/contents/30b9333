@@ -1,0 +1,115 @@
+---
+name: agent-memory-query
+description: Consulta lições aprendidas e decisões históricas do projeto. Use no início de tarefas complexas, quando o usuário perguntar sobre decisões passadas, ou quando precisar evitar erros já documentados. Triggers: "lições aprendidas", "decisões anteriores", "histórico do projeto", início de implementação complexa.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: agent
+---
+
+# Agent Memory Query
+
+Consulta a memória persistente do projeto para recuperar lições aprendidas e decisões históricas.
+
+## Quando Usar
+
+- Início de tarefa complexa (consultar antes de implementar)
+- Usuário pergunta sobre decisões passadas
+- Antes de tomar decisão arquitetural (verificar se já foi decidido)
+- Quando padrão ou erro parece familiar
+
+## Workflow
+
+### 1. Localizar arquivo de memória
+
+Ler: `{workspace}/.copilot-project/memory/lessons-learned.md`
+
+**Se arquivo não existe:**
+→ Criar automaticamente a estrutura de memória (ver seção "Auto-Init" abaixo)
+→ Informar usuário que memória foi inicializada
+→ Retornar que nenhuma lição existe ainda
+
+### 2. Identificar lições relevantes
+
+- Filtrar por categoria relacionada à tarefa atual
+- Priorizar lições mais recentes
+- Identificar padrões aplicáveis
+
+### 3. Apresentar ao usuário
+
+**Output**:
+```
+📚 **Lições relevantes encontradas**:
+- [categoria] descrição da lição
+- [categoria] descrição da lição
+```
+
+**Se nenhuma lição relevante:**
+```
+📚 Nenhuma lição relevante encontrada para esta tarefa.
+```
+
+### 4. Aplicar conhecimento
+
+- Usar informações para guiar implementação
+- Evitar repetir erros documentados
+- Seguir padrões já estabelecidos
+
+## Categorias de Lições
+
+| Categoria | Descrição |
+|-----------|-----------|
+| arquitetura | Estrutura do projeto, organização |
+| padrões | Convenções de código, nomenclatura |
+| tooling | Ferramentas, dependências, configs |
+| workflow | Processos, automações |
+| debug | Problemas resolvidos, armadilhas |
+| performance | Otimizações, melhorias |
+| segurança | Práticas de segurança |
+
+## Auto-Init
+
+Quando `memory/` ou `lessons-learned.md` não existir, criar automaticamente:
+
+1. Criar diretório: `{workspace}/.copilot-project/memory/`
+2. Criar `lessons-learned.md` com template:
+
+```markdown
+# Lessons Learned
+
+Registro de aprendizados e decisões importantes do projeto.
+
+---
+
+## Estrutura
+
+Cada lição segue o formato:
+
+```xml
+<lesson date="YYYY-MM-DD" category="categoria">
+  <context>Contexto do problema</context>
+  <decision>Decisão tomada</decision>
+  <outcome>Resultado/impacto</outcome>
+</lesson>
+```
+
+### Categorias
+
+| Categoria | Descrição |
+|-----------|----------|
+| arquitetura | Estrutura do projeto |
+| padrões | Convenções de código |
+| tooling | Ferramentas e configs |
+| workflow | Processos |
+| debug | Problemas resolvidos |
+| performance | Otimizações |
+| segurança | Práticas de segurança |
+
+---
+
+## Registro
+
+<!-- Adicionar lições aqui, mais recente primeiro -->
+```
+
+3. Informar: `✅ Memória inicializada automaticamente`

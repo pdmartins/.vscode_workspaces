@@ -1,0 +1,13 @@
+# Configurações específicas do projeto BeWiser Assistant API para infra-jwt-configure
+root_namespace: "BeWiser.Assistant"
+
+jwt:
+  issuer: "bewiser-assistant-api"
+  audience: "bewiser-assistant-client"
+  expiration_minutes: 60
+  refresh_expiration_days: 7
+
+authorization_policies:
+  - name: "CanEditAssistants"
+    requirements:
+      - "Admin role"

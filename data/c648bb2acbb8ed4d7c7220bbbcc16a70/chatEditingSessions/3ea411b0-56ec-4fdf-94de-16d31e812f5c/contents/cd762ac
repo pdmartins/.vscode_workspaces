@@ -1,0 +1,181 @@
+---
+name: project-codemap-update
+description: Registra e atualiza o mapa de código do projeto após criar, alterar ou remover classes, métodos, funções, endpoints, modelos ou utilitários. Acionado AUTOMATICAMENTE após qualquer criação ou alteração de código. Triggers: após criar classe, método, função, endpoint, modelo, componente, serviço, helper, utilitário, hook, middleware, após refatorar, após mover/renomear.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: project
+---
+
+# Project Codemap Update
+
+Registra e atualiza o mapa estruturado de código do projeto para evitar duplicação e maximizar reaproveitamento.
+
+## Quando Usar
+
+- **Automaticamente** após criar qualquer artefato de código (classe, método, função, etc.)
+- **Automaticamente** após alterar assinatura, responsabilidade ou localização de artefato existente
+- **Automaticamente** após remover/deprecar artefato
+- Ao refatorar código (mover, renomear, dividir, unificar)
+
+## Quando NÃO Usar
+
+- Alterações internas que não mudam a interface pública (body de método sem mudar assinatura)
+- Alterações em arquivos de configuração (usar `project-context-update`)
+- Correção de bugs que não altera a estrutura
+
+## Estrutura do Code Map
+
+O mapa de código fica em `{workspace}/.copilot-project/context/code-map/` com os seguintes arquivos:
+
+```
+code-map/
+├── index.md        # Índice mestre — visão geral da arquitetura
+├── services.md     # Serviços e lógica de negócio
+├── models.md       # Modelos, entidades, DTOs, interfaces de dados
+├── api.md          # Endpoints, controllers, rotas
+├── components.md   # Componentes de UI (se aplicável)
+├── utils.md        # Utilitários, helpers, funções auxiliares
+└── config.md       # Constantes, enums, configurações em código
+```
+
+> **Nota**: Nem todos os arquivos precisam existir. Criar apenas os que o projeto necessita.
+
+## Formato dos Registros
+
+### index.md — Índice Mestre
+
+```markdown
+# Code Map
+
+> Atualizado em: {YYYY-MM-DD}
+
+## Arquitetura
+
+{Descrição breve de 2-3 linhas da arquitetura geral}
+
+## Módulos
+
+| Módulo | Arquivo do Mapa | Descrição | Artefatos |
+|--------|-----------------|-----------|-----------|
+| Services | [services.md](services.md) | Lógica de negócio | {count} |
+| Models | [models.md](models.md) | Modelos de dados | {count} |
+| API | [api.md](api.md) | Endpoints | {count} |
+| Utils | [utils.md](utils.md) | Utilitários | {count} |
+
+## Dependências entre Módulos
+
+{Breve descrição de como os módulos se conectam}
+```
+
+### Arquivos de detalhe (services.md, models.md, etc.)
+
+Cada artefato usa o seguinte template:
+
+```markdown
+## {NomeDoArtefato}
+
+- **Arquivo**: `{caminho/relativo/ao/projeto}`
+- **Tipo**: {class | function | interface | enum | component | hook | middleware}
+- **Responsabilidade**: {uma linha descrevendo o que faz}
+- **Depende de**: `{ArtefatoA}`, `{ArtefatoB}` (ou "nenhum")
+
+| Método/Export | Parâmetros | Retorno | Descrição |
+|---------------|-----------|---------|-----------|
+| `metodo1` | `(param: Type)` | `ReturnType` | O que faz |
+| `metodo2` | `(a: A, b: B)` | `void` | O que faz |
+
+---
+```
+
+### Regras do formato
+
+1. **Manter simples** — apenas interface pública (métodos públicos, exports)
+2. **Não duplicar código** — registrar assinatura, não implementação
+3. **Separador** `---` entre cada artefato para facilitar parsing
+4. **Depende de** — listar apenas dependências internas do projeto, não de bibliotecas externas
+
+## Workflow
+
+### 1. Identificar tipo de operação
+
+| Operação | Ação no Code Map |
+|----------|-----------------|
+| Criar artefato novo | Adicionar entrada no arquivo correto |
+| Alterar assinatura/responsabilidade | Atualizar entrada existente |
+| Mover para outro arquivo | Atualizar campo "Arquivo" |
+| Renomear | Atualizar nome e referências em "Depende de" de outros artefatos |
+| Remover | Remover entrada e limpar referências |
+| Adicionar método a classe existente | Adicionar linha na tabela de métodos |
+
+### 2. Determinar arquivo destino
+
+| Tipo de Artefato | Arquivo |
+|-----------------|---------|
+| Service, Repository, Provider, Manager | `services.md` |
+| Model, Entity, DTO, Interface de dados, Schema | `models.md` |
+| Controller, Route, Endpoint, Resolver | `api.md` |
+| Component, Page, Layout, Widget | `components.md` |
+| Helper, Util, Formatter, Validator, Guard | `utils.md` |
+| Enum, Constants, Config em código | `config.md` |
+
+### 3. Aplicar atualização
+
+1. Ler o arquivo de destino em `{workspace}/.copilot-project/context/code-map/`
+2. Se arquivo não existe → criar com header padrão (se o diretório `code-map/` também não existe, executar Auto-Init abaixo primeiro)
+3. Adicionar/atualizar/remover o registro
+4. Atualizar `index.md` (contagem de artefatos e descrição se necessário)
+
+### 4. Confirmar registro
+
+**Output**:
+```
+🗺️ **Code Map atualizado**: {operação} `{NomeDoArtefato}` em `{arquivo}.md`
+```
+
+## Exemplos
+
+### Novo serviço criado
+
+```markdown
+## UserService
+
+- **Arquivo**: `src/services/user.service.ts`
+- **Tipo**: class
+- **Responsabilidade**: Gerenciamento de CRUD de usuários
+- **Depende de**: `UserRepository`, `CreateUserDto`
+
+| Método/Export | Parâmetros | Retorno | Descrição |
+|---------------|-----------|---------|-----------|
+| `create` | `(dto: CreateUserDto)` | `Promise<User>` | Cria novo usuário |
+| `findById` | `(id: string)` | `Promise<User \| null>` | Busca por ID |
+| `update` | `(id: string, dto: UpdateUserDto)` | `Promise<User>` | Atualiza usuário |
+| `delete` | `(id: string)` | `Promise<void>` | Remove usuário |
+
+---
+```
+
+### Nova função utilitária
+
+```markdown
+## formatCurrency
+
+- **Arquivo**: `src/utils/formatters.ts`
+- **Tipo**: function
+- **Responsabilidade**: Formata valor numérico para moeda BRL
+- **Depende de**: nenhum
+
+| Método/Export | Parâmetros | Retorno | Descrição |
+|---------------|-----------|---------|-----------|
+| `formatCurrency` | `(value: number, locale?: string)` | `string` | Formata para R$ X.XXX,XX |
+
+---
+```
+
+## Auto-Init
+
+Quando `code-map/` não existir, criar automaticamente:
+
+1. Criar diretório: `{workspace}/.copilot-project/context/code-map/`
+2. Criar `index.md` com template padrão (ver `project-codemap-query` para o template completo)
+3. Prosseguir com o registro normalmente

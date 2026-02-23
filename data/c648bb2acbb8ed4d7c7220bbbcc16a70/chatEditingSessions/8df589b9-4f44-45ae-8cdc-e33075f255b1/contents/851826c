@@ -1,0 +1,55 @@
+# code-dotnet-test — STT Project Extension
+# Complementa o core skill com instruções específicas do projeto STT
+
+## BuildSut Pattern (API — NSubstitute)
+
+```csharp
+private static MyService BuildSut(
+    out ILogger<MyService> logger,
+    out ISomeDependency dependency)
+{
+    logger = Substitute.For<ILogger<MyService>>();
+    dependency = Substitute.For<ISomeDependency>();
+    return new MyService(logger, dependency);
+}
+```
+
+- Static method
+- Mocks via `out` parameters
+- Retorna SUT diretamente
+
+## CreateSut Pattern (Consumer — Moq)
+
+```csharp
+private readonly Mock<ILogger<MyService>> _loggerMock;
+private readonly Mock<ISomeDependency> _dependencyMock;
+
+public MyServiceTests()
+{
+    _loggerMock = new Mock<ILogger<MyService>>();
+    _dependencyMock = new Mock<ISomeDependency>();
+}
+
+private MyService CreateSut()
+{
+    return new MyService(_loggerMock.Object, _dependencyMock.Object);
+}
+```
+
+- Instance method
+- Mocks como fields do construtor
+- Retorna SUT
+
+## Regra de Coexistência (API)
+
+A API tem AMBOS Moq e NSubstitute:
+- **Novos testes** → NSubstitute
+- **Estender testes existentes com Moq** → manter Moq naquele arquivo
+- **NUNCA misturar** frameworks no mesmo arquivo de teste
+
+## Nomes e DisplayName
+
+| Projeto | Nome do método | DisplayName |
+|---------|---------------|-------------|
+| API | `Handle_WhenCondition_ShouldBehavior` (EN) | Português |
+| Consumer | `Method_ComCondicao_DeveBehavior` (PT) | Português |

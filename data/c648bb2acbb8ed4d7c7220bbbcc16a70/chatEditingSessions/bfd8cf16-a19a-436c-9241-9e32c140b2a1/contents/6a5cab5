@@ -1,0 +1,84 @@
+# infra-k8s-deploy — STT Project Configuration
+# Consumed by core skill: .copilot-core/skills/infra-k8s-deploy/SKILL.md
+
+orchestrator: kubernetes
+platform: gke
+manifest_file: k8sdeploy.yaml
+
+placeholders:
+  namespace: ___NAMESPACE___
+  replicas: ___REPLICAS___
+  image_registry: ___GCR___
+  image_name: ___IMAGE_NAME___
+  build_number: ___BUILD_NUMBER___
+  memory_request: ___ACFG_MEMORY_REQUEST___
+  cpu_request: ___ACFG_CPU_REQUEST___
+  memory_limit: ___ACFG_MEMORY_LIMIT___
+  cpu_limit: ___ACFG_CPU_LIMIT___
+  redis_cpu: ___REDIS_CPU___
+  redis_mem: ___REDIS_MEM___
+  environment: ___ENVIRONMENT___
+  deployment_name: ___DEPLOYMENT_NAME___
+  service_name: ___SERVICE_NAME___
+  secret_name: ___SECRET_NAME___
+  app_label: ___APP_LABEL___
+
+strategy:
+  type: RollingUpdate
+  max_unavailable: "25%"
+  max_surge: "25%"
+
+observability:
+  provider: datadog
+  apm_version: "v3.7.0"
+  labels:
+    - "tags.datadoghq.com/env"
+    - "tags.datadoghq.com/service"
+    - "tags.datadoghq.com/version"
+  annotations:
+    - "admission.datadoghq.com/enabled: true"
+    - "admission.datadoghq.com/dotnet-lib.version: v3.7.0"
+
+env_var_patterns:
+  datadog: "DD_*"
+  telemetry: "Core__Telemetry__*"
+  resilience: "Core__Services__*"
+  gcp: "Core__VoiceTranscription__*"
+  cache: "Core__Cache__*"
+  kestrel: "Core__Kestrel__*"
+  separator: "__"    # double underscore for .NET config sections
+
+projects:
+  api:
+    container_port: 80
+    service_type: LoadBalancer
+    service_annotation: "networking.gke.io/load-balancer-type: Internal"
+    health_checks:
+      liveness:
+        path: /health
+        port: 80
+        initial_delay: 15
+        period: 30
+        timeout: 15
+        failure_threshold: 3
+      readiness:
+        path: /ready
+        port: 80
+        initial_delay: 15
+        period: 10
+        timeout: 15
+        failure_threshold: 3
+        success_threshold: 3
+    redis_sidecar:
+      enabled: true
+      image: redis:7.0.0-bullseye
+      port: 6379
+      maxmemory: 4928307200
+      maxmemory_policy: allkeys-lru
+
+  consumer:
+    container_port: null   # worker, no exposed port
+    service_type: null
+    health_checks: null    # no health checks by default
+    redis_sidecar:
+      enabled: false

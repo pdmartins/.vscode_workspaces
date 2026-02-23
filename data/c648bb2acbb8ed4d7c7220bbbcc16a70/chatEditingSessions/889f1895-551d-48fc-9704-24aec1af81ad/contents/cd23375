@@ -1,0 +1,383 @@
+---
+name: code-entity-generate
+description: Padrões para Entities do Domain Layer seguindo DDD. Use ao criar entidades de domínio com identidade. Lê config.yml do project para convenções específicas. Triggers: entity, entidade, criar entidade, BaseEntity, pasta Entities/, Domain/.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: code
+---
+
+# Domain Entity Skill
+
+Padrões para Entities do Domain Layer seguindo DDD.
+
+## Config Loading
+
+Antes de gerar código, carregar configurações do projeto:
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/code-entity-generate/config.yml`
+2. Se existe, carregar e usar as configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/code-entity-generate/SKILL.md`
+4. Se existe, carregar como instruções complementares (extensões específicas do projeto)
+5. Se nenhum existe, usar apenas os padrões genéricos abaixo
+
+## Quando Usar
+
+- Criar entidades com identidade (ID)
+- Definir agregados
+- Implementar regras de negócio em entidades
+
+## Estrutura
+
+```
+src/{RootNamespace}.Domain/
+├── Entities/
+│   ├── BaseEntity.cs
+│   ├── {Entity}.cs
+│   └── {ChildEntity}.cs
+├── Enums/
+│   ├── {Entity}Status.cs
+│   └── {Entity}Type.cs
+├── Exceptions/
+│   ├── DomainException.cs
+│   └── {Entity}NotFoundException.cs
+└── Interfaces/
+    └── Repositories/
+        ├── I{Entity}Repository.cs
+        └── I{ChildEntity}Repository.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Entity | `{Entity}` (sem sufixo) | `Order`, `Product`, `Customer` |
+| Enum | `{Entity}{Conceito}` (singular) | `OrderStatus`, `PaymentType` |
+| Exception | `{Entity}Exception` | `OrderNotFoundException` |
+| Repository Interface | `I{Entity}Repository` | `IOrderRepository` |
+
+## Templates
+
+### Base Entity
+
+```csharp
+namespace {RootNamespace}.Domain.Entities;
+
+/// <summary>
+/// Base class for all domain entities.
+/// </summary>
+public abstract class BaseEntity
+{
+    public Guid Id { get; set; }
+    public DateTime CreatedAt { get; set; }
+    public DateTime? UpdatedAt { get; set; }
+    
+    private readonly List<IDomainEvent> _domainEvents = [];
+    
+    public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+    
+    protected void AddDomainEvent(IDomainEvent domainEvent)
+    {
+        _domainEvents.Add(domainEvent);
+    }
+    
+    public void ClearDomainEvents()
+    {
+        _domainEvents.Clear();
+    }
+}
+```
+
+### Domain Entity (Aggregate Root)
+
+```csharp
+namespace {RootNamespace}.Domain.Entities;
+
+/// <summary>
+/// Represents an {Entity} aggregate root.
+/// </summary>
+public class {Entity} : BaseEntity
+{
+    public string Name { get; set; } = null!;
+    public {Entity}Status Status { get; set; }
+    public DateTime? CompletedAt { get; set; }
+    
+    // Navigation properties
+    public Guid {RelatedEntity}Id { get; set; }
+    public {RelatedEntity} {RelatedEntity} { get; set; } = null!;
+    
+    public ICollection<{ChildEntity}> {ChildEntity}s { get; set; } = new List<{ChildEntity}>();
+    
+    // Domain methods
+    public void Complete()
+    {
+        if (Status == {Entity}Status.Completed)
+            throw new InvalidOperationException("{Entity} already completed");
+            
+        Status = {Entity}Status.Completed;
+        CompletedAt = DateTime.UtcNow;
+        
+        AddDomainEvent(new {Entity}CompletedEvent(Id));
+    }
+    
+    public {ChildEntity} Add{ChildEntity}(string content)
+    {
+        if (Status == {Entity}Status.Completed)
+            throw new InvalidOperationException("Cannot add {ChildEntity} to completed {Entity}");
+            
+        var child = new {ChildEntity}
+        {
+            Id = Guid.NewGuid(),
+            {Entity}Id = Id,
+            Content = content
+        };
+        
+        {ChildEntity}s.Add(child);
+        AddDomainEvent(new {ChildEntity}AddedEvent(Id, child.Id));
+        
+        return child;
+    }
+}
+```
+
+### Entity com Value Objects
+
+```csharp
+namespace {RootNamespace}.Domain.Entities;
+
+/// <summary>
+/// Represents a {ChildEntity} within an {Entity}.
+/// </summary>
+public class {ChildEntity} : BaseEntity
+{
+    public Guid {Entity}Id { get; set; }
+    public string Content { get; set; } = null!;
+    public {ChildEntity}Status Status { get; set; }
+    public string? ExternalId { get; set; }
+    
+    // Navigation
+    public {Entity} {Entity} { get; set; } = null!;
+    
+    // Domain methods
+    public void MarkAsDelivered()
+    {
+        Status = {ChildEntity}Status.Delivered;
+    }
+    
+    public void MarkAsFailed(string reason)
+    {
+        Status = {ChildEntity}Status.Failed;
+        // Could add failure reason property
+    }
+}
+```
+
+### Enum
+
+```csharp
+namespace {RootNamespace}.Domain.Enums;
+
+/// <summary>
+/// Status of an {Entity}.
+/// </summary>
+public enum {Entity}Status
+{
+    Active = 1,
+    Completed = 2,
+    Archived = 3
+}
+```
+
+### Domain Exception
+
+```csharp
+namespace {RootNamespace}.Domain.Exceptions;
+
+/// <summary>
+/// Base exception for domain errors.
+/// </summary>
+public abstract class DomainException : Exception
+{
+    protected DomainException(string message) : base(message) { }
+    
+    protected DomainException(string message, Exception innerException) 
+        : base(message, innerException) { }
+}
+
+/// <summary>
+/// Exception when an {Entity} is not found.
+/// </summary>
+public class {Entity}NotFoundException : DomainException
+{
+    public Guid {Entity}Id { get; }
+    
+    public {Entity}NotFoundException(Guid {entity}Id)
+        : base($"{Entity} with ID {{entity}Id} was not found")
+    {
+        {Entity}Id = {entity}Id;
+    }
+}
+```
+
+### Repository Interface
+
+```csharp
+namespace {RootNamespace}.Domain.Interfaces.Repositories;
+
+/// <summary>
+/// Repository interface for {Entity} aggregate.
+/// </summary>
+public interface I{Entity}Repository
+{
+    Task<{Entity}?> GetByIdAsync(
+        Guid id, 
+        CancellationToken cancellationToken = default);
+    
+    Task<IReadOnlyList<{Entity}>> ListByFilterAsync(
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default);
+    
+    Task AddAsync(
+        {Entity} entity, 
+        CancellationToken cancellationToken = default);
+    
+    Task UpdateAsync(
+        {Entity} entity, 
+        CancellationToken cancellationToken = default);
+}
+```
+
+## Exemplo Concreto — Order/OrderItem
+
+Exemplo com `Order` como aggregate root e `OrderItem` como entidade filha.
+
+### Order.cs
+
+```csharp
+namespace {RootNamespace}.Domain.Entities;
+
+public class Order : BaseEntity
+{
+    public string CustomerName { get; set; } = null!;
+    public OrderStatus Status { get; set; }
+    public DateTime? CompletedAt { get; set; }
+    
+    public ICollection<OrderItem> Items { get; set; } = new List<OrderItem>();
+    
+    public void Complete()
+    {
+        if (Status == OrderStatus.Completed)
+            throw new InvalidOperationException("Order already completed");
+        
+        Status = OrderStatus.Completed;
+        CompletedAt = DateTime.UtcNow;
+        AddDomainEvent(new OrderCompletedEvent(Id));
+    }
+    
+    public OrderItem AddItem(string productName, decimal price, int quantity)
+    {
+        var item = new OrderItem
+        {
+            Id = Guid.NewGuid(),
+            OrderId = Id,
+            ProductName = productName,
+            Price = price,
+            Quantity = quantity
+        };
+        
+        Items.Add(item);
+        AddDomainEvent(new OrderItemAddedEvent(Id, item.Id));
+        return item;
+    }
+}
+```
+
+### OrderItem.cs
+
+```csharp
+namespace {RootNamespace}.Domain.Entities;
+
+public class OrderItem : BaseEntity
+{
+    public Guid OrderId { get; set; }
+    public string ProductName { get; set; } = null!;
+    public decimal Price { get; set; }
+    public int Quantity { get; set; }
+    
+    public Order Order { get; set; } = null!;
+}
+```
+
+## Regras de Entidades
+
+1. **Identidade**: Toda entidade tem um `Id` único
+2. **Encapsulamento**: Regras de negócio dentro da entidade
+3. **Invariantes**: Validar estado consistente
+4. **Domain Events**: Emitir eventos para mudanças importantes
+5. **Value Objects**: Usar para conceitos sem identidade
+
+## Agregados
+
+```csharp
+// {Entity} é o Aggregate Root
+// {ChildEntity}s só podem ser acessadas através de {Entity}
+
+public class {Entity} : BaseEntity  // Aggregate Root
+{
+    public ICollection<{ChildEntity}> {ChildEntity}s { get; set; }  // Entidade filha
+    
+    public {ChildEntity} Add{ChildEntity}(string content)
+    {
+        // Controle de acesso via aggregate root
+    }
+}
+```
+
+## Checklist
+
+- [ ] Entidade herda de `BaseEntity`
+- [ ] Nome sem sufixo (apenas o domínio)
+- [ ] Value Objects para conceitos complexos
+- [ ] Métodos de domínio para regras de negócio
+- [ ] Domain Events para mudanças importantes
+- [ ] Repository interface em `Domain/Interfaces/Repositories/`
+- [ ] Exceptions específicas do domínio
+
+## Config Schema
+
+```yaml
+# config.yml schema for code-entity-generate
+language: string                    # e.g., csharp
+framework: string                   # e.g., dotnet-8
+solution: string                    # Solution name
+
+project:
+  root_namespace: string            # e.g., MyApp
+  api_namespace: string             # e.g., MyApp.Api
+
+domain:
+  base_path: string                 # e.g., src/MyApp.Domain
+  base_entity_class: string         # e.g., BaseEntity
+  supports_domain_events: boolean   # Whether entities emit domain events
+
+  entities:                         # Known domain entities
+    - name: string                  # Entity name
+      type: string                  # aggregate_root | entity
+      children: [string]            # Child entity names
+      value_objects: [string]       # Value objects used
+      enums: [string]               # Related enums
+      domain_methods: [string]      # Domain methods
+
+  enums: [string]                   # All domain enums
+
+  exceptions:
+    pattern: string                 # e.g., "{Entity}NotFoundException"
+    base_class: string              # e.g., DomainException
+    examples: [string]              # Concrete exception names
+
+  repositories:
+    pattern: string                 # e.g., "I{Entity}Repository"
+    namespace: string               # Full namespace for interfaces
+    examples: [string]              # Concrete repository interface names
+```

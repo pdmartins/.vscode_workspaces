@@ -1,0 +1,129 @@
+---
+name: stt-coding-conventions
+description: Convenções de código .NET 8 Minimal API para a PoC STT GCP. Define naming, estrutura, patterns e estilo. Triggers — criar endpoint, novo serviço, adicionar código, convenções, padrões de código.
+metadata:
+  author: _poc/stt_gcp
+  version: "1.0"
+  category: code
+---
+
+# STT Coding Conventions
+
+Convenções de código para a PoC de Speech-to-Text com GCP.
+
+## Quando Usar
+
+- Criar novo endpoint, serviço ou modelo
+- Definir padrão de código
+- Review de código
+
+## Stack
+
+- **.NET 8** com **Minimal API**
+- **C# 12** (file-scoped namespaces, primary constructors, raw string literals)
+- Sem controllers — endpoints registrados via extension methods
+
+## Estrutura de Pastas
+
+```
+SttGcp.Api/
+├── Program.cs                     # Entry point + DI + endpoint mapping
+├── Endpoints/                     # Extension methods para registrar endpoints
+│   ├── TranscribeEndpoints.cs
+│   └── HealthEndpoints.cs
+├── Services/                      # Lógica de negócio / integração GCP
+│   ├── ISpeechToTextService.cs
+│   ├── SpeechToTextV1Service.cs
+│   ├── SpeechToTextV2Service.cs
+│   ├── ChirpService.cs
+│   └── VertexAiService.cs
+├── Models/                        # DTOs e value objects
+│   ├── TranscribeRequest.cs
+│   ├── TranscribeResponse.cs
+│   └── ComparisonResult.cs
+├── Configuration/                 # Opções e settings
+│   └── GcpSettings.cs
+└── appsettings.json
+```
+
+## Naming
+
+| Elemento | Convenção | Exemplo |
+|----------|-----------|---------|
+| Namespace | `SttGcp.Api.{Pasta}` | `SttGcp.Api.Services` |
+| Interface | `I{Nome}` | `ISpeechToTextService` |
+| Serviço | `{Provider}Service` | `SpeechToTextV1Service` |
+| Endpoint group | `{Feature}Endpoints` | `TranscribeEndpoints` |
+| DTO Request | `{Ação}Request` | `TranscribeRequest` |
+| DTO Response | `{Ação}Response` | `TranscribeResponse` |
+| Settings | `{Feature}Settings` | `GcpSettings` |
+
+## Padrões
+
+### Endpoints (Minimal API)
+
+```csharp
+public static class TranscribeEndpoints
+{
+    public static IEndpointRouteBuilder MapTranscribeEndpoints(this IEndpointRouteBuilder app)
+    {
+        var group = app.MapGroup("/api/transcribe")
+            .WithTags("Transcribe");
+
+        group.MapPost("/v1", TranscribeV1)
+            .WithName("TranscribeV1")
+            .Produces<TranscribeResponse>()
+            .ProducesProblem(StatusCodes.Status400BadRequest);
+
+        return app;
+    }
+
+    private static async Task<IResult> TranscribeV1(
+        IFormFile audio,
+        ISpeechToTextService service,
+        CancellationToken ct)
+    {
+        // implementation
+    }
+}
+```
+
+### Serviços
+
+```csharp
+public interface ISpeechToTextService
+{
+    string ProviderName { get; }
+    Task<TranscribeResponse> TranscribeAsync(Stream audioStream, string contentType, CancellationToken ct = default);
+}
+```
+
+### DI Registration
+
+```csharp
+// Program.cs
+builder.Services.Configure<GcpSettings>(builder.Configuration.GetSection("Gcp"));
+builder.Services.AddSingleton<ISpeechToTextService, SpeechToTextV1Service>();
+```
+
+### Options Pattern
+
+```csharp
+public sealed class GcpSettings
+{
+    public string ProjectId { get; init; } = string.Empty;
+    public string Region { get; init; } = "us-central1";
+    public string LanguageCode { get; init; } = "pt-BR";
+}
+```
+
+## Regras
+
+1. **File-scoped namespaces** — sempre (`namespace SttGcp.Api.Services;`)
+2. **Primary constructors** para serviços com DI
+3. **`sealed`** em classes concretas que não serão herdadas
+4. **`CancellationToken`** em todo método async
+5. **`IResult`** como retorno de endpoints (TypedResults)
+6. **Sem try/catch genérico** — usar middleware de exception handling
+7. **Logs estruturados** — `ILogger<T>` com `LoggerMessage.Define`
+8. **Sem dados de paciente em logs** — mesmo em PoC com dados de teste

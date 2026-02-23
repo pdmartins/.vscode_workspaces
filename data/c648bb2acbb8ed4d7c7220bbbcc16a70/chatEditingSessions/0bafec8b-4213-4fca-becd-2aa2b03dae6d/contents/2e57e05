@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Run LLM-as-Judge evaluation session
+# Usage: ./run-evaluation.sh [--type routing|quality|hallucination] [--skill "name"] [--list] [--validate]
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+INTERNAL_ROOT="$(dirname "$SCRIPT_DIR")"
+CORE_ROOT="$(dirname "$INTERNAL_ROOT")"
+WORKSPACE_ROOT="$(dirname "$CORE_ROOT")"
+SCENARIOS_ROOT="$WORKSPACE_ROOT/.copilot-project-worktrees/_test/llm-judge/scenarios"
+
+TYPE=""
+SKILL=""
+SCENARIO=""
+LIST=false
+VALIDATE=false
+
+show_help() {
+    cat <<'EOF'
+LLM-as-Judge Evaluation Runner
+
+Usage: ./run-evaluation.sh [options]
+
+Options:
+  --type TYPE       Filter by type: routing, quality, hallucination
+  --skill NAME      Filter scenarios referencing a specific skill
+  --scenario FILE   Run specific scenario by filename
+  --list            List available scenarios
+  --validate        Run pytest validation on scenario YAMLs
+  --help            Show this help
+EOF
+}
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --type) TYPE="$2"; shift 2 ;;
+        --skill) SKILL="$2"; shift 2 ;;
+        --scenario) SCENARIO="$2"; shift 2 ;;
+        --list) LIST=true; shift ;;
+        --validate) VALIDATE=true; shift ;;
+        --help) show_help; exit 0 ;;
+        *) echo "Unknown option: $1"; show_help; exit 1 ;;
+    esac
+done
+
+# --- Validate mode ---
+if $VALIDATE; then
+    echo "Validating evaluation scenarios..."
+    VENV_PYTHON="$INTERNAL_ROOT/.venv/bin/python"
+    if [[ ! -f "$VENV_PYTHON" ]]; then
+        echo "venv not found. Run run-tests.sh --install first."
+        exit 1
+    fi
+    cd "$INTERNAL_ROOT"
+    "$VENV_PYTHON" -m pytest tests/behavioral/test_evaluation_scenarios.py -v --tb=short
+    exit $?
+fi
+
+# --- List mode ---
+if $LIST; then
+    if [[ ! -d "$SCENARIOS_ROOT" ]]; then
+        echo "Scenarios directory not found: $SCENARIOS_ROOT"
+        exit 1
+    fi
+
+    echo ""
+    echo "Available Evaluation Scenarios:"
+    echo "$(printf '%.0s-' {1..70})"
+    printf "%-40s %-15s %-10s\n" "FILE" "TYPE" "DIFFICULTY"
+    echo "$(printf '%.0s-' {1..70})"
+
+    for type_dir in "$SCENARIOS_ROOT"/*/; do
+        type_name=$(basename "$type_dir")
+        [[ -n "$TYPE" && "$type_name" != "$TYPE" ]] && continue
+        for file in "$type_dir"*.yaml; do
+            [[ ! -f "$file" ]] && continue
+            filename=$(basename "$file")
+            difficulty=$(grep -oP '(?<=^difficulty:\s)\w+' "$file" 2>/dev/null || echo "?")
+            printf "%-40s %-15s %-10s\n" "$type_name/$filename" "$type_name" "$difficulty"
+        done
+    done
+    exit 0
+fi
+
+echo "Evaluate mode: generate prompt and copy to clipboard."
+echo "Use --list to see available scenarios first."
+echo "(Full clipboard support available in PowerShell version)"

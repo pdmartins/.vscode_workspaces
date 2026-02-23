@@ -1,0 +1,18 @@
+# Project Context — Copilot Core
+
+Estado atual do projeto para referência do Copilot.
+
+---
+
+## Objetivo
+
+Sistema de instruções e skills reutilizáveis para o Copilot Agent, seguindo o padrão [Agent Skills](https://agentskills.io). Fornece um core genérico (`.copilot-core`) que é plugado via git submodule ou clone na **raiz** de qualquer projeto, junto com um repositório de dados por projeto (`.copilot-project`) com branch por projeto. Suporta dois modos de instalação: **aberto** (submodule visível) e **stealth** (clone + gitignore, invisível).
+
+## Repos
+
+| Repo | URL | Propósito |
+|------|-----|-----------|
+| `.copilot-core` | `https://github.com/pdmartins/.copilot-core.git` | Skills genéricos, instruções globais, templates |
+| `.copilot-project` | `https://github.com/pdmartins/.copilot-project.git` | Contexto, memória e skills específicos por projeto (branch por projeto) |
+
+## Stack

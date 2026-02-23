@@ -1,0 +1,115 @@
+---
+name: infra-pipeline-deploy
+description: Gera pipelines CI/CD (Azure Pipelines, GitHub Actions). Padrão genérico, lê config.yml do project para plataforma, templates, registries, análise estática. Triggers: "pipeline", "CI/CD", "build", "deploy", "SonarQube", "TechDocs", ao configurar integração contínua.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: infra
+  delegable: full
+---
+
+# Infra Pipeline Deploy
+
+Gera pipelines CI/CD seguindo padrões configuráveis por projeto.
+
+## Quando Usar
+
+- Criar nova pipeline CI/CD
+- Modificar pipeline existente
+- Configurar análise estática ou deployment
+
+## Config Loading
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/infra-pipeline-deploy/config.yml`
+2. Se existe, carregar configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/infra-pipeline-deploy/SKILL.md`
+4. Se existe, carregar instruções complementares
+5. Se nenhum existe, usar padrões genéricos
+
+## Padrões Genéricos
+
+### Pipeline Structure
+
+```yaml
+trigger:
+  branches:
+    include: [develop, hotfix/*, release/*]
+  paths:
+    include: [src/*]
+
+pool: {agent-pool}
+
+steps:
+  - checkout
+  - build
+  - test
+  - analyze (optional)
+  - push image
+  - deploy (optional)
+```
+
+### Best Practices
+
+1. **Template references** — nunca inline build/deploy logic diretamente
+2. **fetchDepth: 0** — necessário para ferramentas de análise como SonarQube
+3. **Credentials via variables** — nunca hardcoded
+4. **Path filters** — trigger apenas em mudanças relevantes (`src/*`)
+5. **Branch strategy** — develop + hotfix/* + release/*
+
+### Container Registry
+
+```yaml
+# Single or dual registry push
+- push: registry1/{image}:{tag}
+- push: registry2/{image}:{tag}  # optional mirror
+```
+
+### Analysis
+
+| Ferramenta | Propósito |
+|-----------|-----------|
+| SonarQube | Análise estática de código |
+| TechDocs | Documentação Backstage |
+| CodeQL | Security scanning |
+
+## Checklist
+
+- [ ] Template references (nunca inline)
+- [ ] fetchDepth: 0 para análise
+- [ ] Credentials via variable groups
+- [ ] Path filters em src/*
+- [ ] Branch strategy configurada
+- [ ] Registry push conforme config
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/infra-pipeline-deploy/config.yml
+platform: azure-pipelines           # azure-pipelines | github-actions
+trigger:
+  branches: [develop, "hotfix/*", "release/*"]
+  paths: ["src/*"]
+pool: "Azure Pipelines"
+templates:
+  repo: "Org/DevOps.Templates"
+  branch: develop
+  build: build-gcp.yaml
+  sonar: sonar-dotnet.yaml
+  techdocs: techdocs.yaml
+registries:
+  - name: primary
+    url: "orgcorp.azurecr.io"
+    type: ACR
+  - name: mirror
+    url: "orgcorp-gcp"
+    type: GCR
+credentials:
+  variable-group: Nuget
+  build-args: [NUGET_USER, NUGET_KEY]
+analysis:
+  sonarqube: true
+  techdocs: true
+  techdocs-entities:
+    api: "default/Component/my-api"
+    consumer: "default/Component/my-consumer"
+```

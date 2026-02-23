@@ -1,0 +1,198 @@
+---
+name: project-bootstrap
+description: Configura automaticamente o sistema de skills do Copilot Agent em um novo projeto via comandos de terminal. Use quando usuário quer "configurar copilot", "setup do agent", "adicionar skills ao projeto", "usar gitmodules do copilot". Triggers - setup, bootstrap, configurar, instalar copilot agent, adicionar submodules.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: project
+---
+
+# Project Bootstrap
+
+Configura automaticamente o sistema de skills do Copilot Agent em um projeto existente.
+
+## Quando Usar
+
+- Usuário quer configurar Copilot Agent em seu projeto
+- Projeto não tem estrutura `.github/.copilot-*`
+- Usuário menciona "setup", "bootstrap", "configurar copilot"
+
+## Diferença de `project-init`
+
+| Skill | Propósito |
+|-------|-----------|
+| `project-bootstrap` | **Execução automatizada** - roda scripts/comandos |
+| `project-init` | **Guia manual** - instruções passo a passo |
+
+## Pré-requisitos
+
+- Git instalado e configurado
+- Git inicializado no projeto (`git init`)
+- Acesso aos repositórios:
+  - `https://github.com/pdmartins/.copilot-core.git`
+  - `https://github.com/pdmartins/.copilot-project.git`
+
+## Workflow
+
+### 1. Coletar Informações
+
+**Perguntar ao usuário:**
+
+1. **Nome do projeto** (será usado como branch name)
+   - Sugerir: nome da pasta atual do workspace
+   
+2. **Confirmação** de que pode executar comandos git
+
+### 2. Verificar Estado Atual
+
+```powershell
+# Verificar se já existe
+Test-Path ".github/.copilot-core"
+```
+
+**Se existir:**
+- Perguntar se deseja sobrescrever
+- Se não, abortar com sugestão de `project-update`
+
+### 3. Executar Setup
+
+**Opção A - Via Script (Recomendado)**
+
+```powershell
+# Windows
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/pdmartins/.copilot-core/main/.github/scripts/setup.ps1" -OutFile "setup.ps1"
+.\setup.ps1 -ProjectName "{nome-projeto}"
+Remove-Item setup.ps1
+```
+
+```bash
+# Linux/Mac
+curl -fsSL https://raw.githubusercontent.com/pdmartins/.copilot-core/main/.github/scripts/setup.sh -o setup.sh
+chmod +x setup.sh
+./setup.sh "{nome-projeto}"
+rm setup.sh
+```
+
+**Opção B - Comandos Diretos**
+
+```powershell
+# 1. Criar estrutura
+New-Item -ItemType Directory -Path ".github" -Force
+
+# 2. Adicionar .copilot-core
+git submodule add https://github.com/pdmartins/.copilot-core.git ".github/.copilot-core"
+
+# 3. Adicionar .copilot-project (branch específica)
+git submodule add -b {nome-projeto} https://github.com/pdmartins/.copilot-project.git ".github/.copilot-project"
+
+# 4. Se branch não existe, criar
+cd .github/.copilot-project
+git checkout -b {nome-projeto}
+```
+
+### 4. Criar Estrutura Inicial (se branch nova)
+
+Se a branch do projeto não existia, criar arquivos iniciais:
+
+**context/project.md:**
+```markdown
+# Contexto do Projeto: {nome-projeto}
+
+## Status
+- **Fase**: Inicial
+- **Última atualização**: {data-atual}
+
+## Resumo
+
+> [Descreva brevemente o projeto aqui]
+
+## Stack
+
+- [ ] Definir stack técnica
+
+## Próximos Passos
+
+- [ ] Definir escopo do projeto
+- [ ] Configurar ambiente de desenvolvimento
+```
+
+**memory/lessons-learned.md:**
+```markdown
+# Lições Aprendidas - {nome-projeto}
+
+## Sobre este arquivo
+
+Este arquivo registra lições aprendidas durante o desenvolvimento.
+O Copilot Agent consulta e atualiza automaticamente.
+
+---
+
+## Lições
+
+> Nenhuma lição registrada ainda.
+```
+
+### 5. Commit e Push
+
+```powershell
+# No projeto principal
+git add .
+git commit -m "feat: setup copilot agent skills"
+
+# No .copilot-project (se branch nova)
+cd .github/.copilot-project
+git push -u origin {nome-projeto}
+```
+
+### 6. Confirmar Setup
+
+**Output esperado:**
+```
+✅ **Copilot Agent configurado com sucesso!**
+
+**Estrutura criada:**
+```
+.github/
+├── .copilot-core/      (submodule: main)
+└── .copilot-project/   (submodule: {nome-projeto})
+    ├── context/project.md
+    ├── memory/lessons-learned.md
+    └── skills/
+```
+
+**Próximos passos:**
+1. Edite `context/project.md` com informações do projeto
+2. Crie skills específicos em `skills/`
+3. Comece a usar o Copilot Agent!
+```
+
+## Troubleshooting
+
+### Erro: "submodule already exists"
+
+```powershell
+git rm --cached ".github/.copilot-core"
+git rm --cached ".github/.copilot-project"
+Remove-Item -Recurse ".github/.copilot-core"
+Remove-Item -Recurse ".github/.copilot-project"
+```
+
+### Erro: "branch not found"
+
+A branch será criada automaticamente. Após criar, fazer push:
+```powershell
+cd .github/.copilot-project
+git push -u origin {nome-projeto}
+```
+
+### Erro: "permission denied"
+
+Verificar se tem acesso de escrita aos repositórios remotos.
+
+## Referência Rápida
+
+| Comando | Propósito |
+|---------|-----------|
+| `git submodule update --init --recursive` | Clonar submodules em novo clone |
+| `git submodule update --remote` | Atualizar para última versão |
+| `git submodule foreach git pull` | Pull em todos submodules |

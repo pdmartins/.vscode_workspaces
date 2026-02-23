@@ -1,0 +1,133 @@
+---
+name: infra-bigquery-query
+description: Gera queries BigQuery parametrizadas com wrapper pattern. Padrão genérico, lê config.yml do project para tabelas, mapeamento e convenções. Triggers: "nova query BigQuery", "consulta BigQuery", "inserir no BigQuery", "BigQuery service", ao trabalhar com persistência de dados.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: infra
+  delegable: full
+---
+
+# Infra BigQuery Query
+
+Gera queries e serviços BigQuery seguindo padrões configuráveis por projeto.
+
+## Quando Usar
+
+- Criar nova query de leitura no BigQuery
+- Criar novo insert no BigQuery
+- Criar novo método em BigQueryService
+- Trabalhar com tabelas BigQuery
+
+## Config Loading
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/infra-bigquery-query/config.yml`
+2. Se existe, carregar configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/infra-bigquery-query/SKILL.md`
+4. Se existe, carregar instruções complementares
+5. Se nenhum existe, usar padrões genéricos
+
+## Padrões Genéricos
+
+### SQL Parametrizado
+
+```csharp
+const string sqlTemplate = @"
+    SELECT field1, field2
+    FROM {0}
+    WHERE key = @key
+    ORDER BY createdAt DESC
+    LIMIT 1";
+
+var tableFq = $"`{projectId}.{dataSet}.{table}`";
+var sql = string.Format(sqlTemplate, tableFq);
+
+var parameters = new[]
+{
+    new BigQueryParameter("key", BigQueryDbType.String, value)
+};
+```
+
+### Rules
+
+1. **SQL SEMPRE parametrizado** — `@param`, nunca concatenação de strings
+2. **Table reference** — fully qualified com backticks: `` `project.dataset.table` ``
+3. **Template** — `const string sqlTemplate` com `string.Format` para table name
+4. **Logging** — log antes da query, log do resultado, log em caso de erro
+5. **CancellationToken** — sempre propagado para `ExecuteQueryAsync`
+6. **Dates** — converter para UTC: `dateTime.UtcDateTime`
+7. **BigQueryParameter** — usar tipo correto (String, Timestamp, Int64, etc.)
+
+### Wrapper Pattern
+
+Para testabilidade, usar wrapper que abstrai o `BigQueryClient`:
+
+```csharp
+public interface IBigQueryClientWrapper
+{
+    Task<IEnumerable<TRow>> ExecuteQueryAsync(
+        string sql,
+        BigQueryParameter[] parameters,
+        QueryOptions? options = null,
+        CancellationToken cancellationToken = default);
+}
+```
+
+### Result Mapping
+
+Mapear resultados via DTO + extension methods:
+
+```csharp
+private static MyDto MapToDto(RowDto row)
+{
+    return new MyDto
+    {
+        Field1 = row.Get<string>("field1"),
+        Field2 = row.Get<DateTime>("field2")
+    };
+}
+```
+
+## Error Handling
+
+Conforme config do projeto. Padrões comuns:
+
+| Contexto | Comportamento |
+|----------|--------------|
+| Reader | try/catch → log + rethrow |
+| Writer | try/catch → log + return false |
+| Worker | try/catch → throw DataException |
+
+## Checklist
+
+- [ ] SQL parametrizado (nunca string interpolation para valores)
+- [ ] Table name fully qualified com backticks
+- [ ] BigQueryParameter com tipo correto
+- [ ] CancellationToken propagado
+- [ ] Logging antes e depois da query
+- [ ] Error handling conforme config do projeto
+- [ ] Mapeamento via DTO/Extensions
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/infra-bigquery-query/config.yml
+tables:
+  - name: My_Table
+    dataset: my_dataset
+    description: "Propósito da tabela"
+    used-by: [Api, Consumer]
+client:
+  api: wrapper                      # wrapper | direct
+  worker: direct                    # wrapper | direct
+error-handling:
+  reader: rethrow                   # rethrow | return-default
+  writer: return-bool               # return-bool | throw
+  worker: throw-exception           # throw-exception | log-only
+mapping:
+  style: RowDto                     # RowDto | BigQueryRow
+  extensions: true                  # use extension methods for row access
+settings:
+  class: BigQuerySettings
+  config-path: "Core:VoiceTranscription:BigQuery"
+```

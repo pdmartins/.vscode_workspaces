@@ -1,0 +1,31 @@
+# code-refactor-extract — STT Project Configuration
+# Consumed by core skill: .copilot-core/skills/code-refactor-extract/SKILL.md
+
+language: csharp
+framework: dotnet-8
+
+architecture: layered
+layers:
+  - presentation: "Api / Consumer"
+  - domain: "Domain (contracts, services, models)"
+  - infrastructure: "Infra.Data.Queries, Infra.Cache"
+  - tests: "UnitTests"
+
+patterns:
+  interface_segregation: true
+  wrapper_pattern: "Thin wrappers for external SDKs"
+  cqrs: "MediatR queries/commands"
+  options: "IOptions<T> for settings"
+
+extraction_rules:
+  max_method_lines: 30
+  max_class_responsibilities: 1   # SRP
+  max_constructor_params: 6
+  helpers_location: "Domain/Helpers/v1/"
+  extensions_location: "Domain/Extensions/"
+
+di_rules:
+  api_services: Scoped
+  api_wrappers: Singleton
+  consumer_all: Singleton
+  registration: Bootstrapper.cs

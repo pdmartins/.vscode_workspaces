@@ -1,0 +1,123 @@
+---
+name: project-codemap-query
+description: Consulta o mapa de código do projeto para verificar artefatos existentes antes de implementar. Use SEMPRE antes de criar novas classes, métodos, funções ou componentes para evitar duplicação e maximizar reaproveitamento. Triggers: antes de criar código, antes de implementar feature, "o que já existe", "já tem algo que faz", "quais serviços existem", "onde fica", "como foi feito", "mostrar estrutura do código".
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: project
+---
+
+# Project Codemap Query
+
+Consulta o mapa de código existente para evitar duplicação e identificar oportunidades de reaproveitamento antes de implementar.
+
+## Quando Usar
+
+- **Automaticamente** antes de criar qualquer artefato novo (classe, função, componente, etc.)
+- **Automaticamente** antes de alterar artefatos existentes (entender dependências)
+- Quando o usuário perguntar sobre a estrutura do código
+- Quando precisar identificar onde colocar nova funcionalidade
+- Quando precisar reutilizar código existente
+
+## Workflow
+
+### 1. Carregar Code Map
+
+Ler os arquivos em: `{workspace}/.github/.copilot-project/context/code-map/`
+
+**Ordem de leitura:**
+1. `index.md` — visão geral e contagem de artefatos
+2. Arquivo(s) relevante(s) para a tarefa (ex: `services.md` se vai criar um serviço)
+
+**Se diretório não existe:**
+→ Criar automaticamente a estrutura do code-map (ver seção "Auto-Init" abaixo)
+→ Depois prosseguir com a consulta
+
+### 2. Analisar antes de implementar
+
+Ao criar novo artefato, verificar:
+
+| Verificação | Ação |
+|-------------|------|
+| Já existe artefato com mesma responsabilidade? | **Reutilizar** ao invés de criar novo |
+| Existe artefato similar que pode ser estendido? | **Estender** ao invés de criar novo |
+| Existe utilitário que resolve parte do problema? | **Importar e usar** o existente |
+| Novo artefato deve depender de qual existente? | **Listar dependências** corretas |
+| Há padrão de nomenclatura nos artefatos existentes? | **Seguir** o mesmo padrão |
+
+### 3. Reportar ao implementar
+
+**Se encontrou artefato reutilizável:**
+```
+🗺️ **Code Map**: Encontrei `{NomeArtefato}` em `{arquivo}` que já faz {descrição}. Vou reutilizá-lo.
+```
+
+**Se encontrou artefato similar:**
+```
+🗺️ **Code Map**: `{NomeArtefato}` faz algo similar. Posso estendê-lo ou criar novo. {recomendação}
+```
+
+**Se não encontrou nada relevante:**
+→ Prosseguir com criação e registrar via `project-codemap-update` após implementar
+
+### 4. Responder consultas do usuário
+
+Quando o usuário perguntar sobre a estrutura:
+
+**Output para visão geral:**
+```
+🗺️ **Estrutura do Projeto**:
+
+| Módulo | Artefatos | Descrição |
+|--------|-----------|-----------|
+| Services | {lista} | {descrição} |
+| Models | {lista} | {descrição} |
+...
+```
+
+**Output para busca específica:**
+```
+🗺️ **Artefatos relacionados a "{tema}"**:
+- `NomeArtefato` ({tipo}) — {responsabilidade} — `{arquivo}`
+- ...
+```
+
+## Checklist Pré-Implementação
+
+Antes de criar QUALQUER artefato novo, o agente DEVE:
+
+- [ ] Ler `index.md` para visão geral
+- [ ] Ler o arquivo de mapa relevante (services.md, utils.md, etc.)
+- [ ] Verificar se já existe algo que resolve o problema
+- [ ] Verificar padrão de nomenclatura dos artefatos existentes
+- [ ] Identificar dependências internas que serão usadas
+- [ ] Só então prosseguir com a implementação
+
+## Auto-Init
+
+Quando `code-map/` ou `index.md` não existir, criar automaticamente:
+
+1. Criar diretório: `{workspace}/.github/.copilot-project/context/code-map/`
+2. Criar `index.md` com template:
+
+```markdown
+# Code Map
+
+> Atualizado em: {YYYY-MM-DD}
+
+## Arquitetura
+
+{Analisar o projeto e descrever brevemente a arquitetura em 2-3 linhas}
+
+## Módulos
+
+| Módulo | Arquivo do Mapa | Descrição | Artefatos |
+|--------|-----------------|-----------|-----------|
+
+## Dependências entre Módulos
+
+{A ser preenchido conforme artefatos são registrados}
+```
+
+3. Opcionalmente escanear código existente para popular mapas iniciais
+4. Informar: `🗺️ Code Map inicializado automaticamente`

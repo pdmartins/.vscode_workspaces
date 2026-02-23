@@ -1,0 +1,44 @@
+# Configurações específicas do projeto BeWiser Assistant API para infra-messaging-configure
+root_namespace: "BeWiser.Assistant"
+
+transport: "AzureServiceBus"
+options_section_name: "ServiceBus"
+
+queues:
+  - name: "process-message"
+    consumer: "ProcessMessageMessageConsumer"
+    has_definition: false
+    retry:
+      max_attempts: 3
+      initial_interval_seconds: 1
+      interval_increment_seconds: 2
+  - name: "send-reply"
+    consumer: "SendReplyMessageConsumer"
+    has_definition: true
+    retry:
+      max_attempts: 3
+      initial_interval_seconds: 1
+      interval_increment_seconds: 2
+    circuit_breaker:
+      tracking_period_minutes: 1
+      trip_threshold: 15
+      active_threshold: 10
+      reset_interval_minutes: 5
+
+messages:
+  - name: "ProcessMessageMessage"
+    properties:
+      - "MessageId: Guid"
+      - "ConversationId: Guid"
+  - name: "SendReplyMessage"
+    properties:
+      - "ConversationId: Guid"
+      - "PhoneNumber: string"
+      - "Content: string"
+
+publishers:
+  - interface: "IMessagePublisher"
+    implementation: "MessagePublisher"
+    methods:
+      - "PublishProcessMessageAsync"
+      - "PublishSendReplyAsync"

@@ -1,0 +1,79 @@
+---
+name: project-context-update
+description: Atualiza o contexto do projeto nas subpastas de context/ (architecture, business-rules, conventions, infrastructure, team-process). Roteia para a subpasta correta conforme tipo de informação. Atualiza index.md após cada mudança. Triggers: "atualizar contexto", "mudamos para", "nova integração", "nova restrição", "agora usamos", "trocamos de", "adicionamos", "removemos", "projeto mudou".
+metadata:
+  author: copilot-core
+  version: "2.0"
+  category: project
+  delegable: full
+---
+
+# Project Context Update
+
+Atualiza o contexto do projeto nas subpastas tipadas de `context/`.
+
+## Quando Usar
+
+- Nova integração, ferramenta ou mudança de stack
+- Nova restrição ou regra de negócio
+- Decisão arquitetural significativa
+- Mudança de convenção ou processo
+- Fase do projeto avançou
+
+## Quando NÃO Usar
+
+- Mudanças triviais de código
+- Informação sobre o AGENTE (usar `agent-memory-update`)
+- Informações temporárias
+
+## Workflow
+
+### 1. Rotear para subtipo correto
+
+| Tipo de Informação | Subpasta |
+|--------------------|----------|
+| Decisão arquitetural, estrutura do sistema, padrão de design | `architecture/` |
+| Regra de negócio, restrição, requisito funcional | `business-rules/` |
+| Convenção de naming, estilo de código, processo | `conventions/` |
+| Stack, ferramenta, integração, deploy, infra | `infrastructure/` |
+| Workflow SDLC, normas da equipe | `team-process/` |
+| Inventário de artefatos | → Usar `project-codemap-update` |
+
+### 2. Determinar operação
+
+| Situação | Ação |
+|----------|------|
+| Tema inédito na subpasta | Criar novo `.md` na subpasta |
+| Tema já tem arquivo | Editar arquivo existente |
+
+### 3. Gravar no arquivo
+
+- Criar/editar em `{workspace}/.copilot-project/context/{subtipo}/{arquivo}.md`
+- **Naming**: `{slug-descritivo}.md` (kebab-case)
+
+### 4. Atualizar index.md
+
+Atualizar `{workspace}/.copilot-project/context/index.md`:
+- Atualizar resumo se pertinente
+- Atualizar "Última Atualização" com data e motivo
+
+### 5. Sync MCP (dual-write)
+
+Se MCP configurado → chamar `agent-memory-sync` incremental.
+
+### 6. Confirmar
+
+```
+🔄 **Contexto atualizado**
+- Subtipo: {subtipo}
+- Arquivo: context/{subtipo}/{arquivo}.md
+- Mudança: {resumo}
+```
+
+## Auto-Init
+
+Se `context/index.md` não existe:
+
+1. Criar `context/index.md` com template padrão
+2. Criar subpastas com `.gitkeep`
+3. Prosseguir com a atualização

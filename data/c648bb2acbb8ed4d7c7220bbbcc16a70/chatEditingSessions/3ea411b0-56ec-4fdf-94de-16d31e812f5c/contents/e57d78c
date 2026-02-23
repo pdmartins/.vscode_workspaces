@@ -1,0 +1,41 @@
+---
+name: project-catalog-query
+description: Catálogo de skills do tipo project — gestão de projeto, contexto, codemap, branches e configuração. Consulte este catálogo quando a tarefa envolver contexto do projeto, mapa de código, criação/configuração de projeto, troca de branch, ou análise de estrutura. Triggers: qual skill de project usar, listar skills project, contexto, codemap, bootstrap, criar projeto, trocar branch.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: project
+  delegable: full
+---
+
+# Project Skills Catalog
+
+Catálogo de skills do tipo `project` para descoberta rápida.
+
+## Skills Disponíveis
+
+| Skill | Ação | Quando Usar | Keywords |
+|-------|------|-------------|----------|
+| `project-context-query` | Consultar | Verificar stack, restrições, integrações | contexto, tecnologias, restrições, stack |
+| `project-context-update` | Atualizar | Mudança de stack, nova integração, restrição | atualizar contexto, "agora usamos", "trocamos" |
+| `project-codemap-query` | Consultar | Antes de criar código, verificar existente | "o que existe", "já tem", "onde fica", estrutura |
+| `project-codemap-update` | Registrar | Após criar/alterar código (automático) | após criar classe, método, endpoint, refatorar |
+| `project-structure-analyze` | Analisar | Novo projeto, sugerir skills, primeiro uso | analisar projeto, sugerir skills, novo workspace |
+| `project-workspace-create` | Criar | Novo projeto completo no workspace core | criar projeto, novo projeto, onboard |
+| `project-setup-bootstrap` | Configurar | Configurar projeto com submodules existentes | setup, bootstrap, configurar copilot, inicializar |
+| `project-repo-update` | Atualizar | Pull updates dos repos core/project | atualizar prompts, pull, sincronizar skills |
+| `project-branch-switch` | Trocar | Alternar entre projetos/configurações | trocar projeto, mudar branch, "carregar config de" |
+
+## Roteamento Rápido
+
+| Situação | Skill |
+|----------|-------|
+| Antes de codificar (verificar stack/restrições) | `project-context-query` |
+| Antes de criar código (verificar existente) | `project-codemap-query` |
+| Após criar/alterar código | `project-codemap-update` |
+| Mudança significativa no projeto | `project-context-update` |
+| Primeiro uso em workspace | `project-structure-analyze` |
+| Criar projeto novo do zero | `project-workspace-create` (Plan mode) |
+| Configurar projeto já plugado | `project-setup-bootstrap` |
+| Atualizar skills/prompts | `project-repo-update` |
+| Trocar entre projetos | `project-branch-switch` |

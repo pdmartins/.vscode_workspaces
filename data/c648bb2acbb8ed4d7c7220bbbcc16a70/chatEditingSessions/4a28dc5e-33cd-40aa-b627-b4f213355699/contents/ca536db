@@ -1,0 +1,16 @@
+# Memória do Agente — Copilot Core
+
+## Categorias
+
+| Categoria | Conteúdo | Arquivos |
+|-----------|----------|----------|
+| `preferences/` | Preferências do usuário | (vazio) |
+| `patterns/` | Padrões descobertos/aprendidos | `capability-manifest.md`, `no-hardcoded-paths.md`, `inconsistency-tracking.md`, `no-git-operations.md` |
+| `decisions/` | Decisões com rationale | `backlog-manage.md`, `deep-restructuring.md`, `impact-validate.md`, `action-review.md`, `chat-persistence.md`, `self-dogfooding-migration.md`, `branch-core-elimination.md`, `setup-scripts-extraction.md`, `mcp-cloudflare-migration.md`, `mcp-auto-setup.md`, `skill-quality-standard.md`, `git-guard.md`, `symlink-naming.md`, `chat-naming.md`, `auto-register-expansion.md`, `skill-migration-massive.md`, `branch-naming-rules.md`, `stealth-mode.md`, `symlinks-not-copies.md`, `python-venv-mandatory.md` |
+| `concepts/` | Conhecimentos relevantes | `mcp-memory-integration.md`, `llm-judge-system.md` |
+
+## Quick Reference
+
+- Total de entradas: 26
+- Última atualização: 2026-02-17
+- Migrado de: `lessons-learned.md` (formato XML → bullet-list)

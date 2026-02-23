@@ -1,0 +1,5 @@
+"""Validate evaluation scenario YAML files against schema and skill existence.
+
+Static validation only — does NOT run LLM evaluation.
+Ensures scenario files are well-formed and reference real skills.
+"""

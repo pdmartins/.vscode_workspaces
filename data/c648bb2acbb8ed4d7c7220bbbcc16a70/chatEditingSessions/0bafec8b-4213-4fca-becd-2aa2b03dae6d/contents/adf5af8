@@ -1,0 +1,22 @@
+scenario: "Conversation reveals a gap in an existing skill"
+description: |
+  When conversation reveals a skill gap or improvement,
+  agent-turn-reflect Fase 2 must ASK the user before modifying.
+
+expected_behavior:
+  agent_turn_reflect:
+    phase: 2
+    requires_confirmation: true
+    output_pattern: "❓ **Preciso de clarificação**"
+
+expected_skills:
+  - name: agent-turn-reflect
+    must_exist: true
+    must_contain:
+      - "Fase 2"
+      - "PERGUNTAR"
+      - "clarificação"
+
+documented_in:
+  - file: instructions/agent-skills-core.instructions.md
+    must_contain: "pergunta ao usuário"

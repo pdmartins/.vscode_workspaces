@@ -1,0 +1,159 @@
+---
+name: sync-english-version
+description: Sincroniza arquivos para .english-version/ mantendo estrutura de diretórios. Use ao criar/editar arquivos .md ou código documentado que precisa de versão em inglês. Triggers: pedir versão em inglês, criar documentação, atualizar README, "translate", "english version".
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: sync
+---
+
+# English Version Sync Skill
+
+Mantém versões em inglês de arquivos na pasta `.english-version/`.
+
+## Quando Usar
+
+- Criar/editar arquivos `.md` que precisam de versão inglesa
+- Pedido para "criar versão em inglês" ou "translate"
+- Atualizar README ou documentação
+- Criar novos arquivos de documentação
+
+## Estrutura
+
+```
+{projeto}/
+├── README.md              ← Versão principal (pt-BR)
+├── docs/
+│   └── guia.md           ← Versão principal
+└── .english-version/
+    ├── README.md         ← Versão em inglês
+    └── docs/
+        └── guia.md       ← Versão em inglês
+```
+
+## Workflow
+
+### 1. Identificar arquivo fonte
+
+Localizar o arquivo em pt-BR sendo criado/editado.
+
+### 2. Determinar destino em inglês
+
+**Caminho destino** = `.english-version/` + caminho relativo do fonte
+
+| Fonte | Destino |
+|-------|---------|
+| `README.md` | `.english-version/README.md` |
+| `docs/setup.md` | `.english-version/docs/setup.md` |
+| `guides/intro.md` | `.english-version/guides/intro.md` |
+
+### 3. Criar estrutura de diretórios
+
+**Se diretório não existe:**
+→ Criar diretório antes do arquivo
+
+### 4. Traduzir conteúdo
+
+Ao traduzir, manter:
+- ✅ Estrutura do documento (títulos, seções)
+- ✅ Blocos de código intactos
+- ✅ Links internos atualizados
+- ✅ Imagens/assets referenciados
+- ✅ Formatação markdown
+
+### 5. Atualizar links internos
+
+**Se link aponta para outro arquivo do projeto:**
+→ Verificar se destino também tem versão inglesa
+→ Ajustar link para versão inglesa se existir
+
+### 6. Validar sincronização
+
+Checklist:
+- [ ] Mesma estrutura de headings
+- [ ] Todos blocos de código preservados
+- [ ] Links funcionando
+- [ ] Imagens referenciadas corretamente
+
+## Regras de Tradução
+
+### SEMPRE traduzir:
+- Títulos e subtítulos
+- Texto explicativo
+- Comentários em código (se existirem)
+- Alt text de imagens
+- Descrições de listas
+
+### NUNCA traduzir:
+- Nomes de variáveis/funções
+- Comandos de terminal
+- Nomes de arquivos em exemplos
+- Nomes de ferramentas/frameworks
+- Código dentro de blocos \`\`\`
+
+## Fluxo de Criação
+
+```
+┌─ Pedido: "criar docs/guia-instalacao.md"
+│
+├─ 1. Criar docs/guia-instalacao.md (pt-BR)
+├─ 2. Criar .english-version/docs/ (se não existe)
+├─ 3. Criar .english-version/docs/guia-instalacao.md (en)
+└─ 4. Reportar ambos criados
+```
+
+## Fluxo de Atualização
+
+```
+┌─ Pedido: "atualizar README.md"
+│
+├─ 1. Aplicar mudança em README.md
+├─ 2. Identificar .english-version/README.md
+├─ 3. Aplicar mudança traduzida
+└─ 4. Reportar ambos atualizados
+```
+
+## Exemplo de Tradução
+
+### Fonte (pt-BR)
+```markdown
+## Instalação
+
+Siga os passos abaixo para instalar:
+
+1. Clone o repositório
+2. Execute o script de setup
+
+\`\`\`bash
+git clone https://github.com/user/repo.git
+./setup.sh
+\`\`\`
+```
+
+### Destino (en)
+```markdown
+## Installation
+
+Follow the steps below to install:
+
+1. Clone the repository
+2. Run the setup script
+
+\`\`\`bash
+git clone https://github.com/user/repo.git
+./setup.sh
+\`\`\`
+```
+
+## Arquivos a Sincronizar
+
+Por padrão, sincronizar versão inglesa de:
+- `README.md`
+- `CONTRIBUTING.md`
+- `docs/**/*.md`
+- `guides/**/*.md`
+
+**Não sincronizar:**
+- `CHANGELOG.md` (gerado automaticamente)
+- Arquivos de configuração
+- Código fonte (apenas documentação)

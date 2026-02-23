@@ -1,0 +1,7 @@
+# MCP Memory Integration
+
+- **date**: 2026-02-16
+- **status**: active
+- **context**: Sistema de memória dependia exclusivamente de leitura sequencial de .md — sem busca semântica
+- **details**: Integração com mcp-memory-service (@doobidoo) com busca híbrida BM25+vector. Backend: Cloudflare Vectorize + D1. Configuração em .vscode/mcp.json. Fonte de verdade nos .md — MCP é índice derivado reconstruível. Dual-write: agent-memory-update grava .md primeiro, depois sincroniza com MCP. agent-memory-query prioriza MCP search com fallback para .md
+- **architecture**: 3 camadas: .md (fonte) → MCP (índice) → runtime (sessão)

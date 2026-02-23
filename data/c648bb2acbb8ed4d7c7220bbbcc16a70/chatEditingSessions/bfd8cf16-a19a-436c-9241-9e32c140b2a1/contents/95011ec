@@ -1,0 +1,321 @@
+---
+name: lang-event-generate
+description: Padrões para Domain Events que notificam mudanças importantes no domínio. Use ao criar eventos que outras partes do sistema devem reagir. Triggers: domain event, evento, notificação, EventHandler, pasta Events/.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: lang
+---
+
+# Domain Event Skill
+
+Padrões para Domain Events seguindo DDD.
+
+## Quando Usar
+
+- Notificar outras partes do sistema sobre mudanças
+- Desacoplar aggregates
+- Implementar side effects de forma organizada
+- Trilhas de auditoria
+
+## Estrutura
+
+```
+src/BeWiser.Assistant.Domain/
+└── Events/
+    ├── IDomainEvent.cs
+    ├── MessageReceivedEvent.cs
+    ├── ConversationStartedEvent.cs
+    └── ConversationEndedEvent.cs
+
+src/BeWiser.Assistant.Application/
+└── EventHandlers/
+    ├── MessageReceivedEventHandler.cs
+    └── ConversationEndedEventHandler.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Domain Event | `[Domínio][Ação]Event` | `MessageReceivedEvent`, `ConversationStartedEvent` |
+| Event Handler | `[Evento]Handler` | `MessageReceivedEventHandler` |
+
+### Ações Comuns
+
+| Ação | Uso |
+|------|-----|
+| `Received` | Algo foi recebido |
+| `Sent` | Algo foi enviado |
+| `Started` | Processo iniciou |
+| `Ended` | Processo finalizou |
+| `Created` | Entidade criada |
+| `Updated` | Entidade atualizada |
+| `Deleted` | Entidade removida |
+| `Failed` | Algo falhou |
+
+## Templates
+
+### Interface de Domain Event
+
+```csharp
+using MediatR;
+
+namespace BeWiser.Assistant.Domain.Events;
+
+/// <summary>
+/// Marker interface for domain events.
+/// </summary>
+public interface IDomainEvent : INotification
+{
+    Guid EventId { get; }
+    DateTime OccurredAt { get; }
+}
+```
+
+### Base Domain Event
+
+```csharp
+namespace BeWiser.Assistant.Domain.Events;
+
+/// <summary>
+/// Base class for domain events.
+/// </summary>
+public abstract record BaseDomainEvent : IDomainEvent
+{
+    public Guid EventId { get; } = Guid.NewGuid();
+    public DateTime OccurredAt { get; } = DateTime.UtcNow;
+}
+```
+
+### Domain Event
+
+```csharp
+namespace BeWiser.Assistant.Domain.Events;
+
+/// <summary>
+/// Event raised when a new message is received.
+/// </summary>
+public record MessageReceivedEvent : BaseDomainEvent
+{
+    public Guid ConversationId { get; init; }
+    public Guid MessageId { get; init; }
+    public string PhoneNumber { get; init; } = string.Empty;
+    public string Content { get; init; } = string.Empty;
+}
+
+/// <summary>
+/// Event raised when a conversation starts.
+/// </summary>
+public record ConversationStartedEvent : BaseDomainEvent
+{
+    public Guid ConversationId { get; init; }
+    public string PhoneNumber { get; init; } = string.Empty;
+    public Guid AssistantId { get; init; }
+}
+
+/// <summary>
+/// Event raised when a conversation ends.
+/// </summary>
+public record ConversationEndedEvent : BaseDomainEvent
+{
+    public Guid ConversationId { get; init; }
+    public string Reason { get; init; } = string.Empty;
+    public int TotalMessages { get; init; }
+}
+```
+
+### Event Handler
+
+```csharp
+using MediatR;
+using Microsoft.Extensions.Logging;
+
+namespace BeWiser.Assistant.Application.EventHandlers;
+
+/// <summary>
+/// Handles MessageReceivedEvent.
+/// </summary>
+public class MessageReceivedEventHandler 
+    : INotificationHandler<MessageReceivedEvent>
+{
+    private readonly ILogger<MessageReceivedEventHandler> _logger;
+    private readonly IAnalyticsService _analyticsService;
+
+    public MessageReceivedEventHandler(
+        ILogger<MessageReceivedEventHandler> logger,
+        IAnalyticsService analyticsService)
+    {
+        _logger = logger;
+        _analyticsService = analyticsService;
+    }
+
+    public async Task Handle(
+        MessageReceivedEvent notification,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation(
+            "Message received: {MessageId} in conversation {ConversationId}",
+            notification.MessageId,
+            notification.ConversationId);
+
+        // Track analytics
+        await _analyticsService.TrackMessageReceivedAsync(
+            notification.ConversationId,
+            notification.MessageId,
+            cancellationToken);
+    }
+}
+```
+
+### Múltiplos Handlers para Mesmo Evento
+
+```csharp
+// Handler 1: Notificações
+public class NotifyOnConversationEndedHandler 
+    : INotificationHandler<ConversationEndedEvent>
+{
+    public async Task Handle(
+        ConversationEndedEvent notification,
+        CancellationToken cancellationToken)
+    {
+        // Send notification to admin
+    }
+}
+
+// Handler 2: Analytics
+public class TrackConversationEndedHandler 
+    : INotificationHandler<ConversationEndedEvent>
+{
+    public async Task Handle(
+        ConversationEndedEvent notification,
+        CancellationToken cancellationToken)
+    {
+        // Track in analytics
+    }
+}
+
+// Handler 3: Cleanup
+public class CleanupOnConversationEndedHandler 
+    : INotificationHandler<ConversationEndedEvent>
+{
+    public async Task Handle(
+        ConversationEndedEvent notification,
+        CancellationToken cancellationToken)
+    {
+        // Archive conversation data
+    }
+}
+```
+
+## Emitindo Eventos na Entidade
+
+```csharp
+public class Conversation : BaseEntity
+{
+    public void End(string reason)
+    {
+        if (Status == ConversationStatus.Ended)
+            throw new InvalidOperationException("Already ended");
+            
+        Status = ConversationStatus.Ended;
+        EndedAt = DateTime.UtcNow;
+        
+        // Emit domain event
+        AddDomainEvent(new ConversationEndedEvent
+        {
+            ConversationId = Id,
+            Reason = reason,
+            TotalMessages = Messages.Count
+        });
+    }
+}
+```
+
+## Dispatch de Eventos
+
+```csharp
+using MediatR;
+
+namespace BeWiser.Assistant.Infrastructure.Persistence;
+
+public class DomainEventDispatcher : IDomainEventDispatcher
+{
+    private readonly IMediator _mediator;
+
+    public DomainEventDispatcher(IMediator mediator)
+    {
+        _mediator = mediator;
+    }
+
+    public async Task DispatchEventsAsync(
+        BaseEntity entity,
+        CancellationToken cancellationToken = default)
+    {
+        var events = entity.DomainEvents.ToList();
+        entity.ClearDomainEvents();
+
+        foreach (var domainEvent in events)
+        {
+            await _mediator.Publish(domainEvent, cancellationToken);
+        }
+    }
+}
+```
+
+## Integração com Repository
+
+```csharp
+public class ConversationRepository : IConversationRepository
+{
+    private readonly IDomainEventDispatcher _dispatcher;
+
+    public async Task UpdateAsync(
+        Conversation conversation,
+        CancellationToken cancellationToken)
+    {
+        // Persist changes
+        await SaveAsync(conversation, cancellationToken);
+        
+        // Dispatch domain events
+        await _dispatcher.DispatchEventsAsync(conversation, cancellationToken);
+    }
+}
+```
+
+## Outbox Pattern (Para mensageria)
+
+```csharp
+// Salvar evento no banco antes de publicar
+public class OutboxDomainEventHandler 
+    : INotificationHandler<IDomainEvent>
+{
+    private readonly IOutboxRepository _outbox;
+
+    public async Task Handle(
+        IDomainEvent notification,
+        CancellationToken cancellationToken)
+    {
+        var outboxMessage = new OutboxMessage
+        {
+            Id = notification.EventId,
+            Type = notification.GetType().FullName!,
+            Payload = JsonSerializer.Serialize(notification),
+            CreatedAt = notification.OccurredAt
+        };
+
+        await _outbox.AddAsync(outboxMessage, cancellationToken);
+    }
+}
+```
+
+## Checklist
+
+- [ ] Eventos em `Domain/Events/`
+- [ ] Handlers em `Application/EventHandlers/`
+- [ ] Nomenclatura: `[Domínio][Ação]Event`
+- [ ] Herdar de `BaseDomainEvent`
+- [ ] Eventos imutáveis (records)
+- [ ] EventId e OccurredAt em todo evento
+- [ ] Dispatch após persistência
+- [ ] Múltiplos handlers independentes

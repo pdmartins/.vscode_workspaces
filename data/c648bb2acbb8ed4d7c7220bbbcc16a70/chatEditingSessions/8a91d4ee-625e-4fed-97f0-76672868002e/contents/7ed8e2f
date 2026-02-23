@@ -1,0 +1,70 @@
+# Fix Symlinks - Copilot Agent Skills
+# Corrige symlinks quebrados em .github/instructions/
+# Executar na raiz do projeto-alvo
+
+Write-Host "🔧 Corrigindo symlinks do Copilot Agent..." -ForegroundColor Cyan
+
+# Verificar se estamos na raiz de um projeto com .copilot-core e .copilot-project
+if (!(Test-Path ".copilot-core") -or !(Test-Path ".copilot-project")) {
+    Write-Host "❌ Erro: .copilot-core ou .copilot-project não encontrados" -ForegroundColor Red
+    Write-Host "   Execute este script na raiz do projeto que contém os submodules/clones" -ForegroundColor Yellow
+    exit 1
+}
+
+# Verificar se os arquivos de destino existem
+if (!(Test-Path ".copilot-core\instructions\agent-skills-core.instructions.md")) {
+    Write-Host "❌ Erro: .copilot-core\instructions\agent-skills-core.instructions.md não encontrado" -ForegroundColor Red
+    exit 1
+}
+
+if (!(Test-Path ".copilot-project\instructions\agent-skills-project.instructions.md")) {
+    Write-Host "❌ Erro: .copilot-project\instructions\agent-skills-project.instructions.md não encontrado" -ForegroundColor Red
+    exit 1
+}
+
+# Criar diretório se não existe
+if (!(Test-Path ".github\instructions")) {
+    Write-Host "📁 Criando .github\instructions..." -ForegroundColor Yellow
+    New-Item -ItemType Directory -Path ".github\instructions" -Force | Out-Null
+}
+
+# Remover symlinks antigos/quebrados
+Write-Host "🗑️  Removendo symlinks antigos..." -ForegroundColor Yellow
+Remove-Item ".github\instructions\agent-skills-core.instructions.md" -Force -ErrorAction SilentlyContinue
+Remove-Item ".github\instructions\agent-skills-project.instructions.md" -Force -ErrorAction SilentlyContinue
+
+# Obter caminhos absolutos
+$coreTarget = Resolve-Path ".copilot-core\instructions\agent-skills-core.instructions.md"
+$projectTarget = Resolve-Path ".copilot-project\instructions\agent-skills-project.instructions.md"
+
+# Criar novos symlinks
+Write-Host "🔗 Criando symlinks corretos..." -ForegroundColor Yellow
+
+try {
+    New-Item -ItemType SymbolicLink -Path ".github\instructions\agent-skills-core.instructions.md" -Target $coreTarget -Force | Out-Null
+    New-Item -ItemType SymbolicLink -Path ".github\instructions\agent-skills-project.instructions.md" -Target $projectTarget -Force | Out-Null
+    
+    Write-Host "✅ Symlinks criados com sucesso!" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Verificação:" -ForegroundColor Cyan
+    Get-Item ".github\instructions\*" | Select-Object Name, LinkType, @{Name="Target";Expression={$_.Target}} | Format-Table -AutoSize
+    
+    # Testar se os symlinks estão acessíveis
+    Write-Host ""
+    Write-Host "Testando acessibilidade:" -ForegroundColor Cyan
+    $coreOk = Test-Path ".github\instructions\agent-skills-core.instructions.md"
+    $projectOk = Test-Path ".github\instructions\agent-skills-project.instructions.md"
+    
+    if ($coreOk -and $projectOk) {
+        Write-Host "✅ Ambos os symlinks estão acessíveis" -ForegroundColor Green
+    } else {
+        Write-Host "⚠️  Alguns symlinks podem não estar acessíveis:" -ForegroundColor Yellow
+        Write-Host "   agent-skills-core.instructions.md: $(if($coreOk){'✅'}else{'❌'})" -ForegroundColor $(if($coreOk){'Green'}else{'Red'})
+        Write-Host "   agent-skills-project.instructions.md: $(if($projectOk){'✅'}else{'❌'})" -ForegroundColor $(if($projectOk){'Green'}else{'Red'})
+    }
+    
+} catch {
+    Write-Host "❌ Erro ao criar symlinks: $_" -ForegroundColor Red
+    Write-Host "   Certifique-se de executar o PowerShell como Administrador" -ForegroundColor Yellow
+    exit 1
+}

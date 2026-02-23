@@ -1,0 +1,57 @@
+# Config for code-program-configure
+# Project: BeWiser Assistant API
+
+root_namespace: Bewiser.Assistant
+api_title: Bewiser Assistant API
+
+layers:
+  presentation:
+    namespace: Bewiser.Assistant.Api
+    extensions:
+      builder: AddPresentation
+      app: UsePresentation
+  domain:
+    namespace: Bewiser.Assistant.Domain
+    extensions:
+      services: AddDomainServices
+  application:
+    namespace: Bewiser.Assistant.Application
+    extensions:
+      services: AddApplication
+    services:
+      - interface: IAssistantService
+        implementation: AssistantService
+      - interface: IConversationService
+        implementation: ConversationService
+  infrastructure:
+    namespace: Bewiser.Assistant.Infrastructure
+    persistence:
+      provider: PostgreSQL
+      method: UseNpgsql
+      connection_string_name: DefaultConnection
+      repositories:
+        - interface: IAssistantRepository
+          implementation: AssistantRepository
+        - interface: IConversationRepository
+          implementation: ConversationRepository
+        - interface: IUnitOfWork
+          implementation: UnitOfWork
+    authentication:
+      type: JWT
+      settings_class: JwtSettings
+      settings_section: JwtSettings
+    external_services:
+      - name: WhatsApp/Twilio
+        settings_class: TwilioSettings
+        settings_section: TwilioSettings
+        interface: IWhatsAppService
+        implementation: TwilioWhatsAppService
+      - name: OpenAI
+        settings_class: OpenAiSettings
+        settings_section: OpenAiSettings
+        interface: IAiService
+        implementation: OpenAiService
+
+swagger:
+  security_scheme: Bearer
+  security_type: JWT

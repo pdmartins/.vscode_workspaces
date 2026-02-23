@@ -1,0 +1,42 @@
+---
+name: coding-conventions
+description: Convenções de código .NET para o projeto SHY HubAI. Naming, estilo, organização de arquivos seguindo Clean Architecture. Triggers - gerar código, criar classe, criar serviço, naming, nomenclatura.
+metadata:
+  author: shy.hubai
+  version: "1.0"
+  category: code
+---
+
+# Coding Conventions
+
+Convenções de código do projeto SHY HubAI (.NET / Clean Architecture).
+
+## Naming
+
+| Elemento | Padrão | Exemplo |
+|----------|--------|---------|
+| Classes | PascalCase | `HubAiService` |
+| Interfaces | I + PascalCase | `IHubAiService` |
+| Métodos | PascalCase | `ProcessAutomation()` |
+| Variáveis | camelCase | `automationResult` |
+| Constantes | PascalCase | `MaxRetryCount` |
+| Propriedades | PascalCase | `IsEnabled` |
+| Parâmetros | camelCase | `requestPayload` |
+| Async methods | Sufixo Async | `ProcessAsync()` |
+
+## Organização por Camada
+
+| Camada | Namespace raiz | Conteúdo |
+|--------|---------------|----------|
+| Domain | `*.Domain` | Entidades, VOs, interfaces |
+| Application | `*.Application` | Commands, Queries, Handlers, DTOs |
+| Infrastructure | `*.Infrastructure` | Implementações, integrações AI |
+| API | `*.Api` | Controllers, Middlewares, Config |
+
+## Regras
+
+1. Uma classe por arquivo
+2. Nome do arquivo = nome da classe
+3. Interfaces no Domain, implementações no Infrastructure
+4. DTOs no Application, nunca no Domain
+5. Sem lógica de negócio em Controllers

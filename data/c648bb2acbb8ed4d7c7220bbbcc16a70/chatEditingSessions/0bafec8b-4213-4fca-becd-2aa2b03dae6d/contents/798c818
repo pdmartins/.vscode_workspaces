@@ -1,0 +1,1554 @@
+#!/usr/bin/env python3
+"""
+LLM-as-Judge Scenario Generator
+
+Generates evaluation scenarios (routing, quality, hallucination)
+for all skills that lack coverage.
+
+Usage:
+    python generate-scenarios.py                    # Generate all missing scenarios
+    python generate-scenarios.py --dry-run          # Preview only
+    python generate-scenarios.py --type routing     # Generate only routing
+    python generate-scenarios.py --type quality     # Generate only quality
+    python generate-scenarios.py --type hallucination
+    python generate-scenarios.py --report           # Coverage report only
+"""
+
+import argparse
+import re
+import sys
+import yaml
+from pathlib import Path
+
+# --- Paths ---
+SCRIPT_DIR = Path(__file__).resolve().parent
+INTERNAL_ROOT = SCRIPT_DIR.parent  # .internal
+CORE_ROOT = INTERNAL_ROOT.parent  # .copilot-core
+WORKSPACE_ROOT = CORE_ROOT.parent  # copilot/
+SKILLS_ROOT = CORE_ROOT / "skills"
+SCENARIOS_ROOT = (
+    WORKSPACE_ROOT
+    / ".copilot-project-worktrees"
+    / "_test"
+    / "llm-judge"
+    / "scenarios"
+)
+
+# --- Helpers ---
+
+
+def discover_skills() -> list[str]:
+    """Find all skill names from SKILL.md files."""
+    skills = []
+    for skill_md in sorted(SKILLS_ROOT.rglob("SKILL.md")):
+        text = skill_md.read_text(encoding="utf-8")
+        m = re.search(r"^name:\s*(.+)$", text, re.MULTILINE)
+        if m:
+            skills.append(m.group(1).strip())
+    return skills
+
+
+def discover_existing_scenarios() -> dict[str, list[dict]]:
+    """Load existing scenarios grouped by type."""
+    result = {"routing": [], "quality": [], "hallucination": []}
+    if not SCENARIOS_ROOT.exists():
+        return result
+    for type_dir in SCENARIOS_ROOT.iterdir():
+        if not type_dir.is_dir() or type_dir.name not in result:
+            continue
+        for f in sorted(type_dir.glob("*.yaml")):
+            data = yaml.safe_load(f.read_text(encoding="utf-8"))
+            data["_filename"] = f.name
+            result[type_dir.name].append(data)
+    return result
+
+
+def covered_skills(scenarios: list[dict], eval_type: str) -> set[str]:
+    """Get set of skills already covered by scenarios."""
+    covered = set()
+    for s in scenarios:
+        if eval_type == "routing":
+            for exp in s.get("expected_skills", []):
+                if exp.get("must_activate"):
+                    covered.add(exp["name"])
+        else:
+            ts = s.get("target_skill")
+            if ts:
+                covered.add(ts)
+    return covered
+
+
+def next_number(scenarios: list[dict]) -> int:
+    """Get next scenario number from existing list."""
+    nums = []
+    for s in scenarios:
+        m = re.match(r"(\d+)", s.get("_filename", ""))
+        if m:
+            nums.append(int(m.group(1)))
+    return max(nums, default=0) + 1
+
+
+def write_yaml(filepath: Path, data: dict):
+    """Write scenario YAML with readable formatting."""
+    filepath.parent.mkdir(parents=True, exist_ok=True)
+
+    # Custom YAML output for readability
+    lines = []
+    lines.append(f'scenario: "{data["scenario"]}"')
+    lines.append(f"evaluation_type: {data['evaluation_type']}")
+    lines.append(f"difficulty: {data['difficulty']}")
+    lines.append("")
+    lines.append(f'user_message: "{data["user_message"]}"')
+    lines.append("")
+
+    # Context
+    ctx = data["context"]
+    lines.append("context:")
+    stack = ", ".join(f'"{s}"' for s in ctx["project_stack"])
+    lines.append(f"  project_stack: [{stack}]")
+    lines.append("  existing_files:")
+    for f in ctx["existing_files"]:
+        lines.append(f'    - "{f}"')
+    if "has_copilot_project" in ctx:
+        lines.append(
+            f"  has_copilot_project: {'true' if ctx['has_copilot_project'] else 'false'}"
+        )
+    lines.append("")
+
+    if data["evaluation_type"] == "routing":
+        lines.append("expected_skills:")
+        for skill in data["expected_skills"]:
+            lines.append(f"  - name: {skill['name']}")
+            act = "true" if skill["must_activate"] else "false"
+            lines.append(f"    must_activate: {act}")
+            lines.append(f'    reason: "{skill["reason"]}"')
+    elif data["evaluation_type"] == "quality":
+        lines.append(f"target_skill: {data['target_skill']}")
+        lines.append("")
+        lines.append("rubric:")
+        for item in data["rubric"]:
+            lines.append(f'  - criterion: "{item["criterion"]}"')
+            lines.append(f"    weight: {item['weight']}")
+    elif data["evaluation_type"] == "hallucination":
+        lines.append(f"target_skill: {data['target_skill']}")
+        lines.append("")
+        lines.append("grounding:")
+        lines.append("  allowed_sources:")
+        for src in data["grounding"]["allowed_sources"]:
+            lines.append(f'    - "{src}"')
+        lines.append("  forbidden_claims:")
+        for fc in data["grounding"]["forbidden_claims"]:
+            lines.append(f'    - "{fc}"')
+        lines.append("")
+        lines.append("rubric:")
+        for item in data["rubric"]:
+            lines.append(f'  - criterion: "{item["criterion"]}"')
+            lines.append(f"    weight: {item['weight']}")
+            if "type" in item:
+                lines.append(f"    type: {item['type']}")
+
+    if "notes" in data and data["notes"]:
+        lines.append("")
+        lines.append("notes: |")
+        for nl in data["notes"].strip().split("\n"):
+            lines.append(f"  {nl}")
+
+    lines.append("")
+    filepath.write_text("\n".join(lines), encoding="utf-8")
+
+
+# =============================================================================
+# ROUTING SCENARIO DATA
+# =============================================================================
+# (skill_name, user_message, difficulty, context_files, negatives, notes)
+# negatives: [(name, reason), ...]
+
+
+ROUTING_DATA = {
+    # --- agent ---
+    "agent-action-review": {
+        "scenario": "User asks to verify all changes are complete and consistent",
+        "message": "Verifica se todas as mudanças que fizemos na refatoração estão completas e consistentes.",
+        "difficulty": "medium",
+        "files": ["src/Domain/Entities/Order.cs", "src/Application/Commands/CreateOrderCommand.cs"],
+        "negatives": [
+            ("agent-impact-validate", "Not asking about cascade impact on other modules"),
+            ("agent-turn-reflect", "Not a per-turn reflection trigger"),
+        ],
+    },
+    "agent-catalog-query": {
+        "scenario": "User asks what agent skills are available",
+        "message": "Que skills de agent existem? Preciso entender o que o agente sabe fazer.",
+        "difficulty": "easy",
+        "files": [],
+        "negatives": [
+            ("code-catalog-query", "Asking about agent skills, not code skills"),
+            ("infra-catalog-query", "Not asking about infra skills"),
+        ],
+    },
+    "agent-chat-resume": {
+        "scenario": "User asks to resume previous session",
+        "message": "Retoma a sessão anterior, estávamos trabalhando no módulo de pagamentos.",
+        "difficulty": "easy",
+        "files": [],
+        "negatives": [
+            ("agent-chat-save", "Resuming, not saving a session"),
+            ("agent-memory-query", "Not querying lessons, resuming a chat session"),
+        ],
+    },
+    "agent-chat-save": {
+        "scenario": "User asks to save the current session",
+        "message": "Salva esta sessão para eu continuar depois em outra máquina.",
+        "difficulty": "easy",
+        "files": [],
+        "negatives": [
+            ("agent-chat-resume", "Saving, not resuming a session"),
+            ("agent-memory-update", "Not registering a lesson, saving a session"),
+        ],
+    },
+    "agent-git-guard": {
+        "scenario": "User asks to commit and push changes",
+        "message": "Faz commit das alterações no módulo de pedidos e push para o remote.",
+        "difficulty": "medium",
+        "files": ["src/Domain/Entities/Order.cs"],
+        "negatives": [
+            ("project-repo-update", "Not updating submodules, doing git commit/push"),
+            ("agent-action-review", "Not reviewing completeness, requesting git operations"),
+        ],
+    },
+    "agent-guide-stepbystep": {
+        "scenario": "User asks for step-by-step guidance",
+        "message": "Me guia passo a passo para implementar autenticação JWT na API.",
+        "difficulty": "medium",
+        "files": ["src/Api/Program.cs"],
+        "negatives": [
+            ("agent-task-manage", "User wants guidance, not autonomous task execution"),
+            ("infra-jwt-configure", "User wants guidance, not direct JWT configuration"),
+        ],
+    },
+    "agent-impact-validate": {
+        "scenario": "User asks to check if refactoring broke other modules",
+        "message": "Mudei a interface IOrderRepository — verifica se isso quebrou alguma coisa em outros módulos.",
+        "difficulty": "medium",
+        "files": [
+            "src/Domain/Interfaces/IOrderRepository.cs",
+            "src/Infrastructure/Repositories/OrderRepository.cs",
+        ],
+        "negatives": [
+            ("agent-action-review", "Not reviewing completeness, checking cascade impact"),
+            ("code-review-analyze", "Not general code review, specific impact analysis"),
+        ],
+    },
+    "agent-memory-query": {
+        "scenario": "User asks about past architectural decisions",
+        "message": "Quais decisões arquiteturais já registramos sobre DDD neste projeto?",
+        "difficulty": "easy",
+        "files": [],
+        "negatives": [
+            ("agent-memory-update", "Querying existing lessons, not registering new ones"),
+            ("project-context-query", "Asking about lessons learned, not project stack/context"),
+        ],
+    },
+    "agent-memory-sync": {
+        "scenario": "User asks to sync lessons with MCP",
+        "message": "Sincroniza todas as nossas lições aprendidas com o MCP memory service.",
+        "difficulty": "easy",
+        "files": [],
+        "negatives": [
+            ("agent-memory-update", "Not registering a new lesson, syncing to MCP"),
+            ("agent-memory-query", "Not querying lessons, syncing them to external service"),
+        ],
+    },
+    "agent-subagent-delegate": {
+        "scenario": "User asks for parallel analysis while working on something else",
+        "message": "Analisa a cobertura de testes do módulo de pagamentos enquanto eu implemento o módulo de faturamento.",
+        "difficulty": "hard",
+        "files": ["tests/Unit/Payments/", "src/Domain/Billing/"],
+        "negatives": [
+            ("agent-task-manage", "Not a linear task list, parallel delegation request"),
+            ("code-review-analyze", "Not a direct code review, delegated parallel analysis"),
+        ],
+    },
+    "agent-task-manage": {
+        "scenario": "User asks to implement a complete module with multiple steps",
+        "message": "Implementa o módulo de faturamento completo: entities, commands, queries, controller e testes.",
+        "difficulty": "medium",
+        "files": ["src/Domain/Entities/Order.cs"],
+        "negatives": [
+            ("agent-guide-stepbystep", "User wants execution, not step-by-step guidance"),
+            ("code-dotnet-service", "Multi-step task, not a single service generation"),
+        ],
+    },
+    "agent-turn-reflect": {
+        "scenario": "User explicitly asks to analyze the current turn",
+        "message": "Analisa o que fizemos neste turno e registra o que for relevante.",
+        "difficulty": "medium",
+        "files": [],
+        "negatives": [
+            ("agent-action-review", "Not post-action review, it's per-turn reflection"),
+            ("agent-memory-update", "Reflection decides what to register, not direct registration"),
+        ],
+    },
+    # --- code ---
+    "code-api-validate": {
+        "scenario": "User asks to validate API follows REST patterns",
+        "message": "Verifica se a API do módulo de pedidos segue os padrões REST que definimos.",
+        "difficulty": "medium",
+        "files": ["src/Api/Controllers/OrdersController.cs"],
+        "negatives": [
+            ("code-pattern-enforce", "Not general pattern check, specifically REST API validation"),
+            ("code-review-analyze", "Not general code review, specific API conformance check"),
+        ],
+    },
+    "code-bash-write": {
+        "scenario": "User asks to write a bash script",
+        "message": "Escreve um script bash para fazer backup do banco de dados PostgreSQL.",
+        "difficulty": "easy",
+        "files": [],
+        "negatives": [
+            ("code-powershell-write", "Request is for bash, not PowerShell"),
+            ("code-crossplatform-sync", "Not syncing scripts, creating a new bash script"),
+        ],
+    },
+    "code-catalog-query": {
+        "scenario": "User asks what code generation skills are available",
+        "message": "Quais skills de geração de código estão disponíveis?",
+        "difficulty": "easy",
+        "files": [],
+        "negatives": [
+            ("agent-catalog-query", "Asking about code skills, not agent skills"),
+            ("infra-catalog-query", "Asking about code skills, not infra skills"),
+        ],
+    },
+    "code-command-generate": {
+        "scenario": "User asks to create a MediatR command",
+        "message": "Cria um command MediatR CreateOrderCommand com validação FluentValidation.",
+        "difficulty": "medium",
+        "files": ["src/Application/Commands/", "src/Domain/Entities/Order.cs"],
+        "negatives": [
+            ("code-query-generate", "Creating a command (write), not a query (read)"),
+            ("code-dotnet-service", "Specific CQRS command, not a generic .NET service"),
+        ],
+    },
+    "code-contracts-generate": {
+        "scenario": "User asks to create API request/response contracts",
+        "message": "Gera os requests e responses para o endpoint de criação de pedidos.",
+        "difficulty": "medium",
+        "files": ["src/Api/Controllers/OrdersController.cs"],
+        "negatives": [
+            ("code-mapping-generate", "Creating API contracts, not entity-to-DTO mappings"),
+            ("code-controller-generate", "Creating contracts, not the controller itself"),
+        ],
+    },
+    "code-controller-generate": {
+        "scenario": "User asks to create a REST controller",
+        "message": "Cria um controller REST para gerenciar pedidos com CRUD completo.",
+        "difficulty": "easy",
+        "files": ["src/Domain/Entities/Order.cs", "src/Application/Commands/CreateOrderCommand.cs"],
+        "negatives": [
+            ("code-contracts-generate", "Creating the controller, not just contracts"),
+            ("code-dotnet-service", "Creating a controller, not a generic service"),
+        ],
+    },
+    "code-crossplatform-sync": {
+        "scenario": "User has a bash script and needs PowerShell equivalent",
+        "message": "Tenho o script de deploy em bash, preciso da versão PowerShell equivalente.",
+        "difficulty": "medium",
+        "files": ["scripts/deploy.sh"],
+        "negatives": [
+            ("code-powershell-write", "Not creating from scratch, syncing from existing bash"),
+            ("code-bash-write", "Not creating bash, syncing to PowerShell"),
+        ],
+    },
+    "code-dotnet-service": {
+        "scenario": "User asks to create a .NET service with DI",
+        "message": "Cria um serviço de notificação por email com interface e implementação DI.",
+        "difficulty": "easy",
+        "files": ["src/Application/Interfaces/", "src/Infrastructure/Services/"],
+        "negatives": [
+            ("code-controller-generate", "Creating a service, not a controller"),
+            ("code-command-generate", "Creating a generic service, not a CQRS command"),
+        ],
+    },
+    "code-dotnet-test": {
+        "scenario": "User asks to create .NET unit tests for a specific service",
+        "message": "Gera testes unitários para o NotificationService usando xUnit e NSubstitute.",
+        "difficulty": "medium",
+        "files": ["src/Infrastructure/Services/NotificationService.cs"],
+        "negatives": [
+            ("code-unittest-generate", "code-dotnet-test is for .NET-specific test patterns"),
+            ("code-integrationtest-generate", "Requesting unit tests, not integration tests"),
+        ],
+    },
+    "code-event-generate": {
+        "scenario": "User asks to create a domain event",
+        "message": "Cria um domain event OrderPlacedEvent para notificar quando um pedido é criado.",
+        "difficulty": "medium",
+        "files": ["src/Domain/Entities/Order.cs", "src/Domain/Events/"],
+        "negatives": [
+            ("code-entity-generate", "Creating an event, not an entity"),
+            ("code-command-generate", "Creating a domain event, not a command"),
+        ],
+    },
+    "code-integrationtest-generate": {
+        "scenario": "User asks to create integration tests with WebApplicationFactory",
+        "message": "Cria testes de integração para POST /api/orders usando WebApplicationFactory.",
+        "difficulty": "medium",
+        "files": ["src/Api/Controllers/OrdersController.cs", "tests/Integration/"],
+        "negatives": [
+            ("code-unittest-generate", "Integration tests, not unit tests"),
+            ("code-dotnet-test", "Integration tests with WebApplicationFactory, not simple xUnit"),
+        ],
+    },
+    "code-mapping-generate": {
+        "scenario": "User asks to create DTOs and mapping extensions",
+        "message": "Cria DTOs e extension methods de mapping para a entidade Product.",
+        "difficulty": "medium",
+        "files": ["src/Domain/Entities/Product.cs"],
+        "negatives": [
+            ("code-contracts-generate", "Creating entity mappings, not API contracts"),
+            ("code-entity-generate", "Creating mappings for existing entity, not the entity"),
+        ],
+    },
+    "code-pattern-enforce": {
+        "scenario": "User asks to verify code follows project conventions",
+        "message": "Verifica se o código do módulo de pedidos segue as convenções DDD do projeto.",
+        "difficulty": "medium",
+        "files": ["src/Domain/Entities/Order.cs", "src/Application/Commands/CreateOrderCommand.cs"],
+        "negatives": [
+            ("code-review-analyze", "Not general review, specific pattern/convention enforcement"),
+            ("code-api-validate", "Not API-specific, checking DDD patterns"),
+        ],
+    },
+    "code-powershell-write": {
+        "scenario": "User asks to write a PowerShell script",
+        "message": "Escreve um script PowerShell para limpar containers Docker antigos.",
+        "difficulty": "easy",
+        "files": [],
+        "negatives": [
+            ("code-bash-write", "Request is for PowerShell, not bash"),
+            ("code-crossplatform-sync", "Creating from scratch, not syncing"),
+        ],
+    },
+    "code-program-configure": {
+        "scenario": "User asks to configure Program.cs with DI",
+        "message": "Configura o Program.cs com DI para os novos serviços do módulo de faturamento.",
+        "difficulty": "medium",
+        "files": ["src/Api/Program.cs", "src/Application/Interfaces/IBillingService.cs"],
+        "negatives": [
+            ("code-dotnet-service", "Configuring DI registration, not creating the service"),
+            ("infra-jwt-configure", "Configuring DI, not JWT specifically"),
+        ],
+    },
+    "code-query-generate": {
+        "scenario": "User asks to create a MediatR query with pagination",
+        "message": "Cria uma query MediatR GetOrdersByCustomerQuery com suporte a paginação.",
+        "difficulty": "medium",
+        "files": ["src/Application/Queries/", "src/Domain/Entities/Order.cs"],
+        "negatives": [
+            ("code-command-generate", "Creating a query (read), not a command (write)"),
+            ("code-dotnet-service", "Specific CQRS query, not a generic service"),
+        ],
+    },
+    "code-skill-evaluate": {
+        "scenario": "User asks to evaluate a skill with LLM-as-Judge",
+        "message": "Avalia a qualidade da skill code-entity-generate usando cenários de teste.",
+        "difficulty": "medium",
+        "files": [],
+        "negatives": [
+            ("code-review-analyze", "Evaluating a skill, not reviewing application code"),
+            ("skill-output-validate", "LLM evaluation, not structural validation"),
+        ],
+    },
+    "code-valueobject-generate": {
+        "scenario": "User asks to create a DDD value object",
+        "message": "Cria um value object Money com Currency e Amount, imutável com validação.",
+        "difficulty": "medium",
+        "files": ["src/Domain/ValueObjects/", "src/Domain/Entities/Order.cs"],
+        "negatives": [
+            ("code-entity-generate", "Creating a value object, not an entity"),
+            ("code-event-generate", "Creating a value object, not an event"),
+        ],
+    },
+    "code-webhook-generate": {
+        "scenario": "User asks to create a webhook receiver",
+        "message": "Cria um webhook receiver para processar notificações de pagamento do Stripe.",
+        "difficulty": "medium",
+        "files": ["src/Api/Controllers/", "src/Application/Interfaces/IPaymentService.cs"],
+        "negatives": [
+            ("code-controller-generate", "Webhook receiver, not a standard CRUD controller"),
+            ("infra-service-integrate", "Creating webhook code, not configuring integration"),
+        ],
+    },
+    # --- editor ---
+    "editor-markdown-lint": {
+        "scenario": "User asks to format Markdown following project rules",
+        "message": "Formata o README.md seguindo as regras de Markdown do projeto.",
+        "difficulty": "easy",
+        "files": ["README.md"],
+        "negatives": [
+            ("editor-readme-generate", "Formatting existing Markdown, not generating a README"),
+            ("code-pattern-enforce", "Markdown formatting, not code pattern enforcement"),
+        ],
+    },
+    "editor-readme-generate": {
+        "scenario": "User asks to generate a README for a module",
+        "message": "Gera um README.md completo para o módulo de pagamentos.",
+        "difficulty": "easy",
+        "files": ["src/Payments/"],
+        "negatives": [
+            ("editor-markdown-lint", "Generating a README, not linting existing Markdown"),
+            ("code-dotnet-service", "Generating documentation, not code"),
+        ],
+    },
+    # --- infra ---
+    "infra-bigquery-query": {
+        "scenario": "User asks to configure BigQuery access",
+        "message": "Configura acesso ao BigQuery para analytics de pedidos do projeto.",
+        "difficulty": "medium",
+        "files": ["src/Infrastructure/"],
+        "negatives": [
+            ("infra-gcp-integrate", "Specific BigQuery setup, not general GCP integration"),
+            ("infra-vertexai-prompt", "BigQuery analytics, not Vertex AI prompts"),
+        ],
+    },
+    "infra-catalog-query": {
+        "scenario": "User asks what infra skills are available",
+        "message": "Quais skills de infraestrutura estão disponíveis para o projeto?",
+        "difficulty": "easy",
+        "files": [],
+        "negatives": [
+            ("code-catalog-query", "Asking about infra skills, not code skills"),
+            ("agent-catalog-query", "Asking about infra skills, not agent skills"),
+        ],
+    },
+    "infra-gcp-integrate": {
+        "scenario": "User asks to integrate with Google Cloud Storage",
+        "message": "Integra a API com Google Cloud Storage para armazenar documentos de pedidos.",
+        "difficulty": "medium",
+        "files": ["src/Infrastructure/Services/"],
+        "negatives": [
+            ("infra-vertexai-prompt", "GCS integration, not Vertex AI"),
+            ("infra-service-integrate", "Specific GCP service, not generic service integration"),
+        ],
+    },
+    "infra-jwt-configure": {
+        "scenario": "User asks to configure JWT authentication",
+        "message": "Configura autenticação JWT com refresh tokens na API.",
+        "difficulty": "medium",
+        "files": ["src/Api/Program.cs"],
+        "negatives": [
+            ("infra-service-integrate", "JWT auth config, not external service integration"),
+            ("code-program-configure", "JWT infrastructure, not general DI configuration"),
+        ],
+    },
+    "infra-k8s-deploy": {
+        "scenario": "User asks to generate Kubernetes manifests",
+        "message": "Gera os manifests Kubernetes para deploy da API de pedidos.",
+        "difficulty": "medium",
+        "files": ["Dockerfile"],
+        "negatives": [
+            ("infra-docker-build", "Kubernetes manifests, not Dockerfile"),
+            ("infra-pipeline-deploy", "K8s resources, not CI/CD pipeline"),
+        ],
+    },
+    "infra-messaging-configure": {
+        "scenario": "User asks to configure async messaging",
+        "message": "Configura RabbitMQ para comunicação assíncrona entre os módulos de pedidos e pagamentos.",
+        "difficulty": "medium",
+        "files": ["src/Infrastructure/"],
+        "negatives": [
+            ("infra-service-integrate", "Messaging infrastructure, not HTTP service integration"),
+            ("infra-redis-cache", "Message broker, not cache"),
+        ],
+    },
+    "infra-redis-cache": {
+        "scenario": "User asks to configure Redis caching",
+        "message": "Configura Redis como cache distribuído para consultas frequentes de produtos.",
+        "difficulty": "medium",
+        "files": ["src/Infrastructure/", "src/Api/Program.cs"],
+        "negatives": [
+            ("infra-messaging-configure", "Cache, not messaging"),
+            ("infra-repository-generate", "Cache layer, not data repository"),
+        ],
+    },
+    "infra-repository-generate": {
+        "scenario": "User asks to generate an EF Core repository",
+        "message": "Gera o repositório EF Core para a entidade Order com Unit of Work.",
+        "difficulty": "medium",
+        "files": ["src/Domain/Entities/Order.cs", "src/Domain/Interfaces/IOrderRepository.cs"],
+        "negatives": [
+            ("code-entity-generate", "Creating repository, not entity"),
+            ("infra-redis-cache", "Data repository, not cache layer"),
+        ],
+    },
+    "infra-service-integrate": {
+        "scenario": "User asks to integrate with external API",
+        "message": "Integra a API com um serviço externo de validação de CPF via REST.",
+        "difficulty": "medium",
+        "files": ["src/Infrastructure/Services/", "src/Application/Interfaces/"],
+        "negatives": [
+            ("infra-messaging-configure", "HTTP integration, not messaging"),
+            ("infra-gcp-integrate", "Generic external service, not GCP-specific"),
+        ],
+    },
+    "infra-vertexai-prompt": {
+        "scenario": "User asks to configure Vertex AI prompts",
+        "message": "Configura Vertex AI para geração de descrições automáticas de produtos com LLM.",
+        "difficulty": "medium",
+        "files": ["src/Infrastructure/Services/"],
+        "negatives": [
+            ("infra-gcp-integrate", "Specific Vertex AI, not general GCP integration"),
+            ("infra-bigquery-query", "AI/LLM prompts, not data analytics"),
+        ],
+    },
+    # --- project ---
+    "project-branch-switch": {
+        "scenario": "User asks to switch to another project branch",
+        "message": "Troca para a branch do projeto de pagamentos.",
+        "difficulty": "easy",
+        "files": [],
+        "negatives": [
+            ("project-repo-update", "Switching branch, not updating repos"),
+            ("agent-git-guard", "Switching copilot-project branch, not git commit/push"),
+        ],
+    },
+    "project-catalog-query": {
+        "scenario": "User asks what project skills are available",
+        "message": "Quais skills de projeto estão disponíveis para gestão de contexto?",
+        "difficulty": "easy",
+        "files": [],
+        "negatives": [
+            ("agent-catalog-query", "Asking about project skills, not agent skills"),
+            ("code-catalog-query", "Asking about project skills, not code skills"),
+        ],
+    },
+    "project-codemap-query": {
+        "scenario": "User asks to see the current code map",
+        "message": "Mostra o mapa de código atual — quais serviços e entities existem no projeto.",
+        "difficulty": "easy",
+        "files": [],
+        "negatives": [
+            ("project-structure-analyze", "Consulting existing map, not deep analysis"),
+            ("project-context-query", "Code map (artifacts), not project context (stack)"),
+        ],
+    },
+    "project-codemap-update": {
+        "scenario": "User asks to update the code map with new artifacts",
+        "message": "Atualiza o code-map com os novos serviços e controllers que criamos.",
+        "difficulty": "easy",
+        "files": ["src/Application/Services/", "src/Api/Controllers/"],
+        "negatives": [
+            ("project-codemap-query", "Updating the map, not querying it"),
+            ("project-context-update", "Updating code map, not project context"),
+        ],
+    },
+    "project-context-query": {
+        "scenario": "User asks about the current project stack and constraints",
+        "message": "Qual é a stack atual do projeto e quais restrições arquiteturais temos?",
+        "difficulty": "easy",
+        "files": [],
+        "negatives": [
+            ("project-codemap-query", "Asking about stack/context, not code artifacts"),
+            ("agent-memory-query", "Project context, not lessons learned"),
+        ],
+    },
+    "project-context-update": {
+        "scenario": "User reports a new technology added to the project",
+        "message": "A API agora usa Redis para cache — atualiza o contexto do projeto.",
+        "difficulty": "easy",
+        "files": [],
+        "negatives": [
+            ("project-context-query", "Updating context, not querying it"),
+            ("agent-memory-update", "Updating project stack info, not registering a lesson"),
+        ],
+    },
+    "project-repo-update": {
+        "scenario": "User asks to update copilot submodules",
+        "message": "Atualiza os submodules do .copilot-core e .copilot-project com as últimas versões.",
+        "difficulty": "easy",
+        "files": [],
+        "negatives": [
+            ("project-branch-switch", "Updating repos, not switching branch"),
+            ("agent-git-guard", "Updating submodules, not committing project code"),
+        ],
+    },
+    "project-structure-analyze": {
+        "scenario": "User asks for deep structural analysis of the project",
+        "message": "Analisa a estrutura atual do projeto e identifica padrões e problemas de organização.",
+        "difficulty": "medium",
+        "files": ["src/"],
+        "negatives": [
+            ("project-codemap-query", "Deep analysis, not just querying existing map"),
+            ("code-review-analyze", "Project structure analysis, not code review"),
+        ],
+    },
+    "project-workspace-create": {
+        "scenario": "User asks to create a new Copilot workspace",
+        "message": "Cria um novo workspace Copilot para o projeto de microserviços de logística.",
+        "difficulty": "medium",
+        "files": [],
+        "negatives": [
+            ("project-setup-bootstrap", "Creating new workspace from scratch, not bootstrapping existing"),
+            ("project-structure-analyze", "Creating workspace, not analyzing existing"),
+        ],
+    },
+    # --- skill ---
+    "skill-output-validate": {
+        "scenario": "User asks to validate a skill follows Agent Skills pattern",
+        "message": "Valida se a skill que acabamos de criar segue o padrão Agent Skills completo.",
+        "difficulty": "easy",
+        "files": [],
+        "negatives": [
+            ("code-pattern-enforce", "Validating skill structure, not code patterns"),
+            ("code-review-analyze", "Validating skill artifact, not code review"),
+        ],
+    },
+    "skill-template-create": {
+        "scenario": "User asks to create a new skill",
+        "message": "Cria uma nova skill para gerar migrations do Entity Framework.",
+        "difficulty": "medium",
+        "files": [],
+        "negatives": [
+            ("skill-output-validate", "Creating a new skill, not validating existing"),
+            ("code-dotnet-service", "Creating a skill template, not .NET application code"),
+        ],
+    },
+}
+
+
+# =============================================================================
+# QUALITY SCENARIO DATA
+# =============================================================================
+# Skills that produce tangible output and benefit from quality evaluation.
+# Each entry: (user_message, difficulty, context_files, rubric)
+
+# Template rubrics per category
+CODE_GEN_RUBRIC = [
+    {"criterion": "Correctness — code compiles and implements the requested functionality", "weight": 5},
+    {"criterion": "Naming conventions — follows project patterns (PascalCase, meaningful names)", "weight": 4},
+    {"criterion": "Dependency injection — uses constructor injection, follows DI patterns", "weight": 4},
+    {"criterion": "Error handling — proper exception handling and validation", "weight": 3},
+    {"criterion": "Async patterns — uses async/await correctly when applicable", "weight": 3},
+    {"criterion": "SOLID principles — single responsibility, proper abstractions", "weight": 4},
+    {"criterion": "Follows SKILL.md rules — adheres to specific skill instructions", "weight": 5},
+    {"criterion": "Testability — designed for easy unit testing with mocks", "weight": 3},
+]
+
+INFRA_GEN_RUBRIC = [
+    {"criterion": "Security — no secrets exposed, proper access controls", "weight": 5},
+    {"criterion": "Resource management — appropriate limits, connection handling", "weight": 4},
+    {"criterion": "Health checks — includes health/readiness mechanisms", "weight": 3},
+    {"criterion": "Environment configuration — uses env vars, not hardcoded values", "weight": 4},
+    {"criterion": "Logging — includes appropriate log levels and structured output", "weight": 3},
+    {"criterion": "Error handling — graceful degradation, retry policies when applicable", "weight": 4},
+    {"criterion": "Follows SKILL.md rules — adheres to specific skill instructions", "weight": 5},
+    {"criterion": "Best practices — follows official documentation and conventions", "weight": 4},
+]
+
+SCRIPT_RUBRIC = [
+    {"criterion": "Error handling — set -euo pipefail (bash) or ErrorActionPreference (PS)", "weight": 5},
+    {"criterion": "Input validation — validates parameters and environment", "weight": 4},
+    {"criterion": "Logging — clear progress messages with timestamps", "weight": 3},
+    {"criterion": "Idempotency — safe to run multiple times", "weight": 4},
+    {"criterion": "Documentation — help text and inline comments", "weight": 3},
+    {"criterion": "Security — no hardcoded secrets, proper quoting", "weight": 5},
+    {"criterion": "Follows SKILL.md rules — adheres to specific skill instructions", "weight": 5},
+    {"criterion": "Portability — works across environments without undocumented deps", "weight": 3},
+]
+
+DDD_RUBRIC = [
+    {"criterion": "DDD patterns — follows aggregate, entity, or VO patterns correctly", "weight": 5},
+    {"criterion": "Encapsulation — private setters, no public default constructors", "weight": 5},
+    {"criterion": "Immutability — value objects are fully immutable", "weight": 4},
+    {"criterion": "Validation — constructor/factory validates invariants", "weight": 4},
+    {"criterion": "Domain events — raised for significant state changes", "weight": 3},
+    {"criterion": "Namespace conventions — follows project structure from config", "weight": 3},
+    {"criterion": "Follows SKILL.md rules — adheres to specific skill instructions", "weight": 5},
+    {"criterion": "Documentation — XML docs on public members", "weight": 2},
+]
+
+TEST_RUBRIC = [
+    {"criterion": "Arrange-Act-Assert — clear test structure", "weight": 5},
+    {"criterion": "Naming — descriptive test names following conventions", "weight": 4},
+    {"criterion": "Isolation — proper mocking, no external dependencies", "weight": 5},
+    {"criterion": "Coverage — tests happy path, edge cases, and error cases", "weight": 4},
+    {"criterion": "Assertions — specific, meaningful assertions", "weight": 4},
+    {"criterion": "Builder pattern — uses test builders for complex objects", "weight": 3},
+    {"criterion": "Follows SKILL.md rules — adheres to specific skill instructions", "weight": 5},
+    {"criterion": "Readability — tests are self-documenting", "weight": 3},
+]
+
+QUALITY_DATA = {
+    # --- code generators ---
+    "code-controller-generate": {
+        "scenario": "Generate REST controller with CRUD operations",
+        "message": "Cria um controller REST para o módulo de pedidos com GET, POST, PUT e DELETE.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0", "DDD", "MediatR"],
+        "files": ["src/Domain/Entities/Order.cs", "src/Application/Commands/CreateOrderCommand.cs", "src/Application/Queries/GetOrderQuery.cs"],
+        "rubric": CODE_GEN_RUBRIC,
+    },
+    "code-contracts-generate": {
+        "scenario": "Generate API contracts with validation attributes",
+        "message": "Gera os contratos CreateOrderRequest e OrderResponse com validação para o endpoint de pedidos.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0", "FluentValidation"],
+        "files": ["src/Domain/Entities/Order.cs", "src/Api/Controllers/OrdersController.cs"],
+        "rubric": CODE_GEN_RUBRIC,
+    },
+    "code-dotnet-service": {
+        "scenario": "Generate notification service with interface and DI",
+        "message": "Cria um serviço de notificação por email com interface INotificationService e implementação.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0", "DDD"],
+        "files": ["src/Application/Interfaces/", "src/Infrastructure/Services/"],
+        "rubric": CODE_GEN_RUBRIC,
+    },
+    "code-dotnet-test": {
+        "scenario": "Generate xUnit tests for a service class",
+        "message": "Cria testes unitários para o PaymentService usando xUnit e NSubstitute.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0", "xUnit", "NSubstitute"],
+        "files": ["src/Application/Services/PaymentService.cs", "src/Application/Interfaces/IPaymentGateway.cs"],
+        "rubric": TEST_RUBRIC,
+    },
+    "code-event-generate": {
+        "scenario": "Generate domain event for order lifecycle",
+        "message": "Cria os domain events OrderCreatedEvent e OrderCancelledEvent com dados relevantes.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0", "DDD", "MediatR"],
+        "files": ["src/Domain/Entities/Order.cs", "src/Domain/Events/"],
+        "rubric": DDD_RUBRIC,
+    },
+    "code-valueobject-generate": {
+        "scenario": "Generate immutable Money value object",
+        "message": "Cria o value object Money com Currency (string) e Amount (decimal), imutável com operações.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0", "DDD"],
+        "files": ["src/Domain/ValueObjects/", "src/Domain/Entities/Order.cs"],
+        "rubric": DDD_RUBRIC,
+    },
+    "code-query-generate": {
+        "scenario": "Generate paginated MediatR query",
+        "message": "Cria a query MediatR GetOrdersByStatusQuery com paginação e filtro por status.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0", "CQRS", "MediatR"],
+        "files": ["src/Domain/Entities/Order.cs", "src/Application/Queries/"],
+        "rubric": CODE_GEN_RUBRIC,
+    },
+    "code-mapping-generate": {
+        "scenario": "Generate DTOs and mapping extensions",
+        "message": "Cria os DTOs e extension methods de mapping para Product com todas as propriedades.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0"],
+        "files": ["src/Domain/Entities/Product.cs"],
+        "rubric": CODE_GEN_RUBRIC,
+    },
+    "code-program-configure": {
+        "scenario": "Configure Program.cs DI for new module",
+        "message": "Configura o Program.cs com registro DI para todos os serviços do módulo de faturamento.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0", "DDD"],
+        "files": ["src/Api/Program.cs", "src/Application/Interfaces/IBillingService.cs", "src/Infrastructure/Services/BillingService.cs"],
+        "rubric": CODE_GEN_RUBRIC,
+    },
+    "code-webhook-generate": {
+        "scenario": "Generate Stripe webhook receiver",
+        "message": "Cria um webhook receiver para processar eventos de pagamento do Stripe com validação de assinatura.",
+        "difficulty": "hard",
+        "stack": ["dotnet", "8.0", "Stripe"],
+        "files": ["src/Api/Controllers/", "src/Application/Interfaces/IPaymentService.cs"],
+        "rubric": CODE_GEN_RUBRIC,
+    },
+    "code-integrationtest-generate": {
+        "scenario": "Generate integration tests with WebApplicationFactory",
+        "message": "Cria testes de integração para os endpoints de pedidos usando WebApplicationFactory e TestContainers.",
+        "difficulty": "hard",
+        "stack": ["dotnet", "8.0", "xUnit", "WebApplicationFactory", "TestContainers"],
+        "files": ["src/Api/Controllers/OrdersController.cs", "tests/Integration/"],
+        "rubric": TEST_RUBRIC,
+    },
+    "code-bash-write": {
+        "scenario": "Generate database backup script in bash",
+        "message": "Escreve um script bash para backup automático do PostgreSQL com rotação de arquivos.",
+        "difficulty": "medium",
+        "stack": ["linux", "bash", "postgresql"],
+        "files": ["scripts/"],
+        "rubric": SCRIPT_RUBRIC,
+    },
+    "code-crossplatform-sync": {
+        "scenario": "Sync bash deploy script to PowerShell",
+        "message": "Converte o script deploy.sh para PowerShell mantendo paridade funcional.",
+        "difficulty": "medium",
+        "stack": ["bash", "powershell"],
+        "files": ["scripts/deploy.sh"],
+        "rubric": SCRIPT_RUBRIC,
+    },
+    # --- infra ---
+    "infra-k8s-deploy": {
+        "scenario": "Generate Kubernetes deployment manifests",
+        "message": "Gera o Deployment, Service e Ingress Kubernetes para a API de pedidos.",
+        "difficulty": "medium",
+        "stack": ["kubernetes", "dotnet", "8.0"],
+        "files": ["Dockerfile"],
+        "rubric": INFRA_GEN_RUBRIC,
+    },
+    "infra-jwt-configure": {
+        "scenario": "Configure JWT authentication with refresh tokens",
+        "message": "Configura autenticação JWT completa com access token, refresh token e middleware.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0", "JWT"],
+        "files": ["src/Api/Program.cs"],
+        "rubric": INFRA_GEN_RUBRIC,
+    },
+    "infra-messaging-configure": {
+        "scenario": "Configure RabbitMQ messaging between modules",
+        "message": "Configura RabbitMQ com exchanges e filas para comunicação Orders → Payments.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0", "RabbitMQ"],
+        "files": ["src/Infrastructure/", "src/Api/Program.cs"],
+        "rubric": INFRA_GEN_RUBRIC,
+    },
+    "infra-redis-cache": {
+        "scenario": "Configure Redis distributed cache",
+        "message": "Configura Redis como cache distribuído para consultas de catálogo de produtos.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0", "Redis"],
+        "files": ["src/Api/Program.cs", "src/Infrastructure/"],
+        "rubric": INFRA_GEN_RUBRIC,
+    },
+    "infra-repository-generate": {
+        "scenario": "Generate EF Core repository with Unit of Work",
+        "message": "Gera o repositório EF Core para Order com Unit of Work e specification pattern.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0", "Entity Framework", "DDD"],
+        "files": ["src/Domain/Entities/Order.cs", "src/Domain/Interfaces/IOrderRepository.cs"],
+        "rubric": INFRA_GEN_RUBRIC,
+    },
+    "infra-service-integrate": {
+        "scenario": "Generate external REST API integration",
+        "message": "Cria integração com serviço externo de validação de CPF via HttpClient com retry e circuit breaker.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0", "Polly"],
+        "files": ["src/Infrastructure/Services/", "src/Application/Interfaces/"],
+        "rubric": INFRA_GEN_RUBRIC,
+    },
+    "infra-gcp-integrate": {
+        "scenario": "Integrate with Google Cloud Storage",
+        "message": "Integra a API com Google Cloud Storage para upload de documentos fiscais.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0", "GCP", "Cloud Storage"],
+        "files": ["src/Infrastructure/Services/"],
+        "rubric": INFRA_GEN_RUBRIC,
+    },
+    "infra-bigquery-query": {
+        "scenario": "Configure BigQuery analytics integration",
+        "message": "Configura acesso ao BigQuery para dashboards analíticos de vendas.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0", "GCP", "BigQuery"],
+        "files": ["src/Infrastructure/"],
+        "rubric": INFRA_GEN_RUBRIC,
+    },
+    "infra-vertexai-prompt": {
+        "scenario": "Configure Vertex AI prompt for product descriptions",
+        "message": "Configura prompts do Vertex AI para gerar descrições de produtos automaticamente.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0", "GCP", "Vertex AI"],
+        "files": ["src/Infrastructure/Services/"],
+        "rubric": INFRA_GEN_RUBRIC,
+    },
+    "infra-pipeline-deploy": {
+        "scenario": "Generate CI/CD pipeline for .NET application",
+        "message": "Cria pipeline GitHub Actions para build, test e deploy da API em ambiente staging.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0", "GitHub Actions", "Docker"],
+        "files": ["Dockerfile", ".github/workflows/"],
+        "rubric": INFRA_GEN_RUBRIC,
+    },
+    # --- editor ---
+    "editor-readme-generate": {
+        "scenario": "Generate comprehensive module README",
+        "message": "Gera um README.md completo para o módulo de pagamentos com setup, API docs e exemplos.",
+        "difficulty": "easy",
+        "stack": ["dotnet", "8.0"],
+        "files": ["src/Payments/", "src/Api/Controllers/PaymentsController.cs"],
+        "rubric": [
+            {"criterion": "Structure — includes all standard sections (Overview, Setup, API, Examples)", "weight": 5},
+            {"criterion": "Accuracy — information matches actual code and configuration", "weight": 5},
+            {"criterion": "Code examples — includes runnable examples with expected output", "weight": 4},
+            {"criterion": "Prerequisites — lists all required tools and dependencies", "weight": 3},
+            {"criterion": "API documentation — endpoints, request/response format", "weight": 4},
+            {"criterion": "Formatting — proper Markdown with headings, code blocks, tables", "weight": 3},
+            {"criterion": "Follows SKILL.md rules — adheres to specific skill instructions", "weight": 5},
+            {"criterion": "Environment setup — clear steps to run locally", "weight": 3},
+        ],
+    },
+    # --- skill ---
+    "skill-template-create": {
+        "scenario": "Create a new skill following Agent Skills pattern",
+        "message": "Cria uma nova skill code-migration-generate para gerar migrations do Entity Framework.",
+        "difficulty": "medium",
+        "stack": [],
+        "files": [],
+        "rubric": [
+            {"criterion": "Frontmatter — name, description, metadata block complete and valid", "weight": 5},
+            {"criterion": "Naming — follows 3-segment {type}-{feature}-{action} format", "weight": 5},
+            {"criterion": "Description — includes triggers and clear purpose", "weight": 4},
+            {"criterion": "Workflow — clear numbered steps for agent execution", "weight": 4},
+            {"criterion": "Single responsibility — solves ONE specific problem", "weight": 4},
+            {"criterion": "Delegable — correct delegable value for the skill type", "weight": 3},
+            {"criterion": "Category — matches the type prefix", "weight": 3},
+            {"criterion": "Size — within 150-line recommendation", "weight": 2},
+        ],
+    },
+}
+
+
+# =============================================================================
+# HALLUCINATION SCENARIO DATA
+# =============================================================================
+
+HALLUCINATION_DATA = {
+    # --- code generators that might fabricate types/namespaces ---
+    "code-controller-generate": {
+        "scenario": "Controller generation with partial existing code — missing commands/queries",
+        "message": "Cria um controller REST para gerenciar invoices com GET e POST.",
+        "difficulty": "hard",
+        "stack": ["dotnet", "8.0", "DDD", "MediatR"],
+        "files": ["src/Domain/Entities/Invoice.cs"],
+        "grounding": {
+            "allowed_sources": ["code-controller-generate/SKILL.md", "Project context (stack, existing files)"],
+            "forbidden_claims": [
+                "Referencing CreateInvoiceCommand that does not exist",
+                "Importing MediatR handlers that were not defined",
+                "Assuming specific DTO contracts not in context",
+            ],
+        },
+        "rubric": [
+            {"criterion": "Does not reference commands/queries that do not exist in existing_files", "weight": 5, "type": "hallucination"},
+            {"criterion": "Does not import namespaces not inferrable from context", "weight": 5, "type": "hallucination"},
+            {"criterion": "Suggests creating missing commands/queries instead of assuming", "weight": 4, "type": "quality"},
+            {"criterion": "Uses proper REST conventions for routes", "weight": 3, "type": "quality"},
+        ],
+    },
+    "code-contracts-generate": {
+        "scenario": "API contracts with partial domain — missing value objects",
+        "message": "Gera os contratos de request e response para criação de invoices.",
+        "difficulty": "hard",
+        "stack": ["dotnet", "8.0"],
+        "files": ["src/Domain/Entities/Invoice.cs"],
+        "grounding": {
+            "allowed_sources": ["code-contracts-generate/SKILL.md", "Project context"],
+            "forbidden_claims": [
+                "Assuming specific validation rules not in context",
+                "Referencing enums or VOs not in existing files",
+                "Fabricating field types based on naming conventions alone",
+            ],
+        },
+        "rubric": [
+            {"criterion": "Uses primitive types when value objects are not in context", "weight": 5, "type": "hallucination"},
+            {"criterion": "Does not fabricate validation rules from assumptions", "weight": 5, "type": "hallucination"},
+            {"criterion": "Suggests creating VOs/enums if appropriate", "weight": 3, "type": "quality"},
+            {"criterion": "Follows contract naming conventions", "weight": 3, "type": "quality"},
+        ],
+    },
+    "code-dotnet-service": {
+        "scenario": "Service creation with assumed dependencies",
+        "message": "Cria um serviço de processamento de pagamentos com interface e implementação.",
+        "difficulty": "hard",
+        "stack": ["dotnet", "8.0"],
+        "files": ["src/Application/Interfaces/"],
+        "grounding": {
+            "allowed_sources": ["code-dotnet-service/SKILL.md", "Project context"],
+            "forbidden_claims": [
+                "Assuming a specific payment gateway SDK is installed",
+                "Referencing configuration keys not in context",
+                "Importing external NuGet packages without confirming they exist",
+            ],
+        },
+        "rubric": [
+            {"criterion": "Does not assume payment gateway SDKs are available", "weight": 5, "type": "hallucination"},
+            {"criterion": "Does not reference configuration keys not in context", "weight": 5, "type": "hallucination"},
+            {"criterion": "Asks or suggests which payment provider to use", "weight": 4, "type": "quality"},
+            {"criterion": "Uses proper interface-based DI pattern", "weight": 3, "type": "quality"},
+        ],
+    },
+    "code-command-generate": {
+        "scenario": "Command creation with assumed entity structure",
+        "message": "Cria o command MediatR CreatePaymentCommand com validação.",
+        "difficulty": "hard",
+        "stack": ["dotnet", "8.0", "CQRS", "MediatR"],
+        "files": ["src/Application/Commands/"],
+        "grounding": {
+            "allowed_sources": ["code-command-generate/SKILL.md", "Project context"],
+            "forbidden_claims": [
+                "Assuming Payment entity properties not shown in context",
+                "Referencing validators that don't exist",
+                "Importing repository interfaces not in existing files",
+            ],
+        },
+        "rubric": [
+            {"criterion": "Does not assume entity properties not in context", "weight": 5, "type": "hallucination"},
+            {"criterion": "Does not reference non-existent repository interfaces", "weight": 5, "type": "hallucination"},
+            {"criterion": "Asks about entity structure or uses minimal safe properties", "weight": 4, "type": "quality"},
+            {"criterion": "Follows MediatR command pattern correctly", "weight": 3, "type": "quality"},
+        ],
+    },
+    "code-query-generate": {
+        "scenario": "Query creation with assumed read model",
+        "message": "Cria a query MediatR GetInvoiceByIdQuery com detalhes completos.",
+        "difficulty": "hard",
+        "stack": ["dotnet", "8.0", "CQRS", "MediatR"],
+        "files": ["src/Application/Queries/"],
+        "grounding": {
+            "allowed_sources": ["code-query-generate/SKILL.md", "Project context"],
+            "forbidden_claims": [
+                "Assuming Invoice has specific navigation properties",
+                "Fabricating a read model with unconfirmed fields",
+                "Referencing DbContext not in existing files",
+            ],
+        },
+        "rubric": [
+            {"criterion": "Does not fabricate read model properties", "weight": 5, "type": "hallucination"},
+            {"criterion": "Does not reference DbContext not in context", "weight": 5, "type": "hallucination"},
+            {"criterion": "Uses minimal safe return type or asks for clarification", "weight": 4, "type": "quality"},
+            {"criterion": "Follows MediatR query pattern correctly", "weight": 3, "type": "quality"},
+        ],
+    },
+    "code-valueobject-generate": {
+        "scenario": "Value object with assumed comparison/conversion logic",
+        "message": "Cria o value object Address com street, city, state e zipcode.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0", "DDD"],
+        "files": ["src/Domain/ValueObjects/"],
+        "grounding": {
+            "allowed_sources": ["code-valueobject-generate/SKILL.md", "Project context"],
+            "forbidden_claims": [
+                "Assuming a specific address validation service exists",
+                "Adding geocoding or formatting not requested",
+                "Referencing external libraries for address validation",
+            ],
+        },
+        "rubric": [
+            {"criterion": "Does not add unrequested geocoding or external validation", "weight": 5, "type": "hallucination"},
+            {"criterion": "Does not reference external libraries not in context", "weight": 4, "type": "hallucination"},
+            {"criterion": "Implements immutability correctly", "weight": 4, "type": "quality"},
+            {"criterion": "Includes proper equality comparison", "weight": 3, "type": "quality"},
+        ],
+    },
+    "code-webhook-generate": {
+        "scenario": "Webhook with assumed provider details",
+        "message": "Cria um webhook receiver para eventos do gateway de pagamento.",
+        "difficulty": "hard",
+        "stack": ["dotnet", "8.0"],
+        "files": ["src/Api/Controllers/"],
+        "grounding": {
+            "allowed_sources": ["code-webhook-generate/SKILL.md", "Project context"],
+            "forbidden_claims": [
+                "Assuming specific payment gateway (Stripe/PayPal) without context",
+                "Hardcoding webhook secret keys",
+                "Referencing SDK methods from unconfirmed providers",
+            ],
+        },
+        "rubric": [
+            {"criterion": "Does not assume a specific payment provider", "weight": 5, "type": "hallucination"},
+            {"criterion": "Does not hardcode secrets or API keys", "weight": 5, "type": "hallucination"},
+            {"criterion": "Asks which provider or creates generic webhook pattern", "weight": 4, "type": "quality"},
+            {"criterion": "Includes signature validation placeholder", "weight": 3, "type": "quality"},
+        ],
+    },
+    # --- infra with hallucination risk ---
+    "infra-k8s-deploy": {
+        "scenario": "K8s manifests with assumed cluster configuration",
+        "message": "Gera manifests Kubernetes para deploy da API.",
+        "difficulty": "hard",
+        "stack": ["kubernetes", "dotnet"],
+        "files": ["Dockerfile"],
+        "grounding": {
+            "allowed_sources": ["infra-k8s-deploy/SKILL.md", "Project context"],
+            "forbidden_claims": [
+                "Assuming specific namespace or cluster name",
+                "Referencing container registry not in context",
+                "Assuming cloud provider-specific annotations",
+            ],
+        },
+        "rubric": [
+            {"criterion": "Uses placeholder values for namespace and registry", "weight": 5, "type": "hallucination"},
+            {"criterion": "Does not assume cloud provider annotations", "weight": 5, "type": "hallucination"},
+            {"criterion": "Includes resource limits and health probes", "weight": 4, "type": "quality"},
+            {"criterion": "Follows Kubernetes best practices", "weight": 3, "type": "quality"},
+        ],
+    },
+    "infra-jwt-configure": {
+        "scenario": "JWT config with assumed identity provider",
+        "message": "Configura autenticação JWT na API.",
+        "difficulty": "hard",
+        "stack": ["dotnet", "8.0"],
+        "files": ["src/Api/Program.cs"],
+        "grounding": {
+            "allowed_sources": ["infra-jwt-configure/SKILL.md", "Project context"],
+            "forbidden_claims": [
+                "Assuming specific identity provider (Auth0, Keycloak, Azure AD)",
+                "Hardcoding JWT secret keys in code",
+                "Assuming specific claim types without context",
+            ],
+        },
+        "rubric": [
+            {"criterion": "Does not assume a specific identity provider", "weight": 5, "type": "hallucination"},
+            {"criterion": "Does not hardcode secrets in source code", "weight": 5, "type": "hallucination"},
+            {"criterion": "Uses configuration/env vars for secrets", "weight": 4, "type": "quality"},
+            {"criterion": "Includes proper token validation setup", "weight": 3, "type": "quality"},
+        ],
+    },
+    "infra-messaging-configure": {
+        "scenario": "Messaging config with assumed broker details",
+        "message": "Configura mensageria assíncrona entre os módulos da API.",
+        "difficulty": "hard",
+        "stack": ["dotnet", "8.0"],
+        "files": ["src/Infrastructure/"],
+        "grounding": {
+            "allowed_sources": ["infra-messaging-configure/SKILL.md", "Project context"],
+            "forbidden_claims": [
+                "Assuming specific broker (RabbitMQ, Kafka, Azure SB) without context",
+                "Hardcoding connection strings",
+                "Assuming specific exchange/topic names exist",
+            ],
+        },
+        "rubric": [
+            {"criterion": "Asks which message broker or defaults safely", "weight": 5, "type": "hallucination"},
+            {"criterion": "Does not hardcode connection details", "weight": 5, "type": "hallucination"},
+            {"criterion": "Uses proper DI registration pattern", "weight": 3, "type": "quality"},
+            {"criterion": "Includes error handling and dead letter setup", "weight": 3, "type": "quality"},
+        ],
+    },
+    "infra-redis-cache": {
+        "scenario": "Redis config with assumed connection details",
+        "message": "Configura cache distribuído para a API.",
+        "difficulty": "medium",
+        "stack": ["dotnet", "8.0"],
+        "files": ["src/Api/Program.cs"],
+        "grounding": {
+            "allowed_sources": ["infra-redis-cache/SKILL.md", "Project context"],
+            "forbidden_claims": [
+                "Assuming specific Redis connection string",
+                "Assuming Redis Sentinel or cluster without context",
+                "Referencing specific cache policies not defined in project",
+            ],
+        },
+        "rubric": [
+            {"criterion": "Uses configuration for connection string, not hardcoded", "weight": 5, "type": "hallucination"},
+            {"criterion": "Does not assume cluster/sentinel topology", "weight": 4, "type": "hallucination"},
+            {"criterion": "Configures proper serialization", "weight": 3, "type": "quality"},
+            {"criterion": "Includes cache expiration policies", "weight": 3, "type": "quality"},
+        ],
+    },
+    "infra-repository-generate": {
+        "scenario": "Repository created with assumed DbContext structure",
+        "message": "Gera o repositório EF Core para a entidade Shipping.",
+        "difficulty": "hard",
+        "stack": ["dotnet", "8.0", "Entity Framework"],
+        "files": ["src/Domain/Entities/Shipping.cs", "src/Domain/Interfaces/IShippingRepository.cs"],
+        "grounding": {
+            "allowed_sources": ["infra-repository-generate/SKILL.md", "Project context"],
+            "forbidden_claims": [
+                "Assuming DbContext class name not in context",
+                "Referencing DbSet properties not confirmed",
+                "Assuming specific EF Core configuration (lazy loading, etc.)",
+            ],
+        },
+        "rubric": [
+            {"criterion": "Does not assume DbContext name or DbSet properties", "weight": 5, "type": "hallucination"},
+            {"criterion": "Does not assume EF configuration not in context", "weight": 4, "type": "hallucination"},
+            {"criterion": "Implements repository interface correctly", "weight": 4, "type": "quality"},
+            {"criterion": "Includes Unit of Work pattern if requested", "weight": 3, "type": "quality"},
+        ],
+    },
+    "infra-service-integrate": {
+        "scenario": "External service integration with assumed API details",
+        "message": "Integra a API com serviço externo de envio de SMS.",
+        "difficulty": "hard",
+        "stack": ["dotnet", "8.0"],
+        "files": ["src/Infrastructure/Services/"],
+        "grounding": {
+            "allowed_sources": ["infra-service-integrate/SKILL.md", "Project context"],
+            "forbidden_claims": [
+                "Assuming specific SMS provider (Twilio, AWS SNS) without context",
+                "Hardcoding API keys or endpoints",
+                "Referencing SDK documentation not confirmed",
+            ],
+        },
+        "rubric": [
+            {"criterion": "Does not assume specific SMS provider", "weight": 5, "type": "hallucination"},
+            {"criterion": "Does not hardcode API keys or endpoints", "weight": 5, "type": "hallucination"},
+            {"criterion": "Creates generic integration interface", "weight": 4, "type": "quality"},
+            {"criterion": "Includes retry and error handling", "weight": 3, "type": "quality"},
+        ],
+    },
+    "infra-gcp-integrate": {
+        "scenario": "GCP integration with assumed project/credentials",
+        "message": "Integra a API com Google Cloud para armazenamento de arquivos.",
+        "difficulty": "hard",
+        "stack": ["dotnet", "8.0", "GCP"],
+        "files": ["src/Infrastructure/Services/"],
+        "grounding": {
+            "allowed_sources": ["infra-gcp-integrate/SKILL.md", "Project context"],
+            "forbidden_claims": [
+                "Assuming GCP project ID or bucket name",
+                "Hardcoding credentials or service account paths",
+                "Assuming specific GCP region or configuration",
+            ],
+        },
+        "rubric": [
+            {"criterion": "Does not hardcode GCP project ID or bucket names", "weight": 5, "type": "hallucination"},
+            {"criterion": "Uses configuration for credentials path", "weight": 5, "type": "hallucination"},
+            {"criterion": "Follows GCP best practices for auth", "weight": 3, "type": "quality"},
+            {"criterion": "Includes proper error handling for cloud operations", "weight": 3, "type": "quality"},
+        ],
+    },
+    # --- project ---
+    "project-workspace-create": {
+        "scenario": "Workspace creation with assumed project structure",
+        "message": "Cria um novo workspace Copilot para o projeto de e-commerce.",
+        "difficulty": "hard",
+        "stack": [],
+        "files": [],
+        "grounding": {
+            "allowed_sources": ["project-workspace-create/SKILL.md", "User request"],
+            "forbidden_claims": [
+                "Assuming specific technology stack without asking",
+                "Creating code-map entries for non-existent code",
+                "Assuming project conventions not defined by user",
+            ],
+        },
+        "rubric": [
+            {"criterion": "Asks about technology stack before assuming", "weight": 5, "type": "hallucination"},
+            {"criterion": "Does not fabricate code-map entries", "weight": 5, "type": "hallucination"},
+            {"criterion": "Creates proper .copilot-project structure", "weight": 4, "type": "quality"},
+            {"criterion": "Follows workspace-create skill steps", "weight": 3, "type": "quality"},
+        ],
+    },
+}
+
+
+# =============================================================================
+# MAIN GENERATION LOGIC
+# =============================================================================
+
+
+def generate_routing_scenarios(existing: dict, all_skills: list[str], dry_run: bool) -> int:
+    """Generate routing scenarios for uncovered skills."""
+    covered = covered_skills(existing.get("routing", []), "routing")
+    num = next_number(existing.get("routing", []))
+    created = 0
+
+    for skill_name, data in sorted(ROUTING_DATA.items()):
+        if skill_name in covered:
+            continue
+        if skill_name not in all_skills:
+            print(f"  ⚠️  Skip {skill_name} — not found in core skills")
+            continue
+
+        # Validate negatives exist
+        valid_negatives = []
+        for neg_name, neg_reason in data["negatives"]:
+            if neg_name in all_skills:
+                valid_negatives.append({"name": neg_name, "must_activate": False, "reason": neg_reason})
+
+        scenario = {
+            "scenario": data["scenario"],
+            "evaluation_type": "routing",
+            "difficulty": data["difficulty"],
+            "user_message": data["message"],
+            "context": {
+                "project_stack": ["dotnet", "8.0"],
+                "existing_files": data["files"],
+                "has_copilot_project": True,
+            },
+            "expected_skills": [
+                {"name": skill_name, "must_activate": True, "reason": f"Direct request matching {skill_name} triggers"},
+                *valid_negatives,
+            ],
+        }
+
+        # Generate filename
+        slug = skill_name.replace("-", "-")
+        # Shorten for readability
+        parts = skill_name.split("-")
+        if len(parts) >= 3:
+            slug = f"{parts[1]}-{parts[2]}"
+        filename = f"{num:03d}-{slug}.yaml"
+
+        if dry_run:
+            print(f"  📝 Would create: routing/{filename}")
+        else:
+            filepath = SCENARIOS_ROOT / "routing" / filename
+            write_yaml(filepath, scenario)
+            print(f"  ✅ Created: routing/{filename}")
+
+        num += 1
+        created += 1
+
+    return created
+
+
+def generate_quality_scenarios(existing: dict, all_skills: list[str], dry_run: bool) -> int:
+    """Generate quality scenarios for applicable skills."""
+    covered = covered_skills(existing.get("quality", []), "quality")
+    num = next_number(existing.get("quality", []))
+    created = 0
+
+    for skill_name, data in sorted(QUALITY_DATA.items()):
+        if skill_name in covered:
+            continue
+        if skill_name not in all_skills:
+            print(f"  ⚠️  Skip {skill_name} — not found in core skills")
+            continue
+
+        scenario = {
+            "scenario": data["scenario"],
+            "evaluation_type": "quality",
+            "difficulty": data["difficulty"],
+            "user_message": data["message"],
+            "context": {
+                "project_stack": data.get("stack", ["dotnet", "8.0"]),
+                "existing_files": data["files"],
+            },
+            "target_skill": skill_name,
+            "rubric": data["rubric"],
+        }
+
+        parts = skill_name.split("-")
+        slug = f"{parts[1]}-{parts[2]}" if len(parts) >= 3 else skill_name
+        filename = f"{num:03d}-{slug}.yaml"
+
+        if dry_run:
+            print(f"  📝 Would create: quality/{filename}")
+        else:
+            filepath = SCENARIOS_ROOT / "quality" / filename
+            write_yaml(filepath, scenario)
+            print(f"  ✅ Created: quality/{filename}")
+
+        num += 1
+        created += 1
+
+    return created
+
+
+def generate_hallucination_scenarios(existing: dict, all_skills: list[str], dry_run: bool) -> int:
+    """Generate hallucination scenarios for applicable skills."""
+    covered = covered_skills(existing.get("hallucination", []), "hallucination")
+    num = next_number(existing.get("hallucination", []))
+    created = 0
+
+    for skill_name, data in sorted(HALLUCINATION_DATA.items()):
+        if skill_name in covered:
+            continue
+        if skill_name not in all_skills:
+            print(f"  ⚠️  Skip {skill_name} — not found in core skills")
+            continue
+
+        scenario = {
+            "scenario": data["scenario"],
+            "evaluation_type": "hallucination",
+            "difficulty": data["difficulty"],
+            "user_message": data["message"],
+            "context": {
+                "project_stack": data.get("stack", ["dotnet", "8.0"]),
+                "existing_files": data["files"],
+            },
+            "target_skill": skill_name,
+            "grounding": data["grounding"],
+            "rubric": data["rubric"],
+        }
+
+        parts = skill_name.split("-")
+        slug = f"{parts[1]}-{parts[2]}" if len(parts) >= 3 else skill_name
+        filename = f"{num:03d}-{slug}.yaml"
+
+        if dry_run:
+            print(f"  📝 Would create: hallucination/{filename}")
+        else:
+            filepath = SCENARIOS_ROOT / "hallucination" / filename
+            write_yaml(filepath, scenario)
+            print(f"  ✅ Created: hallucination/{filename}")
+
+        num += 1
+        created += 1
+
+    return created
+
+
+def print_coverage_report(all_skills: list[str], existing: dict):
+    """Print coverage report."""
+    r_covered = covered_skills(existing.get("routing", []), "routing")
+    q_covered = covered_skills(existing.get("quality", []), "quality")
+    h_covered = covered_skills(existing.get("hallucination", []), "hallucination")
+
+    total = len(all_skills)
+    any_covered = r_covered | q_covered | h_covered
+
+    print("\n" + "=" * 60)
+    print("COVERAGE REPORT")
+    print("=" * 60)
+    print(f"\nTotal skills: {total}")
+    print(f"Skills with ANY coverage: {len(any_covered)} ({len(any_covered)*100//total}%)")
+    print(f"\nRouting:       {len(r_covered):3d}/{total} ({len(r_covered)*100//total}%)")
+    print(f"Quality:       {len(q_covered):3d}/{total}")
+    print(f"Hallucination: {len(h_covered):3d}/{total}")
+    print(f"\nTotal scenarios: routing={len(existing.get('routing', []))}, "
+          f"quality={len(existing.get('quality', []))}, "
+          f"hallucination={len(existing.get('hallucination', []))}")
+
+    # Skills without any coverage
+    uncovered = set(all_skills) - any_covered
+    if uncovered:
+        print(f"\n⚠️  Skills with NO coverage ({len(uncovered)}):")
+        for s in sorted(uncovered):
+            print(f"    - {s}")
+
+    print()
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Generate LLM-as-Judge evaluation scenarios")
+    parser.add_argument("--dry-run", action="store_true", help="Preview without writing files")
+    parser.add_argument("--type", choices=["routing", "quality", "hallucination"], help="Generate only this type")
+    parser.add_argument("--report", action="store_true", help="Show coverage report only")
+    args = parser.parse_args()
+
+    # Discover
+    all_skills = discover_skills()
+    existing = discover_existing_scenarios()
+
+    print(f"Found {len(all_skills)} skills")
+    print(f"Found {sum(len(v) for v in existing.values())} existing scenarios")
+
+    if args.report:
+        print_coverage_report(all_skills, existing)
+        return
+
+    total_created = 0
+
+    if args.type in (None, "routing"):
+        print("\n--- Routing Scenarios ---")
+        total_created += generate_routing_scenarios(existing, all_skills, args.dry_run)
+
+    if args.type in (None, "quality"):
+        print("\n--- Quality Scenarios ---")
+        total_created += generate_quality_scenarios(existing, all_skills, args.dry_run)
+
+    if args.type in (None, "hallucination"):
+        print("\n--- Hallucination Scenarios ---")
+        total_created += generate_hallucination_scenarios(existing, all_skills, args.dry_run)
+
+    print(f"\n{'Would create' if args.dry_run else 'Created'}: {total_created} scenarios")
+
+    # Show final coverage
+    if not args.dry_run and total_created > 0:
+        existing = discover_existing_scenarios()  # reload
+    print_coverage_report(all_skills, existing)
+
+
+if __name__ == "__main__":
+    main()

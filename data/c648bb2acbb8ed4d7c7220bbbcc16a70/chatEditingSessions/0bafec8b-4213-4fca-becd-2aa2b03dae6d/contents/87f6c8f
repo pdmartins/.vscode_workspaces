@@ -1,0 +1,7 @@
+# Symlinks Not Copies
+
+- **date**: 2026-02-10
+- **status**: active
+- **context**: Arquivos de instructions eram copiados dos templates, sem sincronização automática
+- **decision**: Usar SEMPRE symlinks, nunca cópias. default.instructions.md → .copilot-core/instructions/. workspace.instructions.md em .copilot-project/instructions/ com symlink para .github/instructions/. Windows: cmd /c mklink. Linux/Mac: ln -s. Paths relativos
+- **outcome**: Alterações nos repos refletem automaticamente. workspace.instructions.md é responsabilidade do .copilot-project por branch

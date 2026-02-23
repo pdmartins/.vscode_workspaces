@@ -1,0 +1,7 @@
+# Setup Scripts Extraction
+
+- **date**: 2026-02-16
+- **status**: active
+- **context**: Scripts de setup PowerShell/Bash apareciam inline em 2 skills (~130+150 linhas), triplicando esforço de manutenção
+- **decision**: Extrair para `templates/setup-scripts.md` centralizado. Skills referenciam template. Variáveis: `{nome-projeto}`, `{repo-core}`, `{repo-project}`. Ambos modos (aberto/stealth) e plataformas
+- **outcome**: Single source of truth. Atualização requer editar 1 arquivo. Skills ficaram menores e focados no workflow

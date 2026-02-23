@@ -1,0 +1,55 @@
+# Lessons Learned
+
+Registro de aprendizados e decisões importantes do projeto.
+
+---
+
+## Estrutura
+
+Cada lição segue o formato:
+
+```xml
+<lesson date="YYYY-MM-DD" category="categoria">
+  <context>Contexto do problema</context>
+  <decision>Decisão tomada</decision>
+  <outcome>Resultado/impacto</outcome>
+</lesson>
+```
+
+### Categorias
+
+| Categoria | Descrição |
+|-----------|-----------|
+| arquitetura | Estrutura do projeto |
+| padrões | Convenções de código |
+| tooling | Ferramentas e configs |
+| workflow | Processos |
+| debug | Problemas resolvidos |
+| performance | Otimizações |
+| segurança | Práticas de segurança |
+| regras | Definições e regras do sistema |
+| estrutura | Organização e estrutura de diretórios |
+
+## Lições
+
+<lesson date="2026-02-10" category="regras">
+  <context>O agente só registrava automaticamente correções de código gerado. Definições/correções de regras, estruturas e processos do próprio .copilot-core não eram capturadas.</context>
+  <decision>Ampliar o auto-registro para incluir correções de regras, estrutura e processos. O .copilot-core deve fazer self-dogfooding — usar seu próprio sistema de memória para governar seu desenvolvimento.</decision>
+  <outcome>Adicionada seção "Registro automático — Correções de regras, estrutura e processos" no default.instructions.md. Toda definição ou correção do usuário sobre como o sistema funciona agora é registrada automaticamente.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="estrutura">
+  <context>Ao configurar o STT, o .copilot-core foi clonado com `-b main` em vez de `-b core`. O skill project-update referenciava `git pull origin main` para o core.</context>
+  <decision>Projetos consumidores SEMPRE usam a branch `core`, nunca `main`. A branch `core` contém apenas `instructions/`, `skills/` e `templates/` (sem `.github/` do repo de desenvolvimento). A branch `main` é exclusiva para desenvolvimento do core.</decision>
+  <outcome>Corrigido project-update skill. Documentada estratégia de branches no template workspace.instructions.md. Fixado clone do STT para branch core.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="estrutura">
+  <context>Ao configurar projetos cujos repos não podem ter referência a submodules, a abordagem de junction (mklink /J) foi considerada mas rejeitada porque mudanças de branch no source refletem no projeto consumidor.</context>
+  <decision>Para projetos sem submodules, usar clones independentes dentro de uma pasta container `{projeto}/.github/`. Estrutura: pasta raiz não é git repo, repos do projeto ficam lado a lado, `.github/` contém clones separados de .copilot-core e .copilot-project + instructions/. Abrir a pasta raiz no VS Code.</decision>
+  <outcome>Setup funciona sem tocar nos repos originais. Cada projeto tem seus próprios clones com branches independentes. Copilot descobre instructions em `.github/instructions/` relativo ao workspace root.</outcome>
+</lesson>---
+
+## Registro
+
+<!-- Adicionar lições aqui, mais recente primeiro -->

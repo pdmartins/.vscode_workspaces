@@ -1,0 +1,211 @@
+---
+name: code-api-validate
+description: Valida aderência de Controllers e Contracts aos padrões do projeto. Lê config.yml do project para convenções específicas. Use APÓS implementar ou atualizar Controllers, Requests ou Responses. Triggers: após criar controller, após criar request/response, "validar API", "verificar aderência".
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: code
+  delegable: full
+---
+
+# API Validation Skill
+
+Valida aderência de componentes de API aos padrões do projeto.
+
+## Quando Usar
+
+**SEMPRE** após:
+- Criar/atualizar Controller
+- Criar/atualizar Request
+- Criar/atualizar Response
+- Refatorar endpoints
+
+## Config Loading
+
+Antes de validar, carregar configurações do projeto:
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/code-api-validate/config.yml`
+2. Se existe, carregar e usar as configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/code-api-validate/SKILL.md`
+4. Se existe, carregar como instruções complementares (extensões específicas do projeto)
+5. Se nenhum existe, usar apenas os padrões genéricos abaixo
+
+## Checklist de Validação
+
+### 1. Controllers
+
+| Item | Padrão | Exemplo |
+|------|--------|---------|
+| Nome | Plural + Controller | `OrdersController` |
+| Rota base | `api/[controller]` | `/api/orders` |
+| Verbos | GET, POST, PUT, DELETE | Sem PATCH, sem verbos customizados |
+| IDs | GUID na rota | `{id:guid}` |
+| Rotas compostas | kebab-case | `/api/phone-numbers` |
+
+**Verificar:**
+- [ ] Nome no plural
+- [ ] Rota sem verbos (`/api/orders`, não `/api/getOrders`)
+- [ ] `[FromQuery]` para requests de listagem
+- [ ] `[FromBody]` para requests de criação/atualização
+- [ ] `ProducesResponseType` em todos os métodos
+- [ ] `CancellationToken` em métodos async
+
+### 2. Requests
+
+| Item | Padrão | Exemplo |
+|------|--------|---------|
+| Nome | `[Verbo][Domínio]Request` | `CreateOrderRequest` |
+| Pasta | `Contracts/Requests/` | - |
+| Namespace | `{RootNamespace}.Api.Contracts.Requests` | - |
+
+**Verificar:**
+- [ ] Nomenclatura correta: `[Verbo][Domínio]Request`
+- [ ] Localização: `Contracts/Requests/`
+- [ ] Usa `record`
+- [ ] Propriedades obrigatórias com `required`
+- [ ] Validação com DataAnnotations ou FluentValidation
+- [ ] Documentação XML
+
+### 3. Responses
+
+| Item | Padrão | Exemplo |
+|------|--------|---------|
+| Nome | `[Verbo][Domínio]Response` | `GetOrderResponse` |
+| Pasta | `Contracts/Responses/` | - |
+| Namespace | `{RootNamespace}.Api.Contracts.Responses` | - |
+
+**Verificar:**
+- [ ] Nomenclatura correta: `[Verbo][Domínio]Response`
+- [ ] Localização: `Contracts/Responses/`
+- [ ] Usa `record`
+- [ ] Propriedades obrigatórias com `required`
+- [ ] Documentação XML
+
+## Workflow de Validação
+
+### Após criar Controller
+
+1. Verificar nome no plural
+2. Verificar rota RESTful
+3. Verificar verbos HTTP corretos
+4. Verificar tipos de Request/Response usados
+5. Verificar se Requests estão em `Contracts/Requests/`
+6. Verificar se Responses estão em `Contracts/Responses/`
+
+### Após criar Request
+
+1. Verificar nomenclatura `[Verbo][Domínio]Request`
+2. Verificar localização em `Contracts/Requests/`
+3. Verificar validação aplicada
+4. Verificar uso de `record`
+
+### Após criar Response
+
+1. Verificar nomenclatura `[Verbo][Domínio]Response`
+2. Verificar localização em `Contracts/Responses/`
+3. Verificar uso de `record`
+
+## Mapeamento Verbo → Nomenclatura
+
+| Operação REST | Verbo HTTP | Request | Response |
+|---------------|------------|---------|----------|
+| Listar | GET (collection) | `List{Domínio}sRequest` | `List{Domínio}sResponse` |
+| Obter | GET (item) | - | `Get{Domínio}Response` |
+| Criar | POST | `Create{Domínio}Request` | `Create{Domínio}Response` |
+| Atualizar | PUT | `Update{Domínio}Request` | `Update{Domínio}Response` |
+| Deletar | DELETE | - | - (NoContent) |
+| Buscar | GET/POST | `Search{Domínio}sRequest` | `Search{Domínio}sResponse` |
+
+## Erros Comuns
+
+### ❌ Nomenclatura incorreta
+
+```
+OrderRequest              → CreateOrderRequest
+OrderResponse             → GetOrderResponse
+OrderDto                  → GetOrderResponse
+```
+
+### ❌ Localização incorreta
+
+```
+Models/CreateOrderRequest.cs    → Contracts/Requests/CreateOrderRequest.cs
+Dtos/OrderResponse.cs           → Contracts/Responses/GetOrderResponse.cs
+```
+
+### ❌ Rota não RESTful
+
+```
+/api/getOrders            → /api/orders
+/api/order/create         → POST /api/orders
+/api/order/delete/1       → DELETE /api/orders/1
+```
+
+## Template de Relatório
+
+Após validação, reportar:
+
+```
+✅ **Validação de API Concluída**
+
+**Controller:** OrdersController
+- [✅] Nome no plural
+- [✅] Rota RESTful: /api/orders
+- [✅] Verbos HTTP corretos
+
+**Requests:**
+- [✅] CreateOrderRequest → Contracts/Requests/
+- [✅] UpdateOrderRequest → Contracts/Requests/
+- [✅] ListOrdersRequest → Contracts/Requests/
+
+**Responses:**
+- [✅] GetOrderResponse → Contracts/Responses/
+- [✅] CreateOrderResponse → Contracts/Responses/
+- [✅] ListOrdersResponse → Contracts/Responses/
+```
+
+Ou se houver problemas:
+
+```
+⚠️ **Validação de API - Problemas Encontrados**
+
+**Controller:** OrderController
+- [❌] Nome deve ser plural: OrdersController
+
+**Requests:**
+- [❌] OrderRequest deve ser CreateOrderRequest
+- [❌] Localização incorreta: mover para Contracts/Requests/
+
+**Ação necessária:** Corrigir os itens acima antes de prosseguir.
+```
+
+## Config Schema
+
+```yaml
+# Config: .copilot-project/skills/code-api-validate/config.yml
+
+language: csharp                           # Programming language
+framework: dotnet-8                        # Framework version
+solution: MyProject                        # Solution name
+
+project:
+  root_namespace: MyCompany.MyProject      # Root namespace for the solution
+  api_namespace: MyCompany.MyProject.Api   # API project namespace
+
+validation:
+  controllers:
+    namespace: "{root_namespace}.Api.Controllers"
+    route_prefix: "api/[controller]"       # Expected route prefix
+    id_type: guid                          # Expected ID type constraint
+  contracts:
+    requests_namespace: "{root_namespace}.Api.Contracts.Requests"
+    responses_namespace: "{root_namespace}.Api.Contracts.Responses"
+    requests_path: Contracts/Requests      # Expected requests folder
+    responses_path: Contracts/Responses    # Expected responses folder
+
+domains:                                   # Domain entities to validate
+  - name: Order
+    plural: Orders
+  - name: Product
+    plural: Products
+```

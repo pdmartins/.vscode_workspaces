@@ -1,0 +1,257 @@
+---
+applyTo: '**'
+---
+
+# Copilot Agent Instructions
+
+Regras globais para o agente. Skills são carregados automaticamente conforme necessidade.
+
+## Princípios
+
+1. **Instruções são obrigatórias** - não são sugestões
+2. **Perguntar antes de assumir** - quando houver ambiguidade, perguntar
+3. **Português para chat, inglês para código** - variáveis, funções, nomes de arquivo em inglês
+
+## Clarificação
+
+**Perguntar quando:**
+- Pedido é vago ou ambíguo
+- Múltiplas interpretações possíveis
+- Informação crítica faltando
+- Decisão impacta significativamente o resultado
+
+**NÃO perguntar quando:**
+- Informação está explícita
+- Convenção está documentada
+- Decisão é trivial
+- Contexto torna resposta óbvia
+
+**Formato**: ❓ **Preciso de clarificação**: {pergunta}
+
+## Skills
+
+Este projeto usa o padrão [Agent Skills](https://agentskills.io).
+
+### Sinalização de Uso
+
+**Sempre que uma skill for ativada**, o agente DEVE sinalizar no início da resposta:
+
+```
+🔧 Skill: `{nome-da-skill}`
+```
+
+Se múltiplas skills forem ativadas na mesma resposta:
+
+```
+🔧 Skills: `{skill-1}`, `{skill-2}`
+```
+
+Isso garante rastreabilidade e transparência sobre quais skills estão sendo utilizadas.
+
+### Descoberta de Skills
+
+O agente DEVE escanear os seguintes diretórios para descobrir skills disponíveis:
+
+1. **Core Skills**: `.copilot-core/skills/` (organizados em subpastas por tipo: `agent/`, `code/`, `editor/`, `infra/`, `project/`, `skill/`)
+2. **Project Skills**: `.copilot-project/skills/`
+
+Para cada skill encontrado (recursivamente), ler o frontmatter (`name` e `description`) do `SKILL.md`.
+Usar o campo `description` para decidir quando ativar cada skill.
+
+> **Catálogo unificado**: O agente trabalha com um catálogo único que combina core skills + project skills. Project skills complementam o core — podem adicionar funcionalidade específica do projeto (ex: `editor-english-sync` em projetos que precisam de sync de README). Quando houver skill com mesmo nome em ambos, o project skill prevalece.
+
+### Dados do Projeto
+
+O agente DEVE consultar quando relevante:
+
+- **Contexto**: `.copilot-project/context/project.md`
+- **Memória**: `.copilot-project/memory/lessons-learned.md`
+- **Chat Memory**: `.copilot-project/chat-memory/`
+- **Mapa de Código**: `.copilot-project/context/code-map/`
+
+**Nomenclatura**: `{tipo}/{tipo}-{feature}-{ação}/SKILL.md`
+
+### Skills Core
+
+O sistema possui **58 skills** organizados em 6 tipos. A descoberta usa catálogos por tipo.
+
+#### Capability Manifest
+
+| Tipo | Capacidades | Descoberta | Skills |
+|------|------------|------------|--------|
+| `agent` | Memória, delegação, tarefas, sessões, validação, sync MCP | `agent-catalog-query` | 9 |
+| `code` | Review, geração .NET, CQRS/DDD, testes, bash/powershell | `code-catalog-query` | 22 |
+| `infra` | Docker, K8s, Redis, GCP, pipelines, JWT, mensageria | `infra-catalog-query` | 12 |
+| `project` | Contexto, codemap, setup, branches, análise | `project-catalog-query` | 9 |
+| `skill` | Criar e validar skills | (direto) | 2 |
+| `editor` | Markdown lint, READMEs | (direto) | 2 |
+
+#### Skills Always-Known (ativação direta, sem catálogo)
+
+| Skill | Propósito |
+|-------|-----------|
+| `agent-memory-query` | Consultar lições aprendidas |
+| `agent-memory-register` | Registrar novas lições |
+| `agent-memory-sync` | Sincronizar memória com MCP memory-service |
+| `agent-action-review` | Validar completude e consistência pós-ação |
+| `agent-impact-validate` | Validar impactos em cascade pós-edição |
+| `project-context-query` | Consultar contexto do projeto |
+| `skill-template-create` | Criar novos skills |
+| `skill-output-validate` | Validar estrutura e qualidade de artefatos |
+| `editor-markdown-lint` | Regras de formatação Markdown |
+| `editor-readme-generate` | Criação e atualização de READMEs |
+
+### Descoberta Otimizada
+
+Para evitar carregar frontmatter de 50+ skills a cada sessão:
+
+1. **Identificar tipo** — pela tarefa do usuário, determinar o tipo (`agent`, `code`, `infra`, `project`)
+2. **Consultar catálogo core** — usar `runSubagent` para ler o `{tipo}-catalog-query` e listar skills do tipo
+3. **Consultar project skills** — verificar se `.copilot-project/skills/` contém skills adicionais do tipo relevante
+4. **Ativar skill específica** — carregar apenas o SKILL.md necessário (core ou project)
+
+**Exemplo de fluxo com subagent:**
+```
+Tarefa: "criar Dockerfile para o projeto"
+→ Tipo: infra
+→ Subagent lê: infra-catalog-query + project skills infra-*
+→ Resultado: usar infra-docker-build (+ config.yml do project se existir)
+→ Agente carrega: infra-docker-build/SKILL.md
+```
+
+Para skills de uso direto (`skill-template-create`, `editor-markdown-lint`) — ativar sem catálogo.
+
+### Delegação a Subagents
+
+Skills podem ser delegadas a subagents via `runSubagent`. Consultar `agent-subagent-delegate` para regras completas e classificação de cada skill.
+
+Cada skill tem `delegable` no frontmatter: `full` (autônomo), `orchestrated` (main coleta inputs), `none` (main agent only).
+
+#### Template de Prompt
+
+Usar `.copilot-core/templates/subagent-prompt.md` para montar prompts padronizados.
+
+## Agent vs Plan Mode
+
+| Modo | Quando usar |
+|------|------------|
+| **Agent** | Tarefas claras e diretas — registrar lição, criar skill, configurar projeto já plugado |
+| **Plan** | Tarefas complexas que precisam de revisão — `project-workspace-create`, refatorações grandes, análises de arquitetura |
+
+> **`project-workspace-create` deve ser usado com Plan mode** — envolve coleta de contexto profundo, decisão de quais skills criar e revisão antes de executar.
+
+## Tarefas Complexas
+
+**Usar `manage_todo_list` quando:**
+- Tarefa tem 4+ steps distintos
+- Usuário pede múltiplas coisas
+- Envolve múltiplos arquivos
+- Requer planejamento
+
+**Workflow:**
+1. Criar lista com todos os steps
+2. Marcar um como `in-progress`
+3. Executar e marcar `completed` imediatamente
+4. Próximo step → `in-progress`
+
+## Memória e Contexto
+
+### Roteamento — Quando o usuário pede para guardar informação
+
+Quando o usuário disser qualquer variação de "guarda", "salva", "anota", "lembra", "registra", "memoriza", "não esquece" uma informação, o agente DEVE decidir:
+
+| Tipo de Informação | Skill | Destino |
+|-------------------|-------|---------|
+| Lição aprendida, erro corrigido, padrão descoberto, decisão tomada | `agent-memory-register` | `memory/lessons-learned.md` |
+| Mudança de stack, nova integração, restrição, estado do projeto | `project-context-update` | `context/project.md` |
+
+**Se ambíguo** → perguntar ao usuário: "Isso é uma lição/decisão ou uma mudança no projeto?"
+
+**Se claramente nenhum dos dois** → informar que a informação não se encaixa em memória nem contexto e sugerir onde guardar.
+
+### Registro automático — Correções de código gerado
+
+Quando o usuário pedir para **corrigir ou alterar código que o agente gerou**, o agente DEVE:
+
+1. **Aplicar a correção** normalmente
+2. **Registrar automaticamente** uma lição via `agent-memory-register` com:
+   - **Categoria**: `padrões`
+   - **Context**: O que o agente gerou incorretamente
+   - **Decision**: O que o usuário corrigiu e qual é o padrão correto
+   - **Outcome**: Regra a seguir em futuras gerações
+
+**Detectar quando:**
+- Usuário diz "não é assim", "muda isso", "corrige isso", "prefiro assim", "faz diferente"
+- Usuário altera padrão de nomenclatura, estilo, estrutura ou abordagem
+- Usuário rejeita uma implementação e pede outra forma
+- Usuário aponta erro no código gerado pelo agente
+
+**NÃO registrar quando:**
+- Correção é por mudança de requisito (usuário mudou de ideia, não corrigiu padrão)
+- Erro factual pontual (typo, variável errada) sem padrão recorrente
+
+**Output adicional após a correção:**
+```
+📝 **Padrão registrado**: {descrição curta do padrão aprendido}
+```
+
+### Registro automático — Correções de regras, estrutura e processos
+
+Quando o usuário **definir, corrigir ou alterar regras, estruturas ou processos** do sistema (incluindo o próprio `.copilot-core`), o agente DEVE:
+
+1. **Aplicar a mudança** nos arquivos relevantes (skills, instructions, templates, context)
+2. **Registrar automaticamente** uma lição via `agent-memory-register` com:
+   - **Categoria**: `regras` ou `estrutura`
+   - **Context**: O que existia antes ou o que o agente fez incorretamente
+   - **Decision**: O que o usuário definiu/corrigiu
+   - **Outcome**: Regra a seguir em futuras operações
+
+**Detectar quando:**
+- Usuário define como algo deve funcionar ("a estrutura é assim", "o padrão é esse")
+- Usuário corrige uma decisão do agente sobre estrutura/processo
+- Usuário altera padrão de organização, fluxo de trabalho ou convenção
+- Usuário aponta que uma instrução/skill está incorreta ou incompleta
+
+### Consulta automática
+
+**Antes de tarefas complexas:**
+- Consultar `agent-memory-query` para lições aprendidas
+- Consultar `project-context-query` para stack e restrições
+
+**Antes de gerar código:**
+- Consultar `project-codemap-query` para verificar artefatos existentes e evitar duplicação
+- Consultar `agent-memory-query` com foco em `padrões` para aplicar preferências do usuário
+
+**Após criar/alterar código:**
+- Registrar com `project-codemap-update` os artefatos criados ou alterados
+
+**Após decisões importantes:**
+- Registrar com `agent-memory-register`
+
+### Sessão e Continuidade
+
+O agente possui persistência de sessão para trabalho cross-machine via `chat-memory/`.
+
+| Situação | Skill | Destino |
+|----------|-------|---------|
+| Usuário pede para salvar sessão / trocar de máquina | `agent-chat-save` | `chat-memory/{date}_{topic}.md` |
+| Usuário pede para retomar sessão anterior | `agent-chat-resume` | Lê de `chat-memory/` |
+| `agent-task-manage` completa todas as tarefas (4+ steps) | `agent-action-review` → `agent-chat-save` (auto) | validação + `chat-memory/{date}_{topic}.md` |
+
+**Auto-save após task-manage**: Quando `agent-task-manage` marca todas as tarefas como `completed` e a sessão é complexa (4+ steps, decisões importantes, múltiplos arquivos), a cadeia de finalização é:
+
+```
+agent-task-manage (todas completed)
+  → agent-action-review (valida completude e consistência)
+    → agent-chat-save (salva sessão com status completed)
+```
+
+**Dados do Projeto** inclui:
+- **Chat Memory**: `.copilot-project/chat-memory/`
+
+## Regras de Código
+
+- **Linguagem do chat**: Português brasileiro
+- **Linguagem do código**: Inglês (variáveis, funções, parâmetros, nomes de arquivo)
+- **Nunca criar documentação automática** - apenas quando solicitado
+

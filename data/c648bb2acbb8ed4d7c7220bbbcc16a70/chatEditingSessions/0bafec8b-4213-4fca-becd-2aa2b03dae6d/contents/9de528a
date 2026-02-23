@@ -1,0 +1,20 @@
+scenario: "User asks to save a lesson learned"
+evaluation_type: routing
+difficulty: easy
+
+user_message: "guarda essa lição: sempre usar async/await em controllers"
+
+context:
+  project_stack: ["dotnet", "8.0"]
+  has_copilot_project: true
+
+expected_skills:
+  - name: agent-memory-update
+    must_activate: true
+    reason: "User explicitly asks to save/remember a lesson"
+  - name: agent-memory-query
+    must_activate: false
+    reason: "Not querying — registering new information"
+  - name: project-context-update
+    must_activate: false
+    reason: "This is a lesson, not a project context change"

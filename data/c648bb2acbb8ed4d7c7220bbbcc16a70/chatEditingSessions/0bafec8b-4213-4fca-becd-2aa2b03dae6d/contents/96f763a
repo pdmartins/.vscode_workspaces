@@ -1,0 +1,206 @@
+#!/usr/bin/env pwsh
+# Run LLM-as-Judge evaluation session
+# Usage: .\run-evaluation.ps1 [-Type routing|quality|hallucination] [-Skill "skill-name"] [-Scenario "filename"] [-List] [-Validate]
+
+param(
+    [ValidateSet("routing", "quality", "hallucination", "")]
+    [string]$Type = "",
+    [string]$Skill = "",
+    [string]$Scenario = "",
+    [switch]$List,
+    [switch]$Validate,
+    [switch]$Help
+)
+
+$ErrorActionPreference = "Stop"
+
+# Paths
+$ScriptRoot = $PSScriptRoot
+$InternalRoot = Split-Path $ScriptRoot -Parent
+$CoreRoot = Split-Path $InternalRoot -Parent
+$WorkspaceRoot = Split-Path $CoreRoot -Parent
+$ScenariosRoot = Join-Path $WorkspaceRoot ".copilot-project-worktrees" "_test" "llm-judge" "scenarios"
+
+if ($Help) {
+    Write-Host @"
+LLM-as-Judge Evaluation Runner
+
+Usage: .\run-evaluation.ps1 [options]
+
+Options:
+  -Type         Filter by evaluation type: routing, quality, hallucination
+  -Skill        Filter scenarios that reference a specific skill name
+  -Scenario     Run a specific scenario by filename (e.g., "001-create-dockerfile.yaml")
+  -List         List available scenarios without running evaluation
+  -Validate     Run pytest validation on scenario YAML files
+  -Help         Show this help
+
+Modes:
+  List          Shows available scenarios with their types and difficulties
+  Validate      Runs pytest @evaluation marker to validate YAML schema
+  Evaluate      (default) Generates evaluation prompt for GHCP Chat
+
+Examples:
+  .\run-evaluation.ps1 -List                         # List all scenarios
+  .\run-evaluation.ps1 -List -Type routing            # List routing scenarios
+  .\run-evaluation.ps1 -Validate                      # Validate all scenario YAMLs
+  .\run-evaluation.ps1 -Type quality                  # Evaluate all quality scenarios
+  .\run-evaluation.ps1 -Skill infra-docker-build      # Evaluate scenarios for a skill
+  .\run-evaluation.ps1 -Scenario 001-create-dockerfile.yaml  # Specific scenario
+"@
+    return
+}
+
+# --- Helpers ---
+
+function Get-Scenarios {
+    param([string]$TypeFilter, [string]$SkillFilter, [string]$ScenarioFilter)
+
+    $scenarios = @()
+    if (-not (Test-Path $ScenariosRoot)) {
+        Write-Warning "Scenarios directory not found: $ScenariosRoot"
+        Write-Warning "Ensure the _test/llm-judge worktree exists."
+        return $scenarios
+    }
+
+    foreach ($typeDir in Get-ChildItem $ScenariosRoot -Directory | Sort-Object Name) {
+        if ($TypeFilter -and $typeDir.Name -ne $TypeFilter) { continue }
+
+        foreach ($file in Get-ChildItem $typeDir.FullName -Filter "*.yaml" | Sort-Object Name) {
+            if ($ScenarioFilter -and $file.Name -ne $ScenarioFilter) { continue }
+
+            $content = Get-Content $file.FullName -Raw -Encoding UTF8
+            $name = if ($content -match '(?m)^scenario:\s*"?(.+?)"?\s*$') { $Matches[1] } else { $file.BaseName }
+            $difficulty = if ($content -match '(?m)^difficulty:\s*(\w+)') { $Matches[1] } else { "?" }
+            $targetSkill = if ($content -match '(?m)^target_skill:\s*(\S+)') { $Matches[1] } else { "" }
+
+            # Check skill filter against target_skill and expected_skills
+            if ($SkillFilter) {
+                $hasSkill = $content -match [regex]::Escape($SkillFilter)
+                if (-not $hasSkill) { continue }
+            }
+
+            $scenarios += [PSCustomObject]@{
+                File       = "$($typeDir.Name)/$($file.Name)"
+                Type       = $typeDir.Name
+                Name       = $name
+                Difficulty = $difficulty
+                Skill      = $targetSkill
+                FullPath   = $file.FullName
+            }
+        }
+    }
+    return $scenarios
+}
+
+# --- List mode ---
+
+if ($List) {
+    $scenarios = Get-Scenarios -TypeFilter $Type -SkillFilter $Skill -ScenarioFilter $Scenario
+
+    if ($scenarios.Count -eq 0) {
+        Write-Host "No scenarios found." -ForegroundColor Yellow
+        return
+    }
+
+    Write-Host "`nAvailable Evaluation Scenarios ($($scenarios.Count)):" -ForegroundColor Cyan
+    Write-Host ("-" * 80)
+
+    $scenarios | Format-Table -Property @(
+        @{Label = "File"; Expression = { $_.File }; Width = 40 }
+        @{Label = "Type"; Expression = { $_.Type }; Width = 15 }
+        @{Label = "Difficulty"; Expression = { $_.Difficulty }; Width = 10 }
+        @{Label = "Skill"; Expression = { $_.Skill }; Width = 25 }
+    ) -AutoSize
+
+    $byType = $scenarios | Group-Object Type
+    Write-Host "`nSummary:" -ForegroundColor Cyan
+    foreach ($group in $byType) {
+        Write-Host "  $($group.Name): $($group.Count) scenarios"
+    }
+    return
+}
+
+# --- Validate mode ---
+
+if ($Validate) {
+    Write-Host "`nValidating evaluation scenarios..." -ForegroundColor Cyan
+
+    $venvPython = Join-Path $InternalRoot ".venv" "Scripts" "python.exe"
+    if (-not (Test-Path $venvPython)) {
+        Write-Warning "venv not found. Run run-tests.ps1 -Install first."
+        return
+    }
+
+    Push-Location $InternalRoot
+    try {
+        & $venvPython -m pytest tests/behavioral/test_evaluation_scenarios.py -v --tb=short 2>&1
+    }
+    finally {
+        Pop-Location
+    }
+    return
+}
+
+# --- Evaluate mode (generate prompt) ---
+
+$scenarios = Get-Scenarios -TypeFilter $Type -SkillFilter $Skill -ScenarioFilter $Scenario
+
+if ($scenarios.Count -eq 0) {
+    Write-Host "No scenarios found matching filters." -ForegroundColor Yellow
+    Write-Host "Use -List to see available scenarios." -ForegroundColor Gray
+    return
+}
+
+Write-Host "`nPreparing evaluation for $($scenarios.Count) scenario(s)..." -ForegroundColor Cyan
+Write-Host ""
+
+# Generate the evaluation prompt
+$prompt = @"
+🔧 Skill: ``code-skill-evaluate``
+
+Avaliar os seguintes cenários do test project (_test/llm-judge).
+Para cada cenário, seguir exatamente o workflow da skill code-skill-evaluate.
+
+---
+
+"@
+
+foreach ($s in $scenarios) {
+    $content = Get-Content $s.FullPath -Raw -Encoding UTF8
+    $prompt += @"
+
+### Cenário: $($s.Name)
+**Arquivo**: ``$($s.File)``
+**Tipo**: $($s.Type) | **Dificuldade**: $($s.Difficulty)
+
+``````yaml
+$content
+``````
+
+---
+
+"@
+}
+
+$prompt += @"
+
+Após avaliar todos os cenários, apresentar o resumo da sessão conforme template da skill.
+Registrar findings em memory/lessons-learned.md do test project (_test/llm-judge).
+"@
+
+# Copy to clipboard
+$prompt | Set-Clipboard
+Write-Host "Evaluation prompt copied to clipboard!" -ForegroundColor Green
+Write-Host "Paste it into GitHub Copilot Chat to run the evaluation." -ForegroundColor Gray
+Write-Host ""
+Write-Host "Scenarios included:" -ForegroundColor Cyan
+foreach ($s in $scenarios) {
+    $icon = switch ($s.Type) {
+        "routing"       { "🎯" }
+        "quality"       { "📊" }
+        "hallucination" { "🔍" }
+        default         { "📋" }
+    }
+    Write-Host "  $icon $($s.File) — $($s.Name)"
+}

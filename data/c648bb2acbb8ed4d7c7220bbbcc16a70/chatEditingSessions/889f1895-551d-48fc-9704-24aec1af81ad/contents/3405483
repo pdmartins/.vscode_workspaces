@@ -1,0 +1,66 @@
+# code-mapping-generate — BeWiser Assistant API Configuration
+# Consumed by core skill: .copilot-core/skills/code/code-mapping-generate/SKILL.md
+
+language: csharp
+framework: dotnet-8
+solution: BeWiser.Assistant
+
+project:
+  root_namespace: BeWiser.Assistant
+
+mappings:
+  dto_namespace: "BeWiser.Assistant.Application.DTOs"
+  mapping_namespace: "BeWiser.Assistant.Application.Mappings"
+  entities:
+    - name: Conversation
+      dto_properties:
+        - name: Id
+          type: Guid
+          source: "entity.Id"
+        - name: PhoneNumber
+          type: string
+          source: "entity.PhoneNumber.Value"
+        - name: AssistantPhoneNumber
+          type: string
+          source: "entity.AssistantPhoneNumber.Value"
+        - name: Status
+          type: string
+          source: "entity.Status.ToString()"
+        - name: StartedAt
+          type: DateTime
+          source: "entity.CreatedAt"
+        - name: EndedAt
+          type: DateTime?
+          source: "entity.EndedAt"
+      has_children: true
+      children:
+        - name: Message
+      commands:
+        - name: CreateConversation
+      queries:
+        - name: GetConversation
+
+    - name: Message
+      dto_properties:
+        - name: Id
+          type: Guid
+          source: "entity.Id"
+        - name: ConversationId
+          type: Guid
+          source: "entity.ConversationId"
+        - name: Content
+          type: string
+          source: "entity.Content.Value"
+        - name: Direction
+          type: string
+          source: "entity.Direction.ToString()"
+        - name: SentAt
+          type: DateTime
+          source: "entity.CreatedAt"
+        - name: ExternalId
+          type: string?
+          source: "entity.ExternalId"
+      has_children: false
+      commands:
+        - name: ProcessMessage
+      queries: []

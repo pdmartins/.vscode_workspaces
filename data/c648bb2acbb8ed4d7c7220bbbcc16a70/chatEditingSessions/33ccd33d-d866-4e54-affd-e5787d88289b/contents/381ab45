@@ -1,0 +1,328 @@
+{
+    // ------------------------------------------
+    //       AZURE / LANGUAGE OVERRIDES
+    // ------------------------------------------
+    "@azure.argTenant": "",
+    "[html]": {
+        "editor.defaultFormatter": "vscode.html-language-features"
+    },
+    "[java]": {
+        "editor.suggest.snippetsPreventQuickSuggestions": false
+    },
+    "[json]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "[jsonc]": {
+        "editor.defaultFormatter": "vscode.json-language-features"
+    },
+    "[markdown]": {
+        "editor.defaultFormatter": "yzhang.markdown-all-in-one"
+    },
+    "[python]": {
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    "[sql]": {
+        "editor.defaultFormatter": "ms-mssql.mssql"
+    },
+    "[xml]": {
+        "editor.defaultFormatter": "redhat.vscode-xml"
+    },
+    "[yaml]": {
+        "editor.defaultFormatter": "redhat.vscode-yaml"
+    },
+    "azureResourceGroups.selectedSubscriptions": [
+        "85d2fd13-356d-4d80-b1b4-bb0e6ab5f09b/c5d4fed3-ca56-4682-8f8e-88ebf5aa033d"
+    ],
+
+    // ------------------------------------------
+    //           CHAT / AI AGENT
+    // ------------------------------------------
+    "chat.agent.maxRequests": 250,
+    "chat.instructionsFilesLocations": {
+        ".github/instructions": true
+    },
+    "chat.mcp.gallery.enabled": true,
+    "chat.tools.terminal.autoApprove": {
+        // GIT
+        "git": true,
+        "git branch": true,
+        "git commit": false,
+        "git diff": true,
+        "git grep": true,
+        "git log": true,
+        "git show": true,
+        "git status": true,
+
+        // DOT NET
+        "dotnet build": true,
+        "dotnet run": true,
+
+        // PYTHON
+        "pytest": true,
+        "python": true,
+
+        // POWERSHELL
+        "Get-ChildItem": true,
+        "Get-Content": true,
+        "Get-Date": true,
+        "Get-Location": true,
+        "Get-Random": true,
+        "Invoke-Expression": false,
+        "Invoke-RestMethod": false,
+        "Invoke-WebRequest": false,
+        "Join-Path": true,
+        "Remove-Item": false,
+        "Set-Acl": false,
+        "Set-ItemProperty": false,
+        "Split-Path": true,
+        "Start-Sleep": true,
+        "Stop-Process": false,
+        "Where-Object": true,
+        "Write-Host": true,
+        "Write-Output": true,
+        "iex": false,
+        "irm": false,
+        "iwr": false,
+        "ri": false,
+        "sp": false,
+        "spps": false,
+
+        // BASH / UNIX
+        "basename": true,
+        "cat": true,
+        "cd": true,
+        "chmod": true,
+        "chown": true,
+        "cmp": true,
+        "column": true,
+        "curl": false,
+        "cut": true,
+        "date": true,
+        "dd": false,
+        "df": true,
+        "dirname": true,
+        "du": true,
+        "echo": true,
+        "eval": false,
+        "file": true,
+        "find": true,
+        "grep": true,
+        "head": true,
+        "jq": false,
+        "kill": false,
+        "ls": true,
+        "nl": true,
+        "ps": false,
+        "pwd": true,
+        "readlink": true,
+        "realpath": true,
+        "rm": false,
+        "rmdir": false,
+        "sleep": true,
+        "sort": true,
+        "stat": true,
+        "tail": true,
+        "top": false,
+        "tr": true,
+        "tree": true,
+        "wc": true,
+        "wget": false,
+        "which": true,
+        "xargs": false,
+
+        // WINDOWS / CMD
+        "del": false,
+        "erase": false,
+        "findstr": true,
+        "rd": false,
+        "taskkill": false,
+        "taskkill.exe": false
+    },
+    "chat.tools.urls.autoApprove": {
+        "https://github.com": {
+            "approveRequest": false,
+            "approveResponse": true
+        },
+        "https://ohmyposh.dev": true,
+        "https://raw.githubusercontent.com": {
+            "approveRequest": false,
+            "approveResponse": true
+        }
+    },
+    "chat.useAgentSkills": true,
+    "chat.viewSessions.orientation": "stacked",
+
+    // ------------------------------------------
+    //               EDITOR
+    // ------------------------------------------
+    "claudeCode.preferredLocation": "panel",
+    "debug.breakpointsView.presentation": "tree",
+    "diffEditor.hideUnchangedRegions.enabled": true,
+    "diffEditor.ignoreTrimWhitespace": false,
+    "editor.detectIndentation": false,
+    "editor.formatOnPaste": true,
+    "editor.formatOnType": true,
+    "editor.inlineSuggest.edits.allowCodeShifting": "never",
+    "editor.inlineSuggest.enabled": true,
+    "editor.insertSpaces": false,
+    "editor.quickSuggestions": {
+        "comments": "on",
+        "other": "off",
+        "strings": "on"
+    },
+    "editor.renderControlCharacters": true,
+    "editor.semanticTokenColorCustomizations": {},
+    "editor.snippetSuggestions": "none",
+    "editor.unicodeHighlight.ambiguousCharacters": false,
+    "editor.unicodeHighlight.nonBasicASCII": false,
+
+    // ------------------------------------------
+    //            FILE EXPLORER
+    // ------------------------------------------
+    "explorer.confirmDelete": false,
+    "explorer.confirmDragAndDrop": false,
+
+    // ------------------------------------------
+    //         GIT / SOURCE CONTROL
+    // ------------------------------------------
+    "git.alwaysShowStagedChangesResourceGroup": true,
+    "git.autofetch": true,
+    "git.autofetchPeriod": 60,
+    "git.confirmSync": false,
+    "git.enableSmartCommit": true,
+    "git.fetchOnPull": true,
+    "git.openRepositoryInParentFolders": "always",
+    "git.repositoryScanMaxDepth": 3,
+    "git.showPushSuccessNotification": true,
+    "git.terminalGitEditor": true,
+
+    // ------------------------------------------
+    //           GITHUB COPILOT
+    // ------------------------------------------
+    "github.copilot.chat.agent.thinkingTool": true,
+    "github.copilot.chat.anthropic.tools.websearch.maxUses": 20,
+    "github.copilot.chat.commitMessageGeneration.instructions": [
+        {
+            "file": "~/.vscode/copilot-commit-instructions.md"
+        }
+    ],
+    "github.copilot.enable": {
+        "*": true,
+        "markdown": true,
+        "plaintext": true,
+        "scminput": false,
+        "typescript": true
+    },
+    "github.copilot.nextEditSuggestions.enabled": true,
+
+    // ------------------------------------------
+    //              EXTENSIONS
+    // ------------------------------------------
+    "gitlens.views.repositories.files.layout": "tree",
+    "hediet.vscode-drawio.resizeImages": null,
+    "java.jdt.ls.java.home": "c:\\Program Files\\OpenJDK",
+    "mssql.connectionGroups": [
+        {
+            "id": "ROOT",
+            "name": "ROOT"
+        },
+        {
+            "color": "#FC1100",
+            "id": "EA4B5ED3-98CE-405D-891D-98246D7D8ADF",
+            "name": "Production",
+            "parentId": "ROOT"
+        }
+    ],
+    "mssql.connections": [
+        {
+            "applicationName": "vscode-mssql",
+            "authenticationType": "SqlLogin",
+            "commandTimeout": 30,
+            "connectRetryCount": 1,
+            "connectRetryInterval": 10,
+            "connectTimeout": 30,
+            "database": "wppai",
+            "encrypt": "true",
+            "groupId": "ROOT",
+            "id": "259E1CDE-9662-4C30-91DF-DFF60BC892E0",
+            "password": "",
+            "port": 1433,
+            "profileName": "WhatsApp AI",
+            "savePassword": true,
+            "server": "tcp:wppai.database.windows.net,1433",
+            "trustServerCertificate": true,
+            "user": "wppai"
+        },
+        {
+            "applicationName": "vscode-mssql",
+            "authenticationType": "SqlLogin",
+            "commandTimeout": 30,
+            "connectRetryCount": 1,
+            "connectRetryInterval": 10,
+            "connectTimeout": 30,
+            "database": "plurie",
+            "encrypt": "False",
+            "groupId": "EA4B5ED3-98CE-405D-891D-98246D7D8ADF",
+            "id": "DEA307A5-D35C-46FB-A045-405548B19356",
+            "password": "",
+            "port": 1433,
+            "profileName": "Plurie - Docker",
+            "profileSource": 0,
+            "savePassword": true,
+            "server": "127.0.0.1,1433",
+            "trustServerCertificate": true,
+            "user": "sa"
+        }
+    ],
+    "mssql.enableQueryHistoryCapture": false,
+    "mssql.openQueryResultsInTabByDefaultDoNotShowPrompt": true,
+    "notebook.output.scrolling": true,
+    "notebook.output.wordWrap": true,
+    "nxConsole.showNodeVersionOnStartup": false,
+    "python.analysis.typeCheckingMode": "strict",
+    "python.createEnvironment.trigger": "off",
+    "python.defaultInterpreterPath": "C:\\ProgramData\\Anaconda3\\python.exe",
+    "python.venvFolders": [
+        "C:\\_BW\\_PoC\\_Python\\docx_extractor\\antiword"
+    ],
+    "redhat.telemetry.enabled": false,
+    "roo-cline.allowedCommands": [
+        "git log",
+        "git diff",
+        "git show"
+    ],
+    "roo-cline.deniedCommands": [],
+    "scm.defaultViewMode": "tree",
+    "search.defaultViewMode": "tree",
+    "security.workspace.trust.untrustedFiles": "open",
+    "sonarlint.automaticAnalysis": true,
+    "sonarlint.connectedMode.connections.sonarqube": [
+        {
+            "connectionId": "Sonar Docker WSL",
+            "serverUrl": "http://localhost:9000"
+        }
+    ],
+    "sonarlint.focusOnNewCode": false,
+    "sonarlint.ls.javaHome": "C:\\Program Files\\OpenJDK",
+    "sync.autoDownload": true,
+    "sync.autoUpload": true,
+    "sync.gist": "ccb04aef130f1d2686c3578d1d196a33",
+
+    // ------------------------------------------
+    //              TERMINAL
+    // ------------------------------------------
+    "terminal.integrated.fontSize": 17,
+    "terminal.integrated.persistentSessionScrollback": 5000,
+    "terminal.integrated.shellIntegration.history": 500,
+    "terminal.integrated.stickyScroll.enabled": false,
+
+    // ------------------------------------------
+    //         WINDOW / WORKBENCH
+    // ------------------------------------------
+    "vsicons.dontShowNewVersionMessage": true,
+    "window.newWindowProfile": "Default",
+    "window.restoreWindows": "none",
+    "workbench.activityBar.location": "top",
+    "workbench.iconTheme": "vscode-icons",
+    "workbench.secondarySideBar.defaultVisibility": "hidden"
+}

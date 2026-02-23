@@ -1,0 +1,360 @@
+---
+name: code-query-generate
+description: Padrões para Queries CQRS com MediatR. Use ao criar operações de leitura (obter, listar, buscar). Lê config.yml do project para convenções específicas. Triggers: query, get, list, buscar, consultar, MediatR, CQRS, pasta Queries/.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: code
+  delegable: full
+---
+
+# Query Skill (CQRS)
+
+Padrões para Queries em arquitetura CQRS com MediatR.
+
+## Config Loading
+
+Antes de gerar código, carregar configurações do projeto:
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/code-query-generate/config.yml`
+2. Se existe, carregar e usar as configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/code-query-generate/SKILL.md`
+4. Se existe, carregar como instruções complementares (extensões específicas do projeto)
+5. Se nenhum existe, usar apenas os padrões genéricos abaixo
+
+## Quando Usar
+
+- Obter entidade por ID (Get)
+- Listar entidades com filtros (List)
+- Buscar entidades (Search)
+- Consultar histórico (GetHistory)
+
+## Estrutura
+
+```
+src/{RootNamespace}.Application/
+└── Queries/
+    └── {Entity}/
+        ├── Get{Entity}Query.cs
+        ├── Get{Entity}QueryHandler.cs
+        ├── Get{Entity}QueryResult.cs
+        └── Get{Entity}QueryValidator.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Query | `{Prefix}{Entity}Query` | `GetOrderQuery`, `ListProductsQuery` |
+| Handler | `{Prefix}{Entity}QueryHandler` | `GetOrderQueryHandler` |
+| Result | `{Prefix}{Entity}QueryResult` | `GetOrderQueryResult` |
+| Validator | `{Prefix}{Entity}QueryValidator` | `GetOrderQueryValidator` |
+
+### Prefixos de Query
+
+| Prefixo | Uso | Exemplo |
+|---------|-----|---------|
+| `Get` | Obter único por ID | `Get{Entity}Query` |
+| `GetAll` | Listar todos (sem filtro) | `GetAll{Entity}sQuery` |
+| `List` | Listar com filtros/paginação | `List{Entity}sQuery` |
+| `Search` | Busca por texto | `Search{Entity}sQuery` |
+
+## Templates
+
+### Query (Get by ID)
+
+```csharp
+using MediatR;
+
+namespace {RootNamespace}.Application.Queries.{Entity};
+
+/// <summary>
+/// Query to get a {Entity} by ID.
+/// </summary>
+public record Get{Entity}Query : IRequest<Get{Entity}QueryResult?>
+{
+    public required Guid Id { get; init; }
+}
+```
+
+### Query Result
+
+```csharp
+namespace {RootNamespace}.Application.Queries.{Entity};
+
+/// <summary>
+/// Result of Get{Entity}Query.
+/// </summary>
+public record Get{Entity}QueryResult
+{
+    public Guid Id { get; init; }
+    public required string Name { get; init; }
+    public required string Status { get; init; }
+    public DateTime CreatedAt { get; init; }
+    public DateTime? UpdatedAt { get; init; }
+}
+```
+
+### Query Handler
+
+```csharp
+using MediatR;
+using Microsoft.Extensions.Logging;
+
+namespace {RootNamespace}.Application.Queries.{Entity};
+
+/// <summary>
+/// Handles the Get{Entity}Query.
+/// </summary>
+public class Get{Entity}QueryHandler 
+    : IRequestHandler<Get{Entity}Query, Get{Entity}QueryResult?>
+{
+    private readonly I{Entity}Repository _repository;
+    private readonly ILogger<Get{Entity}QueryHandler> _logger;
+
+    public Get{Entity}QueryHandler(
+        I{Entity}Repository repository,
+        ILogger<Get{Entity}QueryHandler> logger)
+    {
+        _repository = repository;
+        _logger = logger;
+    }
+
+    public async Task<Get{Entity}QueryResult?> Handle(
+        Get{Entity}Query request,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogDebug("Getting {Entity} {Id}", request.Id);
+
+        var entity = await _repository.GetByIdAsync(
+            request.Id, 
+            cancellationToken);
+
+        return entity?.ToQueryResult();
+    }
+}
+```
+
+### Query Validator
+
+```csharp
+using FluentValidation;
+
+namespace {RootNamespace}.Application.Queries.{Entity};
+
+/// <summary>
+/// Validates the Get{Entity}Query.
+/// </summary>
+public class Get{Entity}QueryValidator 
+    : AbstractValidator<Get{Entity}Query>
+{
+    public Get{Entity}QueryValidator()
+    {
+        RuleFor(x => x.Id)
+            .NotEmpty()
+            .WithMessage("{Entity} ID is required");
+    }
+}
+```
+
+## List Query (Com Paginação)
+
+### List{Entity}sQuery.cs
+
+```csharp
+using MediatR;
+
+namespace {RootNamespace}.Application.Queries.{Entity};
+
+/// <summary>
+/// Query to list {Entity}s with pagination.
+/// </summary>
+public record List{Entity}sQuery : IRequest<List{Entity}sQueryResult>
+{
+    public Guid? ParentId { get; init; }
+    public DateTime? FromDate { get; init; }
+    public DateTime? ToDate { get; init; }
+    public int Page { get; init; } = 1;
+    public int PageSize { get; init; } = 20;
+}
+```
+
+### List{Entity}sQueryResult.cs
+
+```csharp
+namespace {RootNamespace}.Application.Queries.{Entity};
+
+/// <summary>
+/// Result of List{Entity}sQuery with pagination.
+/// </summary>
+public record List{Entity}sQueryResult
+{
+    public IReadOnlyList<{Entity}Dto> Items { get; init; } = [];
+    public int TotalCount { get; init; }
+    public int Page { get; init; }
+    public int PageSize { get; init; }
+    public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
+    public bool HasNextPage => Page < TotalPages;
+    public bool HasPreviousPage => Page > 1;
+}
+```
+
+### List{Entity}sQueryHandler.cs
+
+```csharp
+using MediatR;
+
+namespace {RootNamespace}.Application.Queries.{Entity};
+
+public class List{Entity}sQueryHandler 
+    : IRequestHandler<List{Entity}sQuery, List{Entity}sQueryResult>
+{
+    private readonly I{Entity}Repository _repository;
+
+    public List{Entity}sQueryHandler(I{Entity}Repository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<List{Entity}sQueryResult> Handle(
+        List{Entity}sQuery request,
+        CancellationToken cancellationToken)
+    {
+        var (items, totalCount) = await _repository.ListAsync(
+            parentId: request.ParentId,
+            fromDate: request.FromDate,
+            toDate: request.ToDate,
+            page: request.Page,
+            pageSize: request.PageSize,
+            cancellationToken: cancellationToken);
+
+        return new List{Entity}sQueryResult
+        {
+            Items = items.Select(e => e.ToDto()).ToList(),
+            TotalCount = totalCount,
+            Page = request.Page,
+            PageSize = request.PageSize
+        };
+    }
+}
+```
+
+### List{Entity}sQueryValidator.cs
+
+```csharp
+using FluentValidation;
+
+namespace {RootNamespace}.Application.Queries.{Entity};
+
+public class List{Entity}sQueryValidator 
+    : AbstractValidator<List{Entity}sQuery>
+{
+    public List{Entity}sQueryValidator()
+    {
+        RuleFor(x => x.Page)
+            .GreaterThan(0)
+            .WithMessage("Page must be greater than 0");
+
+        RuleFor(x => x.PageSize)
+            .InclusiveBetween(1, 100)
+            .WithMessage("PageSize must be between 1 and 100");
+
+        RuleFor(x => x)
+            .Must(x => x.FromDate is null || x.ToDate is null || x.FromDate <= x.ToDate)
+            .WithMessage("FromDate must be before ToDate");
+    }
+}
+```
+
+## Search Query
+
+```csharp
+using MediatR;
+
+namespace {RootNamespace}.Application.Queries.{Entity};
+
+/// <summary>
+/// Query to search {Entity}s by text.
+/// </summary>
+public record Search{Entity}sQuery : IRequest<Search{Entity}sQueryResult>
+{
+    public required string SearchTerm { get; init; }
+    public int MaxResults { get; init; } = 10;
+}
+
+public record Search{Entity}sQueryResult
+{
+    public IReadOnlyList<{Entity}Dto> Items { get; init; } = [];
+    public int TotalCount { get; init; }
+}
+```
+
+## Padrão de Paginação Reutilizável
+
+```csharp
+namespace {RootNamespace}.Application.Common;
+
+/// <summary>
+/// Base class for paginated queries.
+/// </summary>
+public abstract record PaginatedQuery
+{
+    public int Page { get; init; } = 1;
+    public int PageSize { get; init; } = 20;
+    
+    public int Skip => (Page - 1) * PageSize;
+}
+
+/// <summary>
+/// Base class for paginated results.
+/// </summary>
+public abstract record PaginatedResult<T>
+{
+    public IReadOnlyList<T> Items { get; init; } = [];
+    public int TotalCount { get; init; }
+    public int Page { get; init; }
+    public int PageSize { get; init; }
+    public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
+    public bool HasNextPage => Page < TotalPages;
+    public bool HasPreviousPage => Page > 1;
+}
+```
+
+## Checklist
+
+- [ ] Pasta: `Queries/{Entity}/`
+- [ ] Nomenclatura: `{Prefix}{Entity}Query`
+- [ ] Query implementa `IRequest<TResult?>`
+- [ ] Result nullable para Get single
+- [ ] Paginação para List queries
+- [ ] Validator para regras de entrada
+- [ ] Handler readonly (sem side effects)
+- [ ] ToQueryResult() via Mapping Extensions
+
+## Config Schema
+
+```yaml
+# config.yml schema for code-query-generate
+language: string                    # e.g., csharp
+framework: string                   # e.g., dotnet-8
+solution: string                    # Solution name
+
+project:
+  root_namespace: string            # e.g., MyApp
+  api_namespace: string             # e.g., MyApp.Api
+
+queries:
+  base_path: string                 # e.g., src/MyApp.Application/Queries
+  domain_examples:                  # Domain-specific query examples
+    - domain: string                # Entity/domain name
+      types: [string]               # Query types (Get, List, Search, etc.)
+      example_query: string         # Concrete query name
+
+  pagination:
+    default_page_size: integer      # e.g., 20
+    max_page_size: integer          # e.g., 100
+    base_classes: boolean           # Whether to use PaginatedQuery/PaginatedResult
+    base_query_class: string        # e.g., PaginatedQuery
+    base_result_class: string       # e.g., PaginatedResult
+    pagination_namespace: string    # e.g., MyApp.Application.Common
+```

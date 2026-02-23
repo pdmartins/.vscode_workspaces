@@ -1,0 +1,37 @@
+# Lessons Learned
+
+Registro de aprendizados e decisões importantes do projeto Copilot Core.
+
+---
+
+## Estrutura
+
+Cada lição segue o formato:
+
+```xml
+<lesson date="YYYY-MM-DD" category="categoria">
+  <context>Contexto do problema</context>
+  <decision>Decisão tomada</decision>
+  <outcome>Resultado/impacto</outcome>
+</lesson>
+```
+
+### Categorias
+
+| Categoria | Descrição |
+|-----------|-----------|
+| arquitetura | Estrutura do projeto |
+| padrões | Convenções de código |
+| tooling | Ferramentas e configs |
+| workflow | Processos |
+| debug | Problemas resolvidos |
+| performance | Otimizações |
+| segurança | Práticas de segurança |
+| regras | Definições e regras do sistema |
+| estrutura | Organização e estrutura de diretórios |
+
+---
+
+## Registro
+
+<lesson date="2026-02-10" category="estrutura">

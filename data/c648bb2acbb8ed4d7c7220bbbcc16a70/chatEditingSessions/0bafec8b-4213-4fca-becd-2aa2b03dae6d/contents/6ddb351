@@ -1,0 +1,22 @@
+"""Verify delegability classification consistency."""
+
+import re
+import pytest
+from conftest import VALID_DELEGABLE
+
+
+@pytest.mark.behavioral
+class TestDelegability:
+    def test_all_have_delegable(self, all_skills):
+        """Every skill must declare delegable status."""
+        missing = [s.name for s in all_skills if not s.delegable]
+        assert not missing, f"Skills missing 'delegable': {missing}"
+
+    def test_delegable_values_valid(self, all_skills):
+        """All delegable values must be in {{full, orchestrated, none}}."""
+        invalid = [
+            (s.name, s.delegable)
+            for s in all_skills
+            if s.delegable and s.delegable not in VALID_DELEGABLE
+        ]
+        assert not invalid, f"Invalid delegable values: {invalid}"

@@ -1,0 +1,83 @@
+# Config for code-integrationtest-generate
+# Project: BeWiser Assistant API
+
+root_namespace: BeWiser.Assistant
+integration_test_project: BeWiser.Assistant.IntegrationTests
+architecture_test_project: BeWiser.Assistant.ArchitectureTests
+
+namespaces:
+  domain: BeWiser.Assistant.Domain
+  application: BeWiser.Assistant.Application
+  infrastructure: BeWiser.Assistant.Infrastructure
+  api: BeWiser.Assistant.Api
+
+database:
+  provider: SqlServer
+  container_image: "mcr.microsoft.com/mssql/server:2022-latest"
+  container_password: "Strong_password_123!"
+  connection_factory: IDbConnectionFactory
+
+fake_services:
+  - interface: IWhatsAppService
+    fake: FakeWhatsAppService
+    methods:
+      - name: SendMessageAsync
+        params: [phoneNumber, message]
+        returns: "SM{Guid}"
+      - name: SendTemplateAsync
+        params: [phoneNumber, templateName, parameters]
+        returns: "SM{Guid}"
+  - interface: IAiService
+    fake: FakeAiService
+    default_response: "This is a test response."
+    methods:
+      - name: GenerateResponseAsync
+        params: [conversation]
+      - name: GenerateResponseAsync
+        params: [systemPrompt, history]
+
+endpoints:
+  - name: Assistants
+    base_path: /api/assistants
+    entity: Assistant
+    operations:
+      - verb: Get
+        path: "/{id}"
+        success_status: OK
+      - verb: Post
+        path: ""
+        success_status: Created
+        request_fields:
+          - name: Name
+            example: "Test Assistant"
+          - name: PhoneNumber
+            example: "+5511999999999"
+          - name: SystemPrompt
+            example: "You are a helpful assistant."
+      - verb: List
+        path: "?page={page}&pageSize={pageSize}"
+        success_status: OK
+  - name: Messages
+    base_path: /api/messages
+    entity: Message
+
+repositories:
+  - name: ConversationRepository
+    entity: Conversation
+    lookup_methods:
+      - GetByIdAsync
+      - GetByPhoneNumberAsync
+      - ListAsync
+
+architecture_rules:
+  domain_assembly_type: Conversation
+  application_assembly_type: ProcessMessageCommand
+  handler_assembly_type: ProcessMessageCommandHandler
+  repository_interfaces:
+    - IConversationRepository
+    - IMessageRepository
+
+seed_sql:
+  assistants: >
+    INSERT INTO Assistants (Id, Name, PhoneNumber, SystemPrompt, CreatedAt)
+    VALUES (@Id, @Name, @PhoneNumber, @SystemPrompt, @CreatedAt)

@@ -1,0 +1,371 @@
+---
+name: app-command
+description: Padrões para Commands CQRS com MediatR. Use ao criar operações de escrita (criar, atualizar, deletar). Triggers: command, criar, atualizar, deletar, MediatR, CQRS, pasta Commands/.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: application
+---
+
+# Command Skill (CQRS)
+
+Padrões para Commands em arquitetura CQRS com MediatR.
+
+## Quando Usar
+
+- Criar entidades (Create)
+- Atualizar entidades (Update)
+- Deletar entidades (Delete)
+- Processar ações (Process, Send, etc.)
+
+## Estrutura
+
+```
+src/BeWiser.Assistant.Application/
+└── Commands/
+    └── [Domínio]/
+        ├── [Verbo][Domínio]Command.cs
+        ├── [Verbo][Domínio]CommandHandler.cs
+        ├── [Verbo][Domínio]CommandResult.cs
+        └── [Verbo][Domínio]CommandValidator.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Command | `[Verbo][Domínio]Command` | `ProcessMessageCommand`, `CreateTenantCommand` |
+| Handler | `[Verbo][Domínio]CommandHandler` | `ProcessMessageCommandHandler` |
+| Result | `[Verbo][Domínio]CommandResult` | `ProcessMessageCommandResult` |
+| Validator | `[Verbo][Domínio]CommandValidator` | `ProcessMessageCommandValidator` |
+
+### Verbos Comuns
+
+| Verbo | Uso |
+|-------|-----|
+| `Create` | Criar nova entidade |
+| `Update` | Atualizar entidade existente |
+| `Delete` | Remover entidade |
+| `Process` | Processar algo (mensagem, pagamento) |
+| `Send` | Enviar algo (email, notificação) |
+| `Start` | Iniciar processo |
+| `Cancel` | Cancelar processo |
+
+## Templates
+
+### Command
+
+```csharp
+using MediatR;
+
+namespace BeWiser.Assistant.Application.Commands.Message;
+
+/// <summary>
+/// Command to process an incoming WhatsApp message.
+/// </summary>
+public record ProcessMessageCommand : IRequest<ProcessMessageCommandResult>
+{
+    public required string From { get; init; }
+    public required string To { get; init; }
+    public required string Body { get; init; }
+    public required string MessageSid { get; init; }
+}
+```
+
+### Command Result
+
+```csharp
+namespace BeWiser.Assistant.Application.Commands.Message;
+
+/// <summary>
+/// Result of processing a message.
+/// </summary>
+public record ProcessMessageCommandResult
+{
+    public Guid ConversationId { get; init; }
+    public Guid MessageId { get; init; }
+    public bool Success { get; init; }
+    public string? ErrorMessage { get; init; }
+
+    public static ProcessMessageCommandResult Succeeded(
+        Guid conversationId, 
+        Guid messageId) => new()
+    {
+        ConversationId = conversationId,
+        MessageId = messageId,
+        Success = true
+    };
+
+    public static ProcessMessageCommandResult Failed(string error) => new()
+    {
+        Success = false,
+        ErrorMessage = error
+    };
+}
+```
+
+### Command Handler
+
+```csharp
+using MediatR;
+using Microsoft.Extensions.Logging;
+
+namespace BeWiser.Assistant.Application.Commands.Message;
+
+/// <summary>
+/// Handles the ProcessMessageCommand.
+/// </summary>
+public class ProcessMessageCommandHandler 
+    : IRequestHandler<ProcessMessageCommand, ProcessMessageCommandResult>
+{
+    private readonly IConversationRepository _conversationRepository;
+    private readonly IMessagePublisher _messagePublisher;
+    private readonly ILogger<ProcessMessageCommandHandler> _logger;
+
+    public ProcessMessageCommandHandler(
+        IConversationRepository conversationRepository,
+        IMessagePublisher messagePublisher,
+        ILogger<ProcessMessageCommandHandler> logger)
+    {
+        _conversationRepository = conversationRepository;
+        _messagePublisher = messagePublisher;
+        _logger = logger;
+    }
+
+    public async Task<ProcessMessageCommandResult> Handle(
+        ProcessMessageCommand request,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation(
+            "Processing message from {From}", 
+            request.From);
+
+        // 1. Find or create conversation
+        var conversation = await _conversationRepository
+            .GetByPhoneNumberAsync(request.From, cancellationToken)
+            ?? await CreateConversationAsync(request, cancellationToken);
+
+        // 2. Create message entity
+        var message = new Domain.Entities.Message
+        {
+            Id = Guid.NewGuid(),
+            ConversationId = conversation.Id,
+            Content = request.Body,
+            Direction = MessageDirection.Incoming,
+            ExternalId = request.MessageSid
+        };
+
+        // 3. Save message
+        await _conversationRepository.AddMessageAsync(message, cancellationToken);
+
+        // 4. Publish for async processing
+        await _messagePublisher.PublishAsync(
+            new ProcessMessageMessage
+            {
+                MessageId = message.Id,
+                ConversationId = conversation.Id
+            },
+            cancellationToken);
+
+        return ProcessMessageCommandResult.Succeeded(
+            conversation.Id, 
+            message.Id);
+    }
+
+    private async Task<Conversation> CreateConversationAsync(
+        ProcessMessageCommand request,
+        CancellationToken cancellationToken)
+    {
+        var conversation = new Conversation
+        {
+            Id = Guid.NewGuid(),
+            PhoneNumber = new PhoneNumberVO(request.From),
+            AssistantPhoneNumber = new PhoneNumberVO(request.To),
+            Status = ConversationStatus.Active
+        };
+
+        await _conversationRepository.AddAsync(conversation, cancellationToken);
+        return conversation;
+    }
+}
+```
+
+### Command Validator (FluentValidation)
+
+```csharp
+using FluentValidation;
+
+namespace BeWiser.Assistant.Application.Commands.Message;
+
+/// <summary>
+/// Validates the ProcessMessageCommand.
+/// </summary>
+public class ProcessMessageCommandValidator 
+    : AbstractValidator<ProcessMessageCommand>
+{
+    public ProcessMessageCommandValidator()
+    {
+        RuleFor(x => x.From)
+            .NotEmpty()
+            .WithMessage("Phone number is required")
+            .Matches(@"^\+\d{10,15}$")
+            .WithMessage("Invalid phone number format");
+
+        RuleFor(x => x.To)
+            .NotEmpty()
+            .WithMessage("Destination is required");
+
+        RuleFor(x => x.Body)
+            .NotEmpty()
+            .WithMessage("Message body is required")
+            .MaximumLength(4096)
+            .WithMessage("Message too long");
+
+        RuleFor(x => x.MessageSid)
+            .NotEmpty()
+            .WithMessage("Message SID is required");
+    }
+}
+```
+
+## Validation Behavior (Pipeline)
+
+```csharp
+using FluentValidation;
+using MediatR;
+
+namespace BeWiser.Assistant.Application.Behaviors;
+
+/// <summary>
+/// MediatR pipeline behavior for validation.
+/// </summary>
+public class ValidationBehavior<TRequest, TResponse> 
+    : IPipelineBehavior<TRequest, TResponse>
+    where TRequest : IRequest<TResponse>
+{
+    private readonly IEnumerable<IValidator<TRequest>> _validators;
+
+    public ValidationBehavior(IEnumerable<IValidator<TRequest>> validators)
+    {
+        _validators = validators;
+    }
+
+    public async Task<TResponse> Handle(
+        TRequest request,
+        RequestHandlerDelegate<TResponse> next,
+        CancellationToken cancellationToken)
+    {
+        if (!_validators.Any())
+            return await next();
+
+        var context = new ValidationContext<TRequest>(request);
+        
+        var validationResults = await Task.WhenAll(
+            _validators.Select(v => v.ValidateAsync(context, cancellationToken)));
+
+        var failures = validationResults
+            .SelectMany(r => r.Errors)
+            .Where(f => f is not null)
+            .ToList();
+
+        if (failures.Count > 0)
+            throw new ValidationException(failures);
+
+        return await next();
+    }
+}
+```
+
+## Create Command (Exemplo Completo)
+
+### CreateTenantCommand.cs
+
+```csharp
+using MediatR;
+
+namespace BeWiser.Assistant.Application.Commands.Tenant;
+
+public record CreateTenantCommand : IRequest<CreateTenantCommandResult>
+{
+    public required string Name { get; init; }
+    public required string Email { get; init; }
+    public string? Description { get; init; }
+}
+```
+
+### CreateTenantCommandResult.cs
+
+```csharp
+namespace BeWiser.Assistant.Application.Commands.Tenant;
+
+public record CreateTenantCommandResult
+{
+    public Guid Id { get; init; }
+    public required string Name { get; init; }
+    public DateTime CreatedAt { get; init; }
+}
+```
+
+### CreateTenantCommandHandler.cs
+
+```csharp
+using MediatR;
+
+namespace BeWiser.Assistant.Application.Commands.Tenant;
+
+public class CreateTenantCommandHandler 
+    : IRequestHandler<CreateTenantCommand, CreateTenantCommandResult>
+{
+    private readonly ITenantRepository _repository;
+
+    public CreateTenantCommandHandler(ITenantRepository repository)
+    {
+        _repository = repository;
+    }
+
+    public async Task<CreateTenantCommandResult> Handle(
+        CreateTenantCommand request,
+        CancellationToken cancellationToken)
+    {
+        var tenant = request.ToEntity();
+        
+        await _repository.AddAsync(tenant, cancellationToken);
+
+        return tenant.ToCommandResult();
+    }
+}
+```
+
+### CreateTenantCommandValidator.cs
+
+```csharp
+using FluentValidation;
+
+namespace BeWiser.Assistant.Application.Commands.Tenant;
+
+public class CreateTenantCommandValidator 
+    : AbstractValidator<CreateTenantCommand>
+{
+    public CreateTenantCommandValidator()
+    {
+        RuleFor(x => x.Name)
+            .NotEmpty()
+            .MaximumLength(100);
+
+        RuleFor(x => x.Email)
+            .NotEmpty()
+            .EmailAddress();
+    }
+}
+```
+
+## Checklist
+
+- [ ] Pasta: `Commands/[Domínio]/`
+- [ ] Nomenclatura: `[Verbo][Domínio]Command`
+- [ ] Command implementa `IRequest<TResult>`
+- [ ] Result com factory methods (Succeeded/Failed)
+- [ ] Handler implementa `IRequestHandler<TRequest, TResponse>`
+- [ ] Validator com FluentValidation
+- [ ] Logs no handler
+- [ ] CancellationToken propagado

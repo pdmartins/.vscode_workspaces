@@ -1,0 +1,134 @@
+---
+name: lang-dotnet-service
+description: Gera serviços, handlers, commands, queries, interfaces e wrappers .NET seguindo padrões configuráveis por projeto. Lê config.yml do project para convenções específicas (arquitetura, namespaces, DI, patterns). Use ao criar novo serviço, handler, command, query, interface ou wrapper. Triggers: "criar serviço", "novo service", "criar handler", "novo command", "nova query", "criar wrapper", "novo endpoint", ao implementar nova funcionalidade de negócio.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: lang
+---
+
+# Lang Dotnet Service
+
+Gera serviços e handlers .NET seguindo padrões configuráveis por projeto.
+
+## Quando Usar
+
+- Criar novo serviço de domínio
+- Criar novo handler (Command ou Query)
+- Criar nova interface/contrato
+- Criar novo wrapper para testabilidade
+- Adicionar novo endpoint na API
+
+## Config Loading
+
+Antes de gerar código, carregar configurações do projeto:
+
+1. Verificar se existe `{workspace}/.github/.copilot-project/skills/lang-dotnet-service/config.yml`
+2. Se existe, carregar e usar as configurações do projeto
+3. Verificar se existe `{workspace}/.github/.copilot-project/skills/lang-dotnet-service/SKILL.md`
+4. Se existe, carregar como instruções complementares (extensões específicas do projeto)
+5. Se nenhum existe, usar apenas os padrões genéricos abaixo
+
+## Padrões Genéricos
+
+### Arquitetura
+
+Seguir o estilo de arquitetura definido no config. Padrão: Layered Architecture.
+
+| Camada | Responsabilidade |
+|--------|-----------------|
+| Presentation | Controllers (API) / BackgroundService (Worker) |
+| Domain | Contratos, Serviços, Models, DTOs |
+| Infrastructure | Handlers de dados, Cache, Integrações |
+| Tests | Testes unitários |
+
+### Padrões Obrigatórios
+
+1. **Interface segregation** — interface ANTES da implementação
+2. **Null guards** — `ArgumentNullException.ThrowIfNull()` em todos os parâmetros do construtor
+3. **CancellationToken** — em todos os métodos async, verificar `IsCancellationRequested`
+4. **Structured logging** — `ILogger<T>` com templates
+5. **Async suffix** — em todos os métodos assíncronos
+6. **Options pattern** — `IOptions<T>` para configurações
+
+### DI Registration
+
+Registrar dependências conforme config do projeto:
+
+- **Scoped** — serviços de domínio (padrão)
+- **Singleton** — wrappers, clients, providers
+- **Transient** — factories, validators
+
+### Wrapper Pattern
+
+Para SDKs externos, sempre criar wrapper (thin delegation layer) para testabilidade.
+
+## Workflow
+
+### 1. Carregar config do projeto
+
+Ler `config.yml` para obter: arquitetura, namespaces, patterns, DI registration.
+
+### 2. Consultar code-map
+
+Usar `project-codemap-query` para verificar artefatos existentes e evitar duplicação.
+
+### 3. Criar artefatos
+
+Seguir a ordem:
+1. Interface em `Contracts/` (ou conforme config)
+2. Implementação em `Services/` (ou conforme config)
+3. Registro DI no Bootstrapper (ou conforme config)
+
+### 4. Atualizar code-map
+
+Usar `project-codemap-update` para registrar novos artefatos.
+
+## Convenções de Código
+
+| Regra | Padrão |
+|-------|--------|
+| Namespace | Conforme config (ex: `{Project}.{Layer}.{Feature}.v1`) |
+| Null guard | `ArgumentNullException.ThrowIfNull()` |
+| Config | `IOptions<T>` com `configuration.GetSection().Get<T>()` |
+| Logging | Structured logging com `ILogger<T>` |
+| CancellationToken | Verificar no início, propagar sempre |
+| Async | Suffix `Async` em métodos assíncronos |
+| Idioma código | Inglês (padrão, configurável) |
+
+## Checklist
+
+- [ ] Interface criada antes da implementação
+- [ ] Null guards em todos os parâmetros do construtor
+- [ ] CancellationToken em todos os métodos async
+- [ ] Structured logging com templates
+- [ ] Registrado no DI container com lifetime correto
+- [ ] Code map atualizado (`project-codemap-update`)
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/lang-dotnet-service/config.yml
+architecture:
+  style: layered                    # layered | clean | vertical-slice
+  layers: [Domain, Application, Infrastructure, Api]
+naming:
+  namespace: "{Project}.{Layer}.{Feature}.v1"
+  services: "{Entity}Service"
+  handlers: "{Action}{Entity}Handler"
+  commands: "{Action}{Entity}Command"
+  queries: "Get{Entity}Query"
+  interfaces: "I{Name}"
+di:
+  registration: Bootstrapper        # Bootstrapper | Program | Extension
+  pattern: "services.AddScoped<I{Name}, {Name}>()"
+  default-lifetime: Scoped
+patterns:
+  mediator: MediatR                 # MediatR | none
+  cqrs: lite                        # lite | full | none
+  wrapper: true                     # thin wrapper for external SDKs
+code:
+  language: en                      # en | pt
+  log-language: pt                  # language for log messages
+  versioning: v1                    # folder versioning pattern
+```

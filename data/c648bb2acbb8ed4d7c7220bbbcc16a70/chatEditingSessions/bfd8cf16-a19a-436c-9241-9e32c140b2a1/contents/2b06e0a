@@ -1,0 +1,56 @@
+# code-pattern-enforce — STT Project Configuration
+# Consumed by core skill: .copilot-core/skills/code-pattern-enforce/SKILL.md
+
+language: csharp
+framework: dotnet-8
+
+enforced_patterns:
+  null_guards:
+    rule: "All constructor parameters must have null guards"
+    method: "ArgumentNullException.ThrowIfNull(param)"
+    alternative: "?? throw new ArgumentNullException(nameof(param))"
+
+  cancellation_token:
+    rule: "All async public methods must accept CancellationToken"
+    check_at_start: "ct.IsCancellationRequested → ThrowIfCancellationRequested"
+
+  structured_logging:
+    rule: "Use ILogger<T> with structured templates"
+    api_template_class: LogsTemplate
+    consumer_template_class: LogTemplate
+    never: "string interpolation in log messages"
+
+  options_pattern:
+    rule: "Settings classes injected via IOptions<T>"
+    session_name: "static string SessionName property"
+    validation: "fail-fast in Bootstrapper"
+
+  wrapper_pattern:
+    rule: "External SDKs wrapped with thin interface"
+    interface_location: "Domain/Contracts/v1/Wrappers/"
+    implementation_location: "Domain/Wrappers/v1/"
+
+  naming:
+    rule: "Code in English, logs in Portuguese"
+    async_suffix: true
+    versioned_folders: true    # v1/ in all layers
+
+  error_handling:
+    api_reader: "try/catch → LogCritical → rethrow"
+    api_writer: "try/catch → return false"
+    consumer: "try/catch → throw DataException"
+    cache_read: "swallow → return empty"
+    cache_write_api: "swallow → log only"
+    cache_write_consumer: "rethrow"
+
+  di_registration:
+    api_services: Scoped
+    api_wrappers: Singleton
+    consumer_all: Singleton
+    file: Bootstrapper.cs
+
+auto_trigger_after:
+  - lang-dotnet-service
+  - lang-dotnet-test
+  - infra-redis-cache
+  - infra-bigquery-query

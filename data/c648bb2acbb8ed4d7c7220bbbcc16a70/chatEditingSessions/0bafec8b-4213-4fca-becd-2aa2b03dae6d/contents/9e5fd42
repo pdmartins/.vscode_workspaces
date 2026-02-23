@@ -1,0 +1,33 @@
+"""Verify specific skill behavioral contracts (documented expectations)."""
+
+import pytest
+
+
+@pytest.mark.behavioral
+class TestSkillContracts:
+    def test_turn_reflect_has_all_phases(self, all_skills):
+        """agent-turn-reflect must document Fase 0 through Fase 4."""
+        skill = next(
+            (s for s in all_skills if s.name == "agent-turn-reflect"), None
+        )
+        if skill is None:
+            pytest.fail("agent-turn-reflect skill not found")
+
+        for phase in range(5):
+            assert f"Fase {phase}" in skill.content, (
+                f"agent-turn-reflect: missing Fase {phase}"
+            )
+
+    def test_turn_reflect_has_triage(self, all_skills):
+        """agent-turn-reflect must document triage rapido."""
+        skill = next(
+            (s for s in all_skills if s.name == "agent-turn-reflect"), None
+        )
+        if skill is None:
+            pytest.fail("agent-turn-reflect skill not found")
+
+        assert "Triage" in skill.content or "triage" in skill.content
+
+    def test_memory_register_has_categories(self, all_skills):
+        """agent-memory-register must document standard categories."""
+        skill = next(

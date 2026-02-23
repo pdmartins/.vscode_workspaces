@@ -1,0 +1,43 @@
+# Lessons Learned
+
+Registro de aprendizados e decisões importantes do projeto.
+
+---
+
+## Estrutura
+
+Cada lição segue o formato:
+
+```xml
+<lesson date="YYYY-MM-DD" category="categoria">
+  <context>Contexto do problema</context>
+  <decision>Decisão tomada</decision>
+  <outcome>Resultado/impacto</outcome>
+</lesson>
+```
+
+### Categorias
+
+| Categoria | Descrição |
+|-----------|-----------|
+| arquitetura | Estrutura do projeto |
+| padrões | Convenções de código |
+| tooling | Ferramentas e configs |
+| workflow | Processos |
+| debug | Problemas resolvidos |
+| performance | Otimizações |
+| segurança | Práticas de segurança |
+
+---
+
+## Registro
+
+<!-- Adicionar lições aqui, mais recente primeiro -->
+
+### 2026-02-09 — CLI como orquestrador, não docker-compose
+
+<lesson date="2026-02-09" category="arquitetura">
+  <context>Ao projetar o docker-framework, inicialmente cogitamos usar docker-compose como orquestrador principal (compose files que referenciam infra e projetos juntos).</context>
+  <decision>Docker-compose é usado apenas como building block para definir containers individuais. O CLI `df` é quem orquestra o ciclo de vida, resolve dependências e executa init scripts. Isso porque: (1) Compose de infra não pode conhecer projetos (isolamento); (2) Múltiplos projetos podem compartilhar o mesmo container de infra; (3) Init scripts precisam rodar após o container estar saudável, o que compose não garante nativamente.</decision>
+  <outcome>Arquitetura mais flexível — infra singletons compartilhados, isolamento lógico por database/topic, init scripts idempotentes executados pelo CLI.</outcome>
+</lesson>

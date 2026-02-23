@@ -1,0 +1,21 @@
+scenario: "User reports a new technology added to the project"
+evaluation_type: routing
+difficulty: easy
+
+user_message: "A API agora usa Redis para cache — atualiza o contexto do projeto."
+
+context:
+  project_stack: ["dotnet", "8.0"]
+  existing_files:
+  has_copilot_project: true
+
+expected_skills:
+  - name: project-context-update
+    must_activate: true
+    reason: "Direct request matching project-context-update triggers"
+  - name: project-context-query
+    must_activate: false
+    reason: "Updating context, not querying it"
+  - name: agent-memory-register
+    must_activate: false
+    reason: "Updating project stack info, not registering a lesson"

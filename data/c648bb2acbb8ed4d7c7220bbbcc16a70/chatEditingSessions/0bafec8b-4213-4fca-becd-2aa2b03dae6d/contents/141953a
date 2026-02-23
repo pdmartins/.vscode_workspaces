@@ -1,0 +1,32 @@
+scenario: "Generate Dockerfile for .NET project"
+evaluation_type: quality
+difficulty: easy
+
+user_message: "cria um Dockerfile para o projeto API"
+
+context:
+  project_stack: ["dotnet", "8.0"]
+  existing_files:
+    - "src/Api/Api.csproj"
+    - "src/Domain/Domain.csproj"
+    - "src/Application/Application.csproj"
+
+target_skill: infra-docker-build
+
+rubric:
+  - criterion: "Multi-stage build (restore → build → publish → runtime)"
+    weight: 5
+  - criterion: "Uses correct .NET 8.0 SDK and ASP.NET runtime images"
+    weight: 5
+  - criterion: "Copies .csproj files first for layer caching"
+    weight: 4
+  - criterion: "Non-root user in runtime stage"
+    weight: 4
+  - criterion: "EXPOSE with correct port (8080 for .NET 8)"
+    weight: 3
+  - criterion: "Health check instruction present"
+    weight: 2
+  - criterion: ".dockerignore mentioned or generated"
+    weight: 2
+  - criterion: "No secrets or env-specific values hardcoded"
+    weight: 5

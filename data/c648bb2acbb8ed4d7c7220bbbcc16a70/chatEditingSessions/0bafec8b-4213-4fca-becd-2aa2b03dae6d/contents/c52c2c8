@@ -1,0 +1,27 @@
+scenario: "User asks to create CI/CD pipeline"
+evaluation_type: routing
+difficulty: medium
+
+user_message: "monta um pipeline de CI/CD para deploy no GKE"
+
+context:
+  project_stack: ["dotnet", "8.0", "GCP", "GKE"]
+  existing_files:
+    - "Dockerfile"
+    - "src/Api/Api.csproj"
+
+expected_skills:
+  - name: infra-pipeline-deploy
+    must_activate: true
+    reason: "Explicit CI/CD pipeline request"
+  - name: infra-k8s-deploy
+    must_activate: false
+    reason: "Pipeline may include K8s manifests but the primary request is pipeline"
+  - name: infra-gcp-integrate
+    must_activate: false
+    reason: "GKE is mentioned as target, but primary need is pipeline"
+
+notes: |
+  The agent may reasonably consult infra-k8s-deploy for K8s manifest
+  patterns within the pipeline, but the PRIMARY activated skill should
+  be infra-pipeline-deploy.

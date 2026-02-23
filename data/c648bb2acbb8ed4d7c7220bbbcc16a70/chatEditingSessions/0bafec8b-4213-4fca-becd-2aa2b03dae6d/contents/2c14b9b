@@ -1,0 +1,157 @@
+---
+name: agent-action-review
+description: Valida completude e consistência das ações realizadas pelo agente. Verifica se side-effects obrigatórios foram executados (codemap, memória, contexto, contagens em instructions/catálogos). Disparado automaticamente após agent-task-manage completar todas as tarefas, ou sob demanda. Triggers: "revisa o que fez", "verifica", "tá tudo certo?", "valida ações", auto após task-manage completar.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: agent
+  delegable: full
+---
+
+# Agent Action Review
+
+Valida completude e consistência cross-artefato das ações do agente.
+
+## Quando Usar
+
+- **Automaticamente** após `agent-task-manage` completar todas as tarefas (antes de `agent-chat-save`)
+- Sob demanda quando o usuário pedir para "revisar", "verificar", "tá tudo certo?"
+- Após sessões complexas com múltiplos arquivos alterados
+
+## Quando NÃO Usar
+
+- Tarefas simples (1-3 steps, arquivo único)
+- Consultas de informação (read-only)
+- Validação de qualidade de código (usar `code-review-analyze`)
+- Validação de estrutura de SKILL.md (usar `skill-output-validate`)
+
+## Workflow
+
+### 1. Coletar inventário de ações
+
+Listar todas as ações realizadas na sessão/tarefa:
+
+| Tipo de Ação | O que verificar |
+|-------------|----------------|
+| Arquivo criado | Path, tipo do artefato |
+| Arquivo modificado | Path, natureza da mudança |
+| Skill criado/alterado | Nome, tipo, localização |
+| Instrução alterada | Qual instruction file, o que mudou |
+| Decisão tomada | Natureza, impacto |
+
+### 2. Aplicar checklist de side-effects
+
+Para cada ação identificada, verificar se os side-effects obrigatórios foram executados:
+
+#### Código criado/modificado → Codemap atualizado?
+
+| Verificação | Como |
+|-------------|------|
+| `project-codemap-update` foi chamado? | Verificar se artefatos novos estão no code-map |
+| Artefatos no code-map correspondem a arquivos reais? | Cross-check paths |
+
+#### Decisão arquitetural tomada → Memória registrada?
+
+| Verificação | Como |
+|-------------|------|
+| Decisão é significativa? | Impacta estrutura, padrões, ou workflow |
+| `agent-memory-register` foi chamado? | Verificar se lição foi adicionada |
+| Categoria correta? | `arquitetura`, `padrões`, `regras`, etc. |
+
+#### Stack/restrição mudou → Contexto atualizado?
+
+| Verificação | Como |
+|-------------|------|
+| Mudança afeta stack, integração, ou restrição? | Avaliar natureza da mudança |
+| `project-context-update` foi chamado? | Verificar se project.md reflete a mudança |
+
+#### Skill criado/alterado → Instructions sincronizadas?
+
+| Verificação | Como |
+|-------------|------|
+| Capability Manifest atualizado? | `agent-skills-core.instructions.md`, `agent-skills-project.instructions.md`, template |
+| Contagem por tipo correta? | Verificar coluna Qtd no Manifest |
+| Always-Known atualizado (se aplicável)? | Lista de 10 skills no Manifest |
+| Catálogo do tipo atualizado? | `{tipo}-catalog-query/SKILL.md` |
+| `agent-subagent-delegate` atualizado? | Classificação `delegable` do novo skill |
+
+#### Task-manage steps → Completude real?
+
+| Verificação | Como |
+|-------------|------|
+| Todos os steps planejados foram executados? | Comparar plan vs resultado |
+| Algum step foi pulado ou simplificado? | Verificar se houve shortcuts |
+| Steps descobertos durante execução foram adicionados? | Verificar se novos steps necessários foram endereçados |
+
+### 3. Gerar relatório
+
+Formatar findings em relatório estruturado:
+
+```
+🔍 **Review de Ações**
+
+✅ Codemap atualizado com {N} artefatos
+✅ Lição registrada — categoria: {cat}
+⚠️ Capability Manifest em agent-skills-core.instructions.md não atualizado (agent diz {X}, deveria ser {Y})
+⚠️ Catálogo {tipo}-catalog-query não inclui {skill-name}
+🔴 project-context-update não chamado — stack mudou mas context/project.md está desatualizado
+
+**Ações necessárias**: {lista de correções}
+```
+
+### Severidades
+
+| Nível | Significado | Exemplo |
+|-------|-------------|---------|
+| ✅ | OK — side-effect executado corretamente | Codemap atualizado |
+| ⚠️ | Faltou — side-effect não executado, impacto moderado | Contagem desatualizada em instructions |
+| 🔴 | Inconsistente — dados conflitantes entre artefatos | Skill existe mas não está em nenhum catálogo/tabela |
+
+### 4. Sugerir correções
+
+Para cada finding ⚠️ ou 🔴, sugerir a ação corretiva específica:
+
+```
+⚠️ **Capability Manifest desatualizado**
+→ Atualizar `agent-skills-core.instructions.md`: coluna Qtd do tipo agent de {N} → {N+2}
+→ Atualizar `.internal/templates/workspace.instructions.md`: mesma contagem
+→ Atualizar `agent-skills-project.instructions.md`: mesma contagem
+```
+
+### 5. Executar correções (se autorizado)
+
+**Se auto-triggered** (após task-manage):
+→ Aplicar correções automaticamente para findings ⚠️ (impacto moderado)
+→ Reportar findings 🔴 ao usuário para decisão
+
+**Se sob demanda** (usuário pediu):
+→ Apresentar relatório completo
+→ Perguntar: "Quer que eu aplique as correções?"
+
+## Cadeia de Finalização
+
+Quando `agent-task-manage` completa todas as tarefas, a cadeia é:
+
+```
+agent-task-manage (todas completed)
+  → agent-action-review (valida side-effects e corrige)
+    → agent-impact-validate (valida cascata, se 3+ arquivos modificados)
+      → agent-chat-save (salva sessão se complexa)
+```
+
+O review roda **entre** task-manage completar e chat-save salvar, garantindo que a sessão salva reflete o estado correto.
+
+**Quando chamar agent-impact-validate**: Se a sessão envolveu 3+ arquivos modificados, renames, ou alterações em templates/instructions, o review DEVE chamar `agent-impact-validate` antes de finalizar.
+
+## Checklist Rápida
+
+Para referência durante a review:
+
+- [ ] Arquivos criados estão no codemap?
+- [ ] Decisões importantes registradas na memória?
+- [ ] Mudanças de stack/restrição refletidas no contexto?
+- [ ] Capability Manifest consistente em todos os instructions (core, project, template)?
+- [ ] Contagens por tipo corretas no Manifest?
+- [ ] Catálogos incluem todos os skills do tipo?
+- [ ] agent-subagent-delegate lista skills novos com classificação correta?
+- [ ] Todos os steps do task-manage foram realmente executados?

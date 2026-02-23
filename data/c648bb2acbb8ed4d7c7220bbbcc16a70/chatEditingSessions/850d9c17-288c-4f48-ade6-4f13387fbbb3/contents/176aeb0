@@ -1,0 +1,56 @@
+# Architecture — Overview
+
+## Tipo de Aplicação
+
+**API/Serviço** — expõe endpoints REST para receber áudios e retornar transcrições.
+
+## Arquitetura
+
+PoC com projeto único (sem separação em layers). Foco em validar a viabilidade técnica antes de investir em arquitetura elaborada.
+
+```
+[Client] → [Minimal API] → [Service Layer] → [GCP Speech-to-Text]
+                                            → [GCP Cloud Storage]
+                                            → [GCP Vertex AI]
+```
+
+### Componentes
+
+| Componente | Responsabilidade |
+|------------|-----------------|
+| API Endpoints | Receber áudios, rotear para serviço correto, retornar resultado |
+| STT Service | Abstração sobre os diferentes providers GCP (v1, v2, Chirp, Vertex) |
+| Storage Service | Upload de áudios para Cloud Storage (para processamento async/batch) |
+| Configuration | Gestão de credentials, feature flags por provider |
+
+### Endpoints Planejados
+
+| Método | Rota | Descrição |
+|--------|------|-----------|
+| POST | `/api/transcribe/v1` | Transcrição via Speech-to-Text v1 |
+| POST | `/api/transcribe/v2` | Transcrição via Speech-to-Text v2 |
+| POST | `/api/transcribe/chirp` | Transcrição via Chirp |
+| POST | `/api/transcribe/vertex` | Transcrição via Vertex AI |
+| POST | `/api/transcribe/compare` | Envia para todos e compara resultados |
+| GET | `/api/health` | Health check |
+
+### Padrões
+
+- **Minimal API** — sem controllers, registra endpoints diretamente
+- **Dependency Injection** — serviços registrados no `Program.cs`
+- **Options Pattern** — configuração via `IOptions<T>`
+- **Result Pattern** — respostas padronizadas com sucesso/erro
+
+## Decisões Técnicas
+
+| Decisão | Rationale |
+|---------|-----------|
+| Projeto único | PoC — simplicidade > arquitetura |
+| Minimal API | Menos boilerplate, rápido para prototipar |
+| Sem banco de dados | PoC não persiste dados (apenas processa e retorna) |
+| Múltiplos endpoints por provider | Permite comparar resultados lado a lado |
+
+## Última Atualização
+
+**Data**: 2026-02-17
+**Motivo**: Criação inicial

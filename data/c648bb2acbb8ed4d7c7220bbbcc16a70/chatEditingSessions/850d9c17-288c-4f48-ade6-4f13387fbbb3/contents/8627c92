@@ -1,0 +1,60 @@
+# Business Rules — Domínio Hospitalar
+
+## Contexto
+
+Transcrição de áudio em ambiente hospitalar com foco em:
+- **Conversa médico-paciente** (presencial ou telemedicina)
+- **Laudos médicos** (ditados)
+
+## Idioma
+
+**Português PT-BR** — todo áudio e transcrição em português brasileiro.
+
+## Tipos de Output Esperados
+
+| Tipo | Descrição | Prioridade |
+|------|-----------|------------|
+| Transcrição pura | Texto literal do áudio | Alta (PoC) |
+| Transcrição estruturada | Texto com identificação de speakers, timestamps | Alta (PoC) |
+| Anamnese | Extração estruturada da conversa médica | Média (futuro) |
+| Sugestões de diagnóstico | Baseado na transcrição | Baixa (futuro) |
+
+## Vocabulário Médico
+
+A PoC deve avaliar a capacidade de cada solução GCP em reconhecer termos médicos:
+
+### Categorias de Termos
+
+| Categoria | Exemplos |
+|-----------|----------|
+| Termos anatômicos | abdômen, tórax, cefálico, cervical |
+| Patologias | diabetes mellitus, hipertensão arterial, fibromialgia |
+| Medicamentos | dipirona, omeprazol, losartana, metformina |
+| Procedimentos | ecocardiograma, tomografia, ressonância magnética |
+| Códigos CID | CID-10, códigos como J06, I10, E11 |
+| Sinais e sintomas | dispneia, cefaleia, náusea, artralgia |
+
+### Métricas de Avaliação
+
+Para comparar os providers GCP, considerar:
+
+| Métrica | Descrição |
+|---------|-----------|
+| WER (Word Error Rate) | Taxa de erro de palavras geral |
+| WER médico | Taxa de erro especifica para termos médicos |
+| Latência | Tempo de resposta de cada provider |
+| Custo | Custo por minuto de áudio processado |
+| Speaker diarization | Qualidade da separação médico vs paciente |
+
+## Restrições
+
+| Restrição | Status |
+|-----------|--------|
+| LGPD/HIPAA | N/A — PoC usa apenas dados de teste |
+| Produção com dados reais | Fora do escopo da PoC |
+| PII em logs | Evitar mesmo com dados de teste |
+
+## Última Atualização
+
+**Data**: 2026-02-17
+**Motivo**: Criação inicial

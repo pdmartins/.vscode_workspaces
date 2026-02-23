@@ -1,0 +1,101 @@
+# Run Agent Skills test suite
+# Usage: .\run-tests.ps1 [-Structural] [-Behavioral] [-Fixtures] [-Install] [-Filter "pattern"]
+
+param(
+    [string]$Filter = "",
+    [switch]$Structural,
+    [switch]$Behavioral,
+    [switch]$Fixtures,
+    [switch]$Install,
+    [switch]$Help
+)
+
+if ($Help) {
+    Write-Host @"
+Agent Skills Test Suite
+
+Usage: .\run-tests.ps1 [options]
+
+Options:
+  -Structural   Run only structural tests (frontmatter, naming, sections, size)
+  -Behavioral   Run only behavioral tests (catalogs, chains, delegability)
+  -Fixtures     Run only conversation fixture tests
+  -Filter       pytest -k filter expression (e.g., "test_frontmatter")
+  -Install      Install test dependencies first (pytest, pyyaml)
+  -Help         Show this help
+
+Examples:
+  .\run-tests.ps1                    # Run all tests
+  .\run-tests.ps1 -Structural        # Run only structural tests
+  .\run-tests.ps1 -Filter "naming"   # Run tests matching 'naming'
+  .\run-tests.ps1 -Install           # Install deps + run all tests
+"@
+    exit 0
+}
+
+$coreDir = Split-Path $PSScriptRoot  # .copilot-core/
+$venvDir = Join-Path $coreDir ".venv"
+$venvPython = Join-Path $venvDir "Scripts\python.exe"
+
+# --- Detect Python (venv first, then system) ---
+if (Test-Path $venvPython) {
+    $pythonPath = $venvPython
+    Write-Host "🐍 Using venv: $venvDir" -ForegroundColor DarkGray
+} else {
+    # No venv — detect system Python to create one
+    $sysPython = (Get-Command python -ErrorAction SilentlyContinue |
+        Select-Object -ExpandProperty Source)
+    if (!$sysPython) {
+        $sysPython = (Get-Command python3 -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty Source)
+    }
+    if (!$sysPython) {
+        Write-Host "❌ Python not found. Install Python 3.12+" -ForegroundColor Red
+        exit 1
+    }
+
+    Write-Host "📦 Creating venv at $venvDir ..." -ForegroundColor Cyan
+    & $sysPython -m venv $venvDir
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "❌ Failed to create venv" -ForegroundColor Red
+        exit 1
+    }
+    $pythonPath = $venvPython
+    $Install = $true  # Force install when creating venv
+}
+
+# --- Install dependencies ---
+if ($Install) {
+    Write-Host "📦 Installing test dependencies..." -ForegroundColor Cyan
+    & $pythonPath -m pip install -r (Join-Path $coreDir "requirements-test.txt") --quiet
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host "❌ Failed to install dependencies" -ForegroundColor Red
+        exit 1
+    }
+    Write-Host "✅ Dependencies installed" -ForegroundColor Green
+}
+
+# --- Build pytest args ---
+$pytestArgs = @()
+
+if ($Structural) { $pytestArgs += "-m"; $pytestArgs += "structural" }
+elseif ($Behavioral) { $pytestArgs += "-m"; $pytestArgs += "behavioral" }
+elseif ($Fixtures) { $pytestArgs += "-m"; $pytestArgs += "fixtures" }
+
+if ($Filter) { $pytestArgs += "-k"; $pytestArgs += $Filter }
+
+# --- Run tests ---
+Write-Host ""
+Write-Host "🧪 Agent Skills Test Suite" -ForegroundColor Cyan
+Write-Host "   Root: $coreDir" -ForegroundColor DarkGray
+Write-Host ""
+
+Push-Location $coreDir
+try {
+    & $pythonPath -m pytest @pytestArgs
+    $exitCode = $LASTEXITCODE
+} finally {
+    Pop-Location
+}
+
+exit $exitCode

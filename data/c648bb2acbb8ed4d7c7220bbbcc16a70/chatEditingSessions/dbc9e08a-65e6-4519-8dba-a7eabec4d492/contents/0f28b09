@@ -1,0 +1,193 @@
+````skill
+---
+name: agent-memory-sync
+description: Sincroniza arquivos .md (lessons-learned, project.md, code-map) com o MCP memory-service (Cloudflare Vectorize) para busca semântica. Fonte de verdade são os .md — o índice Cloudflare é derivado e pode ser reconstruído a qualquer momento. Triggers - sincronizar memória, sync mcp, indexar, reindexar, atualizar índice semântico, rebuild memory.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: agent
+  delegable: full
+---
+
+# Agent Memory Sync
+
+Sincroniza arquivos .md com o MCP memory-service (`@doobidoo/mcp-memory-service`, backend Cloudflare) para habilitar busca semântica híbrida (BM25 + vector).
+
+## Princípio Fundamental
+
+```
+Fonte de verdade: arquivos .md no git
+Cloudflare (Vectorize + D1): índice derivado, descartável e reconstruível
+```
+
+**Nunca** escrever apenas no MCP sem atualizar o .md correspondente. O fluxo é sempre: `.md` primeiro → MCP sync depois.
+
+## Quando Usar
+
+- Após `agent-memory-register` adicionar nova lição (sync incremental)
+- Após `project-context-update` alterar project.md (sync incremental)
+- Após `project-codemap-update` alterar code-map (sync incremental)
+- Sob demanda: "sincronizar memória", "reindexar", "rebuild memory"
+- Quando busca semântica retorna resultados vazios/desatualizados
+
+## Quando NÃO Usar
+
+- Para consultar memória (usar `agent-memory-query`)
+- Para registrar lições (usar `agent-memory-register` que chama sync automaticamente)
+- Se o MCP memory-service não estiver configurado em `.vscode/mcp.json`
+
+## Pré-requisito
+
+MCP memory-service configurado em `.vscode/mcp.json`:
+
+```json
+{
+  "servers": {
+    "memory": {
+      "type": "stdio",
+      "command": "npx",
+      "args": ["-y", "@doobidoo/mcp-memory-service@latest"],
+      "env": {
+        "MCP_MEMORY_STORAGE_BACKEND": "cloudflare",
+        "CLOUDFLARE_API_TOKEN": "${env:CLOUDFLARE_API_TOKEN}",
+        "CLOUDFLARE_ACCOUNT_ID": "${env:CLOUDFLARE_ACCOUNT_ID}",
+        "CLOUDFLARE_VECTORIZE_INDEX": "mcp-memory-index",
+        "CLOUDFLARE_D1_DATABASE_ID": "${env:CLOUDFLARE_D1_DATABASE_ID}"
+      }
+    }
+  }
+}
+```
+
+## Arquivos Sincronizados
+
+| Arquivo | Entidades MCP | Tipo |
+|---------|---------------|------|
+| `.copilot-project/memory/lessons-learned.md` | Uma entidade por lição | `lesson` |
+| `.copilot-project/context/project.md` | Uma entidade por seção | `context` |
+| `.copilot-project/context/code-map/index.md` | Uma entidade por módulo | `codemap` |
+
+## Workflow — Sync Incremental
+
+Usado após adicionar/alterar um item específico.
+
+### 1. Identificar o que mudou
+
+```
+Input: { arquivo: "lessons-learned.md", secção: "nova lição adicionada" }
+```
+
+### 2. Parsear o conteúdo novo
+
+Extrair a lição/seção que foi adicionada ou alterada.
+
+### 3. Criar/atualizar entidade MCP
+
+Usar as MCP tools do memory-service:
+
+```
+mcp_memory_create_entities({
+  entities: [{
+    name: "lesson-{id}",
+    entityType: "lesson",
+    observations: [
+      "categoria: {categoria}",
+      "data: {data}",
+      "conteúdo: {resumo da lição}",
+      "contexto: {contexto}",
+      "decisão: {decisão tomada}",
+      "tags: {tags}"
+    ]
+  }]
+})
+```
+
+### 4. Criar relações (se aplicável)
+
+```
+mcp_memory_create_relations({
+  relations: [{
+    from: "lesson-{id}",
+    to: "project-{nome}",
+    relationType: "applies_to"
+  }]
+})
+```
+
+## Workflow — Sync Full (Rebuild)
+
+Usado para reconstruir completamente o índice MCP a partir dos .md.
+
+### 1. Limpar entidades existentes
+
+```
+# Listar todas as entidades e deletar
+mcp_memory_search_nodes({ query: "*" })
+# Para cada entidade encontrada:
+mcp_memory_delete_entities({ entityNames: [...] })
+```
+
+### 2. Parsear todos os arquivos fonte
+
+Para cada arquivo sincronizado:
+- **lessons-learned.md**: Parsear cada bloco `### {id}` como uma lição
+- **project.md**: Parsear cada `## {seção}` como um bloco de contexto
+- **code-map/index.md**: Parsear cada módulo/componente como uma entrada
+
+### 3. Criar todas as entidades
+
+Batch create de todas as entidades parseadas.
+
+### 4. Criar relações
+
+Conectar lições a projetos, módulos a contexto, etc.
+
+### 5. Confirmar
+
+```
+✅ Sync completo!
+
+📋 Entidades criadas: {N}
+  - Lições: {X}
+  - Contexto: {Y}
+  - Codemap: {Z}
+🔗 Relações: {R}
+☁️ Backend: Cloudflare (Vectorize + D1)
+```
+
+## MCP Tools Disponíveis
+
+O `mcp-memory-service` expõe estas tools (quando configurado):
+
+| Tool | Uso no Sync |
+|------|------------|
+| `create_entities` | Criar entidades a partir dos .md |
+| `delete_entities` | Remover entidades obsoletas |
+| `create_relations` | Conectar entidades entre si |
+| `search_nodes` | Busca semântica híbrida (BM25 + vector) |
+| `open_nodes` | Abrir entidades específicas por nome |
+| `read_graph` | Ler o grafo completo |
+
+## Tratamento de Erros
+
+| Erro | Ação |
+|------|------|
+| MCP server não disponível | Reportar: "MCP memory-service não está ativo. Verificar .vscode/mcp.json" |
+| Cloudflare não acessível | Verificar CLOUDFLARE_API_TOKEN e conectividade. Índice é criado automaticamente na primeira sincronização |
+| Entidade duplicada | Sobrescrever com dados atuais do .md |
+| .md vazio/template | Não sincronizar — reportar que não há conteúdo para indexar |
+
+## Subagent Pattern
+
+**Tipo**: `full` — pode ser delegado integralmente.
+
+### Prompt Exemplo
+
+```
+runSubagent({
+  description: "Sync memory to MCP",
+  prompt: "Leia .copilot-core/skills/agent/agent-memory-sync/SKILL.md. Execute sync {incremental|full}. Arquivo alterado: {path}. Conteúdo novo: {conteúdo}. Retorne: resumo do sync com contagem de entidades criadas/atualizadas."
+})
+```
+
+````

@@ -1,0 +1,24 @@
+# Credentials — Copilot Agent Skills
+# Ficheiro único de credenciais partilhado por todos os projetos.
+# Consumido por: agent-memory-sync, project-setup-bootstrap, MCP Auto-Setup
+#
+# Repo privado (3 devs). Este ficheiro NUNCA chega a repos de clientes
+# (em modo stealth, .copilot-core/ está no .gitignore do projeto-alvo).
+
+# --- Cloudflare (MCP memory-service backend) ---
+cloudflare:
+  account_id: "c45924c90a802f57eb89400097408d85"
+  api_token: "FwzbGKl90kjR66XkzpVenQoASoKxWLHUhVS5LBct"
+  vectorize_index: "mcp-memory-index"
+  d1_database_id: "c4de8032-d02f-4f46-8ab0-05c960bf8881"
+
+# --- MCP memory-service ---
+mcp:
+  storage_backend: "cloudflare"
+  server_module: "mcp_memory_service.server"
+
+# --- Python ---
+python:
+  # Windows: detectar caminho real com `python -c "import sys; print(sys.executable)"`
+  # Linux/Mac: usar "python3"
+  install_package: "pip install mcp-memory-service"

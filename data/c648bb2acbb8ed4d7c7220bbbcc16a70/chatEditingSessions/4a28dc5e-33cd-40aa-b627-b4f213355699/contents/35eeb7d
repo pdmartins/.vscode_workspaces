@@ -1,0 +1,76 @@
+# Project Context — Everyday Queries
+
+Estado atual do projeto para referência do Copilot.
+
+---
+
+## Objetivo
+
+Projeto pessoal para discutir, registrar e organizar conceitos, ideias e soluções em geral. Funciona como um repositório de conhecimento e decisões do dia a dia — sem stack definida, focado em documentação e raciocínio.
+
+## Repos
+
+| Repo | URL | Propósito |
+|------|-----|-----------|
+| `.copilot-core` | `https://github.com/pdmartins/.copilot-core.git` | Skills genéricos, instruções globais, templates |
+| `.copilot-project` | `https://github.com/pdmartins/.copilot-project.git` | Contexto, memória e skills específicos (branch `_pm/everyday_queries`) |
+
+## Natureza do Projeto
+
+| Aspecto | Detalhe |
+|---------|---------|
+| Tipo | Repositório de conhecimento pessoal |
+| Fase | Inicial |
+| Stack | Nenhuma — baseado em documentação (Markdown) |
+| Foco | Conceitos, ideias, decisões e soluções |
+
+## Estrutura de Conteúdo
+
+```
+topics/                           # Conhecimento consolidado
+├── concepts/                     # Conceitos técnicos e teóricos
+├── decisions/                    # Decisões tomadas + raciocínio
+└── ideas/                        # Hipóteses e explorações
+
+discussions/                      # Logs de discussão (por sessão)
+└── {YYYY-MM-DD}_{slug}.md
+```
+
+### Frontmatter
+
+Todos os arquivos MD usam YAML frontmatter com: `title`, `category`/`date`, `tags`, `status`, `related`/`topic`.
+
+### Status
+
+| Status | Ícone | Significado |
+|--------|-------|-------------|
+| draft | 🟡 | Recém-criado, conteúdo inicial |
+| evolving | 🟠 | Sendo enriquecido com novas discussions |
+| consolidated | 🟢 | Maduro e organizado (definido manualmente) |
+| open | 🔵 | Discussion ativa |
+
+### Fluxo
+
+Discussão → Discussion log → Consolidação em Topic → Índice atualizado
+
+## Padrões e Convenções
+
+- **Idioma do conteúdo**: Português brasileiro (preferencialmente)
+- **Formato**: Markdown com YAML frontmatter
+- **Organização**: Híbrida (categorias amplas + tags)
+- **Nomes de arquivo**: Inglês, kebab-case
+- **README.md**: Auto-gerado (índice + mapa Mermaid)
+
+## Project Skills
+
+| Skill | Propósito |
+|-------|-----------|
+| `project-topic-create` | Criar topics e discussions com template padronizado |
+| `project-index-update` | Regenerar README.md com índice e mapa de relações |
+| `project-topic-consolidate` | Mesclar discussions em topics consolidados |
+
+## Próximos Passos
+
+- [x] Plugar no projeto-alvo (submodules + symlinks)
+- [x] Definir estrutura de conteúdo e skills
+- [ ] Começar a registrar conceitos e ideias

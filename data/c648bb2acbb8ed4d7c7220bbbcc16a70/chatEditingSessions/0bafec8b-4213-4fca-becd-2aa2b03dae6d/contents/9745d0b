@@ -1,0 +1,100 @@
+# Start MCP Memory Dashboard
+# Inicia o servidor HTTP do mcp-memory-service com o dashboard web.
+# Acesso: http://localhost:8000
+#
+# Uso: .\start-memory-dashboard.ps1 [-Port 8000] [-NoBrowser]
+
+param(
+    [int]$Port = 8000,
+    [switch]$NoBrowser
+)
+
+# --- Carregar credenciais do credentials.yml ---
+$internalDir = Split-Path $PSScriptRoot  # .copilot-core/.internal/
+$credFile = Join-Path $internalDir "config\credentials.yml"
+
+if (!(Test-Path $credFile)) {
+    Write-Host "❌ credentials.yml não encontrado em $(Split-Path $credFile)" -ForegroundColor Red
+    exit 1
+}
+
+# Parse simples do YAML (sem dependência externa)
+$credContent = Get-Content $credFile -Raw
+$accountId = if ($credContent -match 'account_id:\s*"([^"]+)"') { $Matches[1] }
+$apiToken = if ($credContent -match 'api_token:\s*"([^"]+)"') { $Matches[1] }
+$vectorizeIndex = if ($credContent -match 'vectorize_index:\s*"([^"]+)"') { $Matches[1] }
+$d1DatabaseId = if ($credContent -match 'd1_database_id:\s*"([^"]+)"') { $Matches[1] }
+$storageBackend = if ($credContent -match 'storage_backend:\s*"([^"]+)"') { $Matches[1] } else { "cloudflare" }
+
+if (!$accountId -or !$apiToken) {
+    Write-Host "❌ Credenciais Cloudflare incompletas no credentials.yml" -ForegroundColor Red
+    exit 1
+}
+
+# --- Detectar Python ---
+$pythonPath = $null
+
+# 1. Tentar o caminho do mcp.json do workspace (gerado por máquina, nunca hardcodar)
+# Navegar: scripts/ -> .internal/ -> .copilot-core/ -> workspace/ -> .vscode/mcp.json
+$mcpJson = Join-Path $PSScriptRoot "..\..\..\..\.vscode\mcp.json"
+if (Test-Path $mcpJson) {
+    $mcpContent2 = Get-Content $mcpJson -Raw | ConvertFrom-Json
+    $candidate = $mcpContent2.servers.memory.command
+    if ($candidate -and (Test-Path $candidate)) {
+        $pythonPath = $candidate
+    }
+}
+
+# 2. Fallback: python3/python no PATH (skip WindowsApps stubs)
+if (!$pythonPath) {
+    $candidates = @("python3", "python")
+    foreach ($cmd in $candidates) {
+        $found = Get-Command $cmd -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source
+        if ($found -and $found -notmatch "WindowsApps") {
+            $pythonPath = $found
+            break
+        }
+    }
+}
+
+if (!$pythonPath) {
+    Write-Host "❌ Python não encontrado. Instale Python 3.12+" -ForegroundColor Red
+    exit 1
+}
+
+Write-Host "📊 MCP Memory Dashboard" -ForegroundColor Cyan
+Write-Host "   Python:  $pythonPath" -ForegroundColor DarkGray
+Write-Host "   Backend: $storageBackend" -ForegroundColor DarkGray
+Write-Host "   URL:     http://localhost:$Port" -ForegroundColor DarkGray
+Write-Host ""
+
+# --- Configurar variáveis de ambiente ---
+$env:MCP_MEMORY_STORAGE_BACKEND = $storageBackend
+$env:CLOUDFLARE_ACCOUNT_ID = $accountId
+$env:CLOUDFLARE_API_TOKEN = $apiToken
+$env:CLOUDFLARE_VECTORIZE_INDEX = $vectorizeIndex
+$env:CLOUDFLARE_D1_DATABASE_ID = $d1DatabaseId
+$env:MCP_HTTP_PORT = $Port
+$env:MCP_ALLOW_ANONYMOUS_ACCESS = "true"
+
+# --- Abrir browser automaticamente ---
+if (!$NoBrowser) {
+    Start-Job -ScriptBlock {
+        param($url)
+        Start-Sleep -Seconds 5
+        Start-Process $url
+    } -ArgumentList "http://localhost:$Port" | Out-Null
+    Write-Host "🌐 Browser abrirá automaticamente em 5s..." -ForegroundColor Yellow
+}
+
+Write-Host "🚀 Iniciando servidor... (Ctrl+C para parar)" -ForegroundColor Green
+Write-Host ""
+
+# --- Iniciar servidor HTTP ---
+$memoryExe = Join-Path (Split-Path $pythonPath) "Scripts\memory.exe"
+
+if (Test-Path $memoryExe) {
+    & $memoryExe server --http --storage-backend $storageBackend
+} else {
+    & $pythonPath -m mcp_memory_service.cli.main server --http --storage-backend $storageBackend
+}

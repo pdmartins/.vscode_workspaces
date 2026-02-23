@@ -1,0 +1,211 @@
+---
+name: editor-readme-generate
+description: Padrões para criação e atualização de arquivos README.md. Use ao criar novo README, atualizar seções de documentação, ou verificar conformidade de README existente. Triggers: "criar README", "atualizar README", "documentar projeto", novo repositório.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: editor
+  delegable: orchestrated
+---
+
+# README Documentation Skill
+
+Padrões para criação e manutenção de arquivos README.
+
+## Quando Usar
+
+- Criar novo README.md
+- Atualizar seções existentes
+- Verificar conformidade de README
+- Documentar novo projeto
+
+## Workflow
+
+### 1. Identificar tipo de projeto
+
+| Tipo | Seções Obrigatórias |
+|------|---------------------|
+| Biblioteca/Package | Instalação, API, Exemplos |
+| Aplicação | Setup, Uso, Configuração |
+| CLI Tool | Instalação, Comandos, Exemplos |
+| Monorepo | Estrutura, Packages, Como Contribuir |
+
+### 2. Aplicar estrutura base
+
+Ordem recomendada de seções:
+1. Título + Badge(s)
+2. Descrição curta
+3. Features principais
+4. Instalação/Setup
+5. Uso básico
+6. Configuração (se aplicável)
+7. API/Comandos (se aplicável)
+8. Exemplos
+9. Contribuição
+10. Licença
+
+### 3. Verificar completude
+
+Checklist mínimo:
+- [ ] Título claro
+- [ ] Descrição em 1-2 linhas
+- [ ] Como instalar/configurar
+- [ ] Pelo menos 1 exemplo de uso
+- [ ] Licença mencionada
+
+### 4. Sincronizar versão inglesa
+
+**Se o projeto possuir o skill `editor-english-sync`** (via catálogo de project skills):
+→ Ativá-lo para sincronização
+→ Criar/atualizar `.english-version/README.md`
+
+## Template Base
+
+```markdown
+# Nome do Projeto
+
+> Descrição curta em uma linha.
+
+## ✨ Features
+
+- Feature 1
+- Feature 2
+- Feature 3
+
+## 📦 Instalação
+
+\`\`\`bash
+# comando de instalação
+\`\`\`
+
+## 🚀 Quick Start
+
+\`\`\`bash
+# exemplo básico de uso
+\`\`\`
+
+## ⚙️ Configuração
+
+Descrição das opções de configuração.
+
+## 📖 Uso
+
+### Caso de uso 1
+
+\`\`\`bash
+# exemplo
+\`\`\`
+
+### Caso de uso 2
+
+\`\`\`bash
+# exemplo
+\`\`\`
+
+## 🤝 Contribuição
+
+1. Fork o projeto
+2. Crie sua branch (\`git checkout -b feature/nova-feature\`)
+3. Commit suas mudanças (\`git commit -m 'Add nova feature'\`)
+4. Push para a branch (\`git push origin feature/nova-feature\`)
+5. Abra um Pull Request
+
+## 📄 Licença
+
+[MIT](LICENSE)
+```
+
+## Convenções de Formatação
+
+### Títulos
+- H1 (`#`): Apenas para nome do projeto
+- H2 (`##`): Seções principais
+- H3 (`###`): Subseções
+- Usar emojis em H2 para visual scanning
+
+### Código
+- Inline: `` `comando` `` para comandos curtos
+- Blocos: \`\`\`lang para exemplos maiores
+- Sempre especificar linguagem do bloco
+
+### Links
+- Usar links relativos para arquivos do repo
+- Links externos com texto descritivo
+- Evitar URLs naked
+
+### Badges
+Posicionar logo após H1, antes da descrição:
+```markdown
+# Projeto
+
+![CI](https://github.com/user/repo/workflows/CI/badge.svg)
+![License](https://img.shields.io/badge/license-MIT-blue.svg)
+
+> Descrição...
+```
+
+## Seções Expandidas
+
+### Para CLIs
+Incluir seção de comandos:
+```markdown
+## 🔧 Comandos
+
+| Comando | Descrição |
+|---------|-----------|
+| `cmd init` | Inicializa projeto |
+| `cmd build` | Compila projeto |
+| `cmd test` | Executa testes |
+```
+
+### Para APIs/Bibliotecas
+Incluir referência de API:
+```markdown
+## 📚 API
+
+### `funcao(param1, param2)`
+
+Descrição da função.
+
+**Parâmetros:**
+- `param1` (string): Descrição
+- `param2` (number): Descrição
+
+**Retorno:** Descrição do retorno
+
+**Exemplo:**
+\`\`\`javascript
+const result = funcao('a', 1);
+\`\`\`
+```
+
+### Para Projetos com Docker
+Incluir seção específica:
+```markdown
+## 🐳 Docker
+
+\`\`\`bash
+docker build -t projeto .
+docker run -p 3000:3000 projeto
+\`\`\`
+```
+
+## Subagent Pattern
+
+**Tipo**: `orchestrated` — auto-detect + fallback
+
+Na maioria dos casos, o tipo de projeto é inferível pelo filesystem (package.json → Aplicação Node, *.csproj → .NET, etc.).
+
+### Fluxo
+
+1. **Se main agent já sabe o tipo**: passa no prompt → subagent gera README diretamente (`full`)
+2. **Se tipo é ambíguo**: main agent pergunta ao usuário → depois delega com tipo definido
+
+### Prompt Exemplo
+
+```
+runSubagent({
+  description: "Generate README",
+  prompt: "Leia .copilot-core/skills/editor/editor-readme-generate/SKILL.md. O projeto é do tipo {tipo}. Gere README.md para {path}. Contexto: {descrição do projeto}. Retorne: conteúdo completo do README."
+})
+```

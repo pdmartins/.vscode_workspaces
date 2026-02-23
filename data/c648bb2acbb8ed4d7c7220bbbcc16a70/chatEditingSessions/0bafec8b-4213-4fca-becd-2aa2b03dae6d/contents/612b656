@@ -1,0 +1,176 @@
+---
+name: agent-chat-save
+description: Salva o estado da sessão de chat para retomada posterior em outra máquina ou sessão. Use quando o usuário quiser preservar o contexto de trabalho antes de trocar de máquina ou encerrar o chat. Também disparado automaticamente quando agent-task-manage conclui todas as tarefas. Triggers: "salva sessão", "guarda sessão", "finaliza sessão", "salva chat", "guarda contexto", "vou trocar de máquina", "vou sair", após agent-task-manage completar todas as tarefas.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: agent
+  delegable: full
+---
+
+# Agent Chat Save
+
+Salva o estado da sessão de chat em arquivo persistente para retomada cross-machine.
+
+## Quando Usar
+
+- Usuário pede para salvar sessão/chat/contexto
+- Usuário indica que vai trocar de máquina ou encerrar
+- **Automaticamente** quando `agent-task-manage` conclui todas as tarefas de uma lista complexa
+- Usuário diz "vou sair", "salva sessão", "guarda contexto", "finaliza sessão"
+
+## Quando NÃO Usar
+
+- Sessão trivial sem working context relevante (perguntas simples, consultas pontuais)
+- Informação já foi registrada como lição (`agent-memory-register`) ou contexto (`project-context-update`)
+
+## Workflow
+
+### 1. Determinar tópico
+
+Gerar nome descritivo em kebab-case que resuma o trabalho da sessão.
+
+Exemplos:
+- `docker-setup` — configurando Docker
+- `api-refactor` — refatorando endpoints da API
+- `skill-creation` — criando novos skills
+- `bug-auth-fix` — corrigindo bug de autenticação
+
+### 2. Gerar nome do arquivo
+
+Formato: `YYYY-MM-DD_{topico}.md`
+
+Exemplo: `2026-02-15_docker-setup.md`
+
+**Se já existe arquivo com mesmo prefixo** (data + tópico):
+→ Atualizar o arquivo existente adicionando nova seção `## Update: HH:MM` no final
+
+### 3. Coletar contexto da sessão
+
+Reunir do contexto do chat:
+
+| Dado | Fonte | Obrigatório |
+|------|-------|-------------|
+| Resumo do trabalho | Conversa atual | Sim |
+| Steps concluídos | `manage_todo_list` ou conversa | Sim |
+| Steps pendentes | `manage_todo_list` ou conversa | Sim |
+| Decisões pendentes | Perguntas em aberto | Se houver |
+| Arquivos relevantes | Arquivos criados/modificados | Se houver |
+| Contexto adicional | Raciocínio, referências, links | Se relevante |
+
+### 4. Determinar status
+
+| Status | Quando |
+|--------|--------|
+| `completed` | Todas as tarefas concluídas, nada pendente |
+| `in-progress` | Trabalho ainda em andamento, há próximos passos |
+| `paused` | Trabalho pausado por decisão do usuário ou bloqueio externo |
+
+### 5. Formatar e escrever arquivo
+
+Escrever em: `{workspace}/.copilot-project/chat-memory/{nome-arquivo}`
+
+**Template**:
+
+```markdown
+---
+date: YYYY-MM-DD
+topic: {tópico-kebab-case}
+status: in-progress | paused | completed
+---
+
+# Session: {Título Descritivo}
+
+## Resumo
+
+{O que estava sendo feito — 2-5 frases com contexto suficiente para retomar}
+
+## Progresso
+
+- [x] {step concluído 1}
+- [x] {step concluído 2}
+- [ ] {step pendente 1}
+- [ ] {step pendente 2}
+
+## Próximos Passos
+
+{O que falta fazer, em ordem de prioridade. Ser específico e acionável.}
+
+## Decisões Pendentes
+
+{Questões em aberto que precisam de resposta antes de prosseguir. Omitir seção se não houver.}
+
+## Arquivos Relevantes
+
+{Paths dos arquivos criados/modificados/em análise. Omitir seção se não houver.}
+
+## Contexto Adicional
+
+{Notas, raciocínio, links, referências que ajudam na retomada. Omitir seção se não houver.}
+```
+
+**Regras do template**:
+- Seções obrigatórias: Resumo, Progresso, Próximos Passos
+- Seções opcionais: Decisões Pendentes, Arquivos Relevantes, Contexto Adicional — incluir apenas se houver conteúdo relevante
+- O resumo deve ter contexto suficiente para alguém que não leu o chat entender o que estava acontecendo
+
+### 6. Confirmar ao usuário
+
+**Output**:
+```
+💾 **Sessão salva**: {nome-arquivo}
+- Status: {status}
+- Próximos passos: {quantidade} pendente(s)
+```
+
+## Auto-Save (via agent-task-manage)
+
+Quando `agent-task-manage` marca todas as tarefas como `completed`:
+
+1. Verificar se a sessão tem contexto relevante para salvar
+2. Se sim, executar o workflow completo com status `completed`
+3. Se a tarefa é trivial (< 3 steps, sem decisões complexas), **não** salvar automaticamente
+
+**Critério para auto-save**: A sessão tem auto-save relevante quando envolve:
+- 4+ tarefas gerenciadas
+- Decisões arquiteturais ou de design
+- Múltiplos arquivos alterados
+- Informação que seria útil como referência futura
+
+## Modo Incremental (via agent-turn-reflect)
+
+Chamado por `agent-turn-reflect` (Fase 4) ao final de cada turno substantivo.
+
+### Primeiro turno da sessão
+
+Executar workflow completo (steps 1-5) para criar arquivo com `status: in-progress`.
+
+### Turnos seguintes
+
+1. Localizar arquivo da sessão atual (mesmo dia + tópico mais recente)
+2. Fazer append de seção no final do arquivo:
+
+```markdown
+## Turn: HH:MM
+
+{2-3 frases do que aconteceu neste turno}
+
+**Arquivos**: {lista de paths, se houver}
+**Decisões**: {lista de decisões, se houver}
+```
+
+3. **NÃO** atualizar frontmatter a cada turno — apenas no save completo ou ao final da sessão
+
+### Regras do modo incremental
+
+- Cada append é leve (3-6 linhas), sem overhead
+- Se o arquivo já tem `status: completed` de uma sessão anterior no mesmo dia → criar novo arquivo com sufixo (`_2`)
+- Se `agent-turn-reflect` determina que o turno é trivial → não faz append (Fase 0 já filtrou)
+
+## Auto-Init
+
+Se `{workspace}/.copilot-project/chat-memory/` não existir:
+
+1. Criar o diretório
+2. Criar `README.md` com descrição do propósito
+3. Prosseguir com o save normalmente

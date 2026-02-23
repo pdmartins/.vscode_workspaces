@@ -1,0 +1,47 @@
+# Project Skills
+
+Skills específicos deste projeto seguindo o padrão [Agent Skills](https://agentskills.io).
+
+## Estrutura
+
+Cada skill é um diretório com `SKILL.md`:
+
+```
+skills/
+└── {contexto}-{funcionalidade}/
+    └── SKILL.md
+```
+
+## Como Criar
+
+Use a skill `skill-create` do core para criar novos skills:
+
+1. Defina o contexto (lang, framework, sync, etc.)
+2. Defina a funcionalidade
+3. Crie o diretório e `SKILL.md` com frontmatter
+
+## Exemplo de SKILL.md
+
+```markdown
+---
+name: {contexto}-{funcionalidade}
+description: {descrição completa incluindo triggers}
+metadata:
+  author: {autor}
+  version: "1.0"
+  category: {categoria}
+---
+
+# {Nome do Skill}
+
+{Instruções em Markdown}
+```
+
+## Skills Comuns por Tipo de Projeto
+
+| Tipo de Projeto | Skills Sugeridos |
+|-----------------|------------------|
+| Backend API | `lang-{linguagem}`, `framework-{framework}`, `api-openapi` |
+| Frontend | `lang-typescript`, `framework-react`, `style-css` |
+| Scripts | `lang-bash`, `lang-powershell`, `sync-cross-platform` |
+| Monorepo | `workspace-nx`, `workspace-turbo` |

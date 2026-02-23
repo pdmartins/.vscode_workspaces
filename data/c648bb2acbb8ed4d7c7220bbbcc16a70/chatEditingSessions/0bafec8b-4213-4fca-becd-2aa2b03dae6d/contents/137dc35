@@ -1,0 +1,24 @@
+[project]
+name = "copilot-core-tests"
+version = "1.0.0"
+description = "Test suite for Agent Skills system validation"
+requires-python = ">=3.12"
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "pyyaml>=6.0",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short -W default::UserWarning"
+markers = [
+    "structural: Structural validation (frontmatter, naming, sections, size)",
+    "behavioral: Behavioral contract tests (catalogs, chains, delegability)",
+    "fixtures: Conversation fixture consistency tests",
+]

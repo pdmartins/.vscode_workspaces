@@ -1,0 +1,21 @@
+scenario: "User asks about past architectural decisions"
+evaluation_type: routing
+difficulty: easy
+
+user_message: "Quais decisões arquiteturais já registramos sobre DDD neste projeto?"
+
+context:
+  project_stack: ["dotnet", "8.0"]
+  existing_files:
+  has_copilot_project: true
+
+expected_skills:
+  - name: agent-memory-query
+    must_activate: true
+    reason: "Direct request matching agent-memory-query triggers"
+  - name: agent-memory-register
+    must_activate: false
+    reason: "Querying existing lessons, not registering new ones"
+  - name: project-context-query
+    must_activate: false
+    reason: "Asking about lessons learned, not project stack/context"

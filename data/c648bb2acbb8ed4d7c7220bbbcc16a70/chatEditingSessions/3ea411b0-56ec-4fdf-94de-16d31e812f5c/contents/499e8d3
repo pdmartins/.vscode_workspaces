@@ -1,0 +1,131 @@
+---
+name: project-branch-switch
+description: Troca a branch do .copilot-project para carregar configurações de outro projeto. Use quando trabalhar em múltiplos projetos que compartilham o mesmo core, ou quando precisar alternar entre configurações. Triggers: "trocar projeto", "mudar branch", "carregar config de", "alternar para projeto".
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: project
+  delegable: orchestrated
+---
+
+# Project Branch Switch
+
+Troca a branch do .copilot-project para usar configurações de outro projeto.
+
+## Quando Usar
+
+- Trabalhar em múltiplos projetos com mesmo core
+- Alternar entre configurações diferentes
+- Carregar skills específicos de outro projeto
+- Testar configurações de outra branch
+
+## Contexto
+
+O `.copilot-project/` usa uma branch por projeto:
+- `projeto-a` → branch com skills do projeto A
+- `projeto-b` → branch com skills do projeto B
+- O core permanece o mesmo (branch `main`)
+
+## Workflow
+
+### 1. Verificar branch atual
+
+```bash
+cd .copilot-project
+git branch --show-current
+```
+
+**Output**:
+```
+📍 Branch atual: {branch-atual}
+```
+
+### 2. Listar branches disponíveis
+
+```bash
+git fetch
+git branch -r
+```
+
+**Output**:
+```
+📋 Branches disponíveis:
+- origin/projeto-a
+- origin/projeto-b
+- origin/projeto-c
+```
+
+### 3. Selecionar branch
+
+**Perguntar ao usuário:**
+```
+Qual branch deseja usar?
+```
+
+### 4. Verificar mudanças locais
+
+```bash
+git status
+```
+
+**Se há mudanças não commitadas:**
+→ Perguntar se deve fazer stash ou commit
+→ `git stash` ou `git commit -m "WIP"`
+
+### 5. Trocar branch
+
+```bash
+git checkout {nova-branch}
+```
+
+**Se branch não existe localmente:**
+```bash
+git checkout -b {nova-branch} origin/{nova-branch}
+```
+
+### 6. Confirmar troca
+
+**Output**:
+```
+✅ **Branch alterada**
+- De: {branch-anterior}
+- Para: {nova-branch}
+- Skills carregados: {lista de skills da nova branch}
+```
+
+## Criar Nova Branch
+
+Para criar branch para novo projeto:
+
+```bash
+cd .copilot-project
+git checkout -b {nome-novo-projeto}
+# Configurar skills específicos
+git push -u origin {nome-novo-projeto}
+```
+
+## Subagent Pattern
+
+**Tipo**: `orchestrated` — pre-collect (branch + ação para mudanças locais)
+
+### Coleta (main agent)
+
+Main agent coleta do usuário:
+1. Branch desejada (ou listar disponíveis primeiro)
+2. Como tratar mudanças locais: `stash`, `commit`, ou `abort`
+
+### Execução (subagent)
+
+Subagent recebe decisões e executa sequência git:
+- Verifica mudanças locais → aplica ação definida
+- Executa checkout para branch desejada
+- Confirma troca
+
+### Prompt Exemplo
+
+```
+runSubagent({
+  description: "Switch project branch",
+  prompt: "Leia .copilot-core/skills/project/project-branch-switch/SKILL.md. Trocar .copilot-project/ para branch '{branch}'. Ação para mudanças locais: {stash|commit|abort}. Retorne: branch anterior, branch atual, skills carregados."
+})
+```

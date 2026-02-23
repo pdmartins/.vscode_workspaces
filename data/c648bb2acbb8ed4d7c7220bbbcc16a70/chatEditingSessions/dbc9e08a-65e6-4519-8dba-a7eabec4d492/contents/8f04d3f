@@ -1,0 +1,16 @@
+{
+  "servers": {
+    "memory": {
+      "type": "stdio",
+      "command": "C:\\Users\\pedro.d.martins\\AppData\\Local\\Programs\\Python\\Python312\\python.exe",
+      "args": ["-m", "mcp_memory_service.server"],
+      "env": {
+        "MCP_MEMORY_STORAGE_BACKEND": "cloudflare",
+        "CLOUDFLARE_API_TOKEN": "FwzbGKl90kjR66XkzpVenQoASoKxWLHUhVS5LBct",
+        "CLOUDFLARE_ACCOUNT_ID": "c45924c90a802f57eb89400097408d85",
+        "CLOUDFLARE_VECTORIZE_INDEX": "mcp-memory-index",
+        "CLOUDFLARE_D1_DATABASE_ID": "c4de8032-d02f-4f46-8ab0-05c960bf8881"
+      }
+    }
+  }
+}

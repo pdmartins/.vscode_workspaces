@@ -1,0 +1,256 @@
+---
+name: app-mapping
+description: Padrões para DTOs e Mapping Extensions na Application Layer. Use ao criar DTOs internos ou extensões de mapeamento entre entidades, commands, queries e responses. Triggers: DTO, mapping, ToDto, ToEntity, ToCommandResult, pasta DTOs/ ou Mappings/.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: application
+---
+
+# Mapping Extensions Skill
+
+Padrões para DTOs e Mapping Extensions na Application Layer.
+
+## Quando Usar
+
+- Criar DTOs para transferência entre camadas
+- Mapear Entity → DTO
+- Mapear Command → Entity
+- Mapear Entity → CommandResult/QueryResult
+
+## Estrutura
+
+```
+src/BeWiser.Assistant.Application/
+├── DTOs/
+│   ├── MessageDto.cs
+│   ├── ConversationDto.cs
+│   └── AssistantDto.cs
+└── Mappings/
+    ├── MessageMappingExtensions.cs
+    ├── ConversationMappingExtensions.cs
+    └── AssistantMappingExtensions.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| DTO | `[Domínio]Dto` | `MessageDto`, `ConversationDto` |
+| Mapping Extension | `[Entidade]MappingExtensions` | `ConversationMappingExtensions` |
+
+> ⚠️ **IMPORTANTE**: Apenas contratos de API usam sufixo `Request`/`Response`. DTOs internos usam sufixo `Dto`.
+
+## Templates
+
+### DTO
+
+```csharp
+namespace BeWiser.Assistant.Application.DTOs;
+
+/// <summary>
+/// Data transfer object for Message.
+/// </summary>
+public record MessageDto
+{
+    public Guid Id { get; init; }
+    public Guid ConversationId { get; init; }
+    public required string Content { get; init; }
+    public required string Direction { get; init; }
+    public DateTime SentAt { get; init; }
+    public string? ExternalId { get; init; }
+}
+```
+
+### DTO com Sub-objetos
+
+```csharp
+namespace BeWiser.Assistant.Application.DTOs;
+
+/// <summary>
+/// Data transfer object for Conversation with messages.
+/// </summary>
+public record ConversationDto
+{
+    public Guid Id { get; init; }
+    public required string PhoneNumber { get; init; }
+    public required string AssistantPhoneNumber { get; init; }
+    public required string Status { get; init; }
+    public DateTime StartedAt { get; init; }
+    public DateTime? EndedAt { get; init; }
+    
+    // Nested collection
+    public IReadOnlyList<MessageDto> Messages { get; init; } = [];
+}
+```
+
+### Mapping Extensions
+
+```csharp
+namespace BeWiser.Assistant.Application.Mappings;
+
+/// <summary>
+/// Extension methods for mapping Conversation entities.
+/// </summary>
+public static class ConversationMappingExtensions
+{
+    /// <summary>
+    /// Maps Conversation entity to DTO.
+    /// </summary>
+    public static ConversationDto ToDto(this Conversation entity) => new()
+    {
+        Id = entity.Id,
+        PhoneNumber = entity.PhoneNumber.Value,
+        AssistantPhoneNumber = entity.AssistantPhoneNumber.Value,
+        Status = entity.Status.ToString(),
+        StartedAt = entity.CreatedAt,
+        EndedAt = entity.EndedAt,
+        Messages = entity.Messages.Select(m => m.ToDto()).ToList()
+    };
+
+    /// <summary>
+    /// Maps CreateConversationCommand to Entity.
+    /// </summary>
+    public static Conversation ToEntity(this CreateConversationCommand command) => new()
+    {
+        Id = Guid.NewGuid(),
+        PhoneNumber = new PhoneNumberVO(command.PhoneNumber),
+        AssistantPhoneNumber = new PhoneNumberVO(command.AssistantPhoneNumber),
+        Status = ConversationStatus.Active
+    };
+
+    /// <summary>
+    /// Maps Conversation entity to QueryResult.
+    /// </summary>
+    public static GetConversationQueryResult ToQueryResult(
+        this Conversation entity) => new()
+    {
+        Id = entity.Id,
+        PhoneNumber = entity.PhoneNumber.Value,
+        AssistantPhoneNumber = entity.AssistantPhoneNumber.Value,
+        Status = entity.Status.ToString(),
+        StartedAt = entity.CreatedAt,
+        EndedAt = entity.EndedAt,
+        Messages = entity.Messages.Select(m => m.ToDto()).ToList()
+    };
+
+    /// <summary>
+    /// Maps Conversation entity to CommandResult.
+    /// </summary>
+    public static CreateConversationCommandResult ToCommandResult(
+        this Conversation entity) => new()
+    {
+        Id = entity.Id,
+        PhoneNumber = entity.PhoneNumber.Value,
+        CreatedAt = entity.CreatedAt
+    };
+}
+```
+
+### Message Mapping Extensions
+
+```csharp
+namespace BeWiser.Assistant.Application.Mappings;
+
+/// <summary>
+/// Extension methods for mapping Message entities.
+/// </summary>
+public static class MessageMappingExtensions
+{
+    /// <summary>
+    /// Maps Message entity to DTO.
+    /// </summary>
+    public static MessageDto ToDto(this Message entity) => new()
+    {
+        Id = entity.Id,
+        ConversationId = entity.ConversationId,
+        Content = entity.Content.Value,
+        Direction = entity.Direction.ToString(),
+        SentAt = entity.CreatedAt,
+        ExternalId = entity.ExternalId
+    };
+
+    /// <summary>
+    /// Maps ProcessMessageCommand to Entity.
+    /// </summary>
+    public static Message ToEntity(
+        this ProcessMessageCommand command, 
+        Guid conversationId) => new()
+    {
+        Id = Guid.NewGuid(),
+        ConversationId = conversationId,
+        Content = new MessageContentVO(command.Body),
+        Direction = MessageDirection.Incoming,
+        ExternalId = command.MessageSid
+    };
+
+    /// <summary>
+    /// Maps Message entity to ProcessMessageCommandResult.
+    /// </summary>
+    public static ProcessMessageCommandResult ToCommandResult(
+        this Message entity) => new()
+    {
+        ConversationId = entity.ConversationId,
+        MessageId = entity.Id,
+        Success = true
+    };
+}
+```
+
+## Mapeamento entre Camadas
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                        API Layer                             │
+│  Request ──────────────────────────────────────▶ Response   │
+└─────────────┬───────────────────────────────────────┬───────┘
+              │                                       │
+              │ Request → Command/Query               │ Result → Response
+              │                                       │
+┌─────────────▼───────────────────────────────────────▼───────┐
+│                    Application Layer                         │
+│  Command/Query ─────────────────────────────▶ Result        │
+│                                                              │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │              Mapping Extensions                      │   │
+│  │  • ToEntity()        • ToDto()                       │   │
+│  │  • ToCommandResult() • ToQueryResult()               │   │
+│  └─────────────────────────────────────────────────────┘   │
+└─────────────┬───────────────────────────────────────┬───────┘
+              │                                       │
+              │ ToEntity()                            │ ToDto/ToResult()
+              │                                       │
+┌─────────────▼───────────────────────────────────────▼───────┐
+│                      Domain Layer                            │
+│                       Entity                                 │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Convenções de Métodos
+
+| Método | Origem | Destino | Uso |
+|--------|--------|---------|-----|
+| `ToDto()` | Entity | DTO | Transfer entre camadas |
+| `ToEntity()` | Command | Entity | Criar entidade |
+| `ToEntity()` | DTO | Entity | Restaurar de DTO |
+| `ToCommandResult()` | Entity | Result | Resultado de command |
+| `ToQueryResult()` | Entity | Result | Resultado de query |
+
+## Regras
+
+1. **Mapping Extensions** são `static class` com métodos de extensão
+2. **DTOs** são `record` imutáveis
+3. **Sem lógica de negócio** em mappings - apenas transformação
+4. **Value Objects** extraem valor primitivo no DTO
+5. **Enums** convertem para string no DTO
+6. **Collections** usam `IReadOnlyList<T>`
+
+## Checklist
+
+- [ ] DTOs em `Application/DTOs/`
+- [ ] Mappings em `Application/Mappings/`
+- [ ] Nomenclatura: `[Domínio]Dto`, `[Entidade]MappingExtensions`
+- [ ] DTOs são records imutáveis
+- [ ] Value Objects extraídos para tipos primitivos
+- [ ] Collections como `IReadOnlyList<T>`
+- [ ] Métodos de extensão organizados por tipo

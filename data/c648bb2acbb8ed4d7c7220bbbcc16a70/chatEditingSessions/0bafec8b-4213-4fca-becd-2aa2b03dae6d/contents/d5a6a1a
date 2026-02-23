@@ -1,0 +1,70 @@
+---
+name: agent-memory-query
+description: Consulta a memória do agente (preferences, patterns, decisions, concepts). Usa modelo index-first — lê memory/index.md primeiro, carrega subpastas sob demanda. Triggers: "lições aprendidas", "decisões anteriores", "preferências", "padrões", início de implementação complexa.
+metadata:
+  author: copilot-core
+  version: "4.0"
+  category: agent
+  delegable: full
+---
+
+# Agent Memory Query
+
+Consulta a memória persistente do agente usando modelo index-first com deep-load sob demanda.
+
+## Quando Usar
+
+- Início de tarefa complexa (consultar antes de implementar)
+- Antes de gerar código (verificar patterns e preferences)
+- Usuário pergunta sobre decisões passadas
+- Antes de tomar decisão arquitetural (verificar se já foi decidido)
+
+## Workflow
+
+### 1. Ler index.md
+
+Ler: `{workspace}/.copilot-project/memory/index.md`
+
+**Se não existe** → criar via Auto-Init → retornar que memória está vazia.
+
+### 2. Decidir se precisa deep-load
+
+| Situação | Ação |
+|----------|------|
+| Index tem resumo suficiente | Usar diretamente |
+| Precisa de detalhes | Carregar arquivo(s) específico(s) da subpasta |
+| Consulta ampla ("todos os padrões") | Ler a subpasta inteira |
+
+### 3. Apresentar ao usuário
+
+```
+📚 **Memória consultada**:
+- [preferences] {resumo}
+- [patterns] {resumo}
+- [decisions] {resumo}
+```
+
+**Se vazio:** `📚 Nenhuma entrada relevante na memória.`
+
+### 4. Aplicar conhecimento
+
+- Usar padrões encontrados para guiar implementação
+- Respeitar preferências do usuário
+- Evitar contradizer decisões registradas
+
+## Categorias
+
+| Categoria | Pasta | Conteúdo |
+|-----------|-------|----------|
+| Preferences | `preferences/` | Estilo de código, abordagem, nomenclatura do usuário |
+| Patterns | `patterns/` | Padrões de código, convenções, erros aprendidos |
+| Decisions | `decisions/` | Decisões técnicas/arquiteturais com rationale |
+| Concepts | `concepts/` | Conhecimentos e definições relevantes |
+
+## Auto-Init
+
+Se `memory/index.md` não existe:
+
+1. Criar `memory/index.md` com template padrão
+2. Criar subpastas com `.gitkeep`: `preferences/`, `patterns/`, `decisions/`, `concepts/`
+3. Informar: `✅ Memória inicializada automaticamente`

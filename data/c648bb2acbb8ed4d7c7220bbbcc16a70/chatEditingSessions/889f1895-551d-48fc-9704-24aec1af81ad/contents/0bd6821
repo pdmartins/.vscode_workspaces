@@ -1,0 +1,46 @@
+# code-valueobject-generate — BeWiser Assistant API Configuration
+# Consumed by core skill: .copilot-core/skills/code/code-valueobject-generate/SKILL.md
+
+language: csharp
+framework: dotnet-8
+solution: BeWiser.Assistant
+
+project:
+  root_namespace: BeWiser.Assistant
+
+value_objects:
+  suffix: "VO"
+  namespace: "BeWiser.Assistant.Domain.ValueObjects"
+  items:
+    - name: PhoneNumber
+      type: simple
+      validation: "E.164 format: ^\\+\\d{10,15}$"
+    - name: MessageContent
+      type: rich-validation
+      properties:
+        - name: Value
+          type: string
+      validation: "Non-empty, max 4096 chars"
+    - name: Email
+      type: factory
+      properties:
+        - name: Value
+          type: string
+        - name: LocalPart
+          type: string
+        - name: Domain
+          type: string
+    - name: Money
+      type: multi-property
+      properties:
+        - name: Amount
+          type: decimal
+        - name: Currency
+          type: string
+      validation: "Amount >= 0, Currency 3-letter ISO"
+    - name: Tags
+      type: enumerable
+
+persistence:
+  orm: dapper
+  type_handlers: true

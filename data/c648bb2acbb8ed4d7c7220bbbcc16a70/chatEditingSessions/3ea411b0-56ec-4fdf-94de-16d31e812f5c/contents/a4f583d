@@ -1,0 +1,615 @@
+---
+name: code-integrationtest-generate
+description: Padrões para testes de integração e arquitetura com WebApplicationFactory e TestContainers. Lê config.yml do project para convenções específicas. Use ao testar endpoints, repositórios com banco real, ou validar arquitetura. Triggers: teste integração, WebApplicationFactory, TestContainers, endpoint, pasta IntegrationTests/, ArchitectureTests/.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: code
+  delegable: full
+---
+
+# Integration Testing Skill
+
+Padrões para testes de integração e arquitetura em .NET.
+
+## Quando Usar
+
+- Testar endpoints da API
+- Testar repositórios com banco real
+- Testar consumers de mensageria
+- Validar regras de arquitetura
+
+## Config Loading
+
+Antes de gerar código, carregar configurações do projeto:
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/code-integrationtest-generate/config.yml`
+2. Se existe, carregar e usar as configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/code-integrationtest-generate/SKILL.md`
+4. Se existe, carregar como instruções complementares (extensões específicas do projeto)
+5. Se nenhum existe, usar apenas os padrões genéricos abaixo
+
+## Estrutura
+
+```
+tests/
+├── {RootNamespace}.IntegrationTests/
+│   ├── Api/
+│   │   ├── OrdersEndpointTests.cs
+│   │   └── ProductsEndpointTests.cs
+│   ├── Persistence/
+│   │   └── OrderRepositoryTests.cs
+│   └── Fixtures/
+│       ├── CustomWebApplicationFactory.cs
+│       └── DatabaseFixture.cs
+│
+└── {RootNamespace}.ArchitectureTests/
+    └── ArchitectureTests.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Classe de Teste | `[Recurso]EndpointTests` | `OrdersEndpointTests` |
+| Método de Teste | `[Verbo]_[Cenário]_[Esperado]` | `Post_ValidRequest_ReturnsCreated` |
+| Fixture | `[Domínio]Fixture` | `DatabaseFixture` |
+
+## Templates
+
+### Custom WebApplicationFactory
+
+```csharp
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+namespace {RootNamespace}.IntegrationTests.Fixtures;
+
+/// <summary>
+/// Custom factory for integration tests.
+/// </summary>
+public class CustomWebApplicationFactory : WebApplicationFactory<Program>
+{
+    private readonly DatabaseFixture _database;
+
+    public CustomWebApplicationFactory(DatabaseFixture database)
+    {
+        _database = database;
+    }
+
+    protected override void ConfigureWebHost(IWebHostBuilder builder)
+    {
+        builder.ConfigureServices(services =>
+        {
+            // Remove real database configuration
+            var descriptor = services.SingleOrDefault(
+                d => d.ServiceType == typeof(IDbConnectionFactory));
+            if (descriptor != null)
+                services.Remove(descriptor);
+
+            // Add test database
+            services.AddSingleton<IDbConnectionFactory>(
+                new TestConnectionFactory(_database.ConnectionString));
+
+            // Replace external services with fakes
+            // Ex: services.AddSingleton<IPaymentService, FakePaymentService>();
+            // Ex: services.AddSingleton<INotificationService, FakeNotificationService>();
+        });
+
+        builder.UseEnvironment("Testing");
+    }
+}
+```
+
+### Database Fixture (TestContainers)
+
+```csharp
+using Testcontainers.MsSql;
+using Xunit;
+
+namespace {RootNamespace}.IntegrationTests.Fixtures;
+
+/// <summary>
+/// Fixture that manages a database container for tests.
+/// Adaptar container conforme provider: MsSqlContainer, PostgreSqlContainer, etc.
+/// </summary>
+public class DatabaseFixture : IAsyncLifetime
+{
+    private readonly MsSqlContainer _container = new MsSqlBuilder()
+        .WithImage("mcr.microsoft.com/mssql/server:2022-latest")
+        .WithPassword("Strong_password_123!")
+        .Build();
+
+    public string ConnectionString => _container.GetConnectionString();
+
+    public async Task InitializeAsync()
+    {
+        await _container.StartAsync();
+        await MigrateDatabaseAsync();
+    }
+
+    public async Task DisposeAsync()
+    {
+        await _container.DisposeAsync();
+    }
+
+    private async Task MigrateDatabaseAsync()
+    {
+        // Apply migrations
+        using var connection = new SqlConnection(ConnectionString);
+        await connection.OpenAsync();
+        
+        // Run migration scripts or use EF migrations
+    }
+}
+
+/// <summary>
+/// Collection definition for database tests.
+/// </summary>
+[CollectionDefinition("Database")]
+public class DatabaseCollection : ICollectionFixture<DatabaseFixture> { }
+```
+
+### Endpoint Tests
+
+```csharp
+using System.Net;
+using System.Net.Http.Json;
+using FluentAssertions;
+using Xunit;
+
+namespace {RootNamespace}.IntegrationTests.Api;
+
+/// <summary>
+/// Integration tests for Orders endpoint.
+/// </summary>
+[Collection("Database")]
+public class OrdersEndpointTests : IClassFixture<CustomWebApplicationFactory>
+{
+    private readonly HttpClient _client;
+    private readonly DatabaseFixture _database;
+
+    public OrdersEndpointTests(
+        CustomWebApplicationFactory factory,
+        DatabaseFixture database)
+    {
+        _database = database;
+        _client = factory.CreateClient();
+    }
+
+    [Fact]
+    public async Task Get_ExistingOrder_ReturnsOk()
+    {
+        // Arrange
+        var orderId = await SeedOrderAsync();
+
+        // Act
+        var response = await _client.GetAsync($"/api/orders/{orderId}");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        
+        var order = await response.Content
+            .ReadFromJsonAsync<GetOrderResponse>();
+        order.Should().NotBeNull();
+        order!.Id.Should().Be(orderId);
+    }
+
+    [Fact]
+    public async Task Get_NonExistingOrder_ReturnsNotFound()
+    {
+        // Act
+        var response = await _client.GetAsync($"/api/orders/{Guid.NewGuid()}");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.NotFound);
+    }
+
+    [Fact]
+    public async Task Post_ValidRequest_ReturnsCreated()
+    {
+        // Arrange
+        var request = new CreateOrderRequest
+        {
+            CustomerName = "John Doe",
+            CustomerEmail = "john@example.com",
+            Items = [new() { ProductName = "Product A", Quantity = 1, UnitPrice = 10.0m }]
+        };
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/api/orders", request);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.Created);
+        response.Headers.Location.Should().NotBeNull();
+        
+        var created = await response.Content
+            .ReadFromJsonAsync<CreateOrderResponse>();
+        created!.CustomerName.Should().Be(request.CustomerName);
+    }
+
+    [Fact]
+    public async Task Post_InvalidRequest_ReturnsBadRequest()
+    {
+        // Arrange
+        var request = new CreateOrderRequest
+        {
+            CustomerName = "", // Invalid
+            CustomerEmail = "invalid",
+            Items = []
+        };
+
+        // Act
+        var response = await _client.PostAsJsonAsync("/api/orders", request);
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
+    }
+
+    [Fact]
+    public async Task List_WithPagination_ReturnsPagedResults()
+    {
+        // Arrange
+        await SeedMultipleOrdersAsync(15);
+
+        // Act
+        var response = await _client.GetAsync("/api/orders?page=2&pageSize=5");
+
+        // Assert
+        response.StatusCode.Should().Be(HttpStatusCode.OK);
+        
+        var result = await response.Content
+            .ReadFromJsonAsync<ListOrdersResponse>();
+        result!.Items.Should().HaveCount(5);
+        result.Page.Should().Be(2);
+        result.TotalCount.Should().BeGreaterOrEqualTo(15);
+    }
+
+    private async Task<Guid> SeedOrderAsync()
+    {
+        var id = Guid.NewGuid();
+        using var connection = new SqlConnection(_database.ConnectionString);
+        await connection.ExecuteAsync(
+            "INSERT INTO Orders (Id, CustomerName, CustomerEmail, CreatedAt) VALUES (@Id, @CustomerName, @CustomerEmail, @CreatedAt)",
+            new { Id = id, CustomerName = "Test", CustomerEmail = "test@example.com", CreatedAt = DateTime.UtcNow });
+        return id;
+    }
+
+    private async Task SeedMultipleOrdersAsync(int count)
+    {
+        // Seed multiple orders
+    }
+}
+```
+
+### Repository Tests
+
+```csharp
+using FluentAssertions;
+using Xunit;
+
+namespace {RootNamespace}.IntegrationTests.Persistence;
+
+/// <summary>
+/// Integration tests for OrderRepository.
+/// </summary>
+[Collection("Database")]
+public class OrderRepositoryTests
+{
+    private readonly DatabaseFixture _fixture;
+    private readonly OrderRepository _repository;
+
+    public OrderRepositoryTests(DatabaseFixture fixture)
+    {
+        _fixture = fixture;
+        _repository = new OrderRepository(
+            new TestConnectionFactory(fixture.ConnectionString),
+            Substitute.For<ILogger<OrderRepository>>());
+    }
+
+    [Fact]
+    public async Task AddAsync_ValidOrder_Persists()
+    {
+        // Arrange
+        var order = new OrderBuilder().Build();
+
+        // Act
+        await _repository.AddAsync(order);
+
+        // Assert
+        var retrieved = await _repository.GetByIdAsync(order.Id);
+        retrieved.Should().NotBeNull();
+        retrieved!.CustomerName.Should().Be(order.CustomerName);
+    }
+
+    [Fact]
+    public async Task GetByCustomerIdAsync_ExistingCustomer_ReturnsOrders()
+    {
+        // Arrange
+        var customerId = Guid.NewGuid();
+        var order = new OrderBuilder()
+            .WithCustomerId(customerId)
+            .Build();
+        await _repository.AddAsync(order);
+
+        // Act
+        var result = await _repository.GetByCustomerIdAsync(customerId);
+
+        // Assert
+        result.Should().NotBeNull();
+        result.Should().Contain(o => o.Id == order.Id);
+    }
+
+    [Fact]
+    public async Task ListAsync_WithPagination_ReturnsCorrectPage()
+    {
+        // Arrange
+        for (var i = 0; i < 10; i++)
+        {
+            await _repository.AddAsync(new OrderBuilder().Build());
+        }
+
+        // Act
+        var (items, totalCount) = await _repository.ListAsync(
+            customerId: null,
+            page: 2,
+            pageSize: 3);
+
+        // Assert
+        items.Should().HaveCount(3);
+        totalCount.Should().BeGreaterOrEqualTo(10);
+    }
+}
+```
+
+## Architecture Tests
+
+```csharp
+using NetArchTest.Rules;
+using FluentAssertions;
+using Xunit;
+
+namespace {RootNamespace}.ArchitectureTests;
+
+/// <summary>
+/// Tests to enforce architecture rules.
+/// </summary>
+public class ArchitectureTests
+{
+    private const string DomainNamespace = "{RootNamespace}.Domain";
+    private const string ApplicationNamespace = "{RootNamespace}.Application";
+    private const string InfrastructureNamespace = "{RootNamespace}.Infrastructure";
+    private const string ApiNamespace = "{RootNamespace}.Api";
+
+    [Fact]
+    public void Domain_ShouldNotDependOn_Application()
+    {
+        // Usar typeof({DomainEntity}).Assembly para referenciar o assembly do Domain
+        var result = Types
+            .InAssembly(typeof(Order).Assembly)
+            .ShouldNot()
+            .HaveDependencyOn(ApplicationNamespace)
+            .GetResult();
+
+        result.IsSuccessful.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Domain_ShouldNotDependOn_Infrastructure()
+    {
+        var result = Types
+            .InAssembly(typeof(Order).Assembly)
+            .ShouldNot()
+            .HaveDependencyOn(InfrastructureNamespace)
+            .GetResult();
+
+        result.IsSuccessful.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Application_ShouldNotDependOn_Infrastructure()
+    {
+        // Usar typeof({Command}).Assembly para referenciar o assembly do Application
+        var result = Types
+            .InAssembly(typeof(CreateOrderCommand).Assembly)
+            .ShouldNot()
+            .HaveDependencyOn(InfrastructureNamespace)
+            .GetResult();
+
+        result.IsSuccessful.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Application_ShouldNotDependOn_Api()
+    {
+        var result = Types
+            .InAssembly(typeof(CreateOrderCommand).Assembly)
+            .ShouldNot()
+            .HaveDependencyOn(ApiNamespace)
+            .GetResult();
+
+        result.IsSuccessful.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Handlers_ShouldHaveNameEndingWithHandler()
+    {
+        var result = Types
+            .InAssembly(typeof(CreateOrderCommandHandler).Assembly)
+            .That()
+            .ImplementInterface(typeof(IRequestHandler<,>))
+            .Should()
+            .HaveNameEndingWith("Handler")
+            .GetResult();
+
+        result.IsSuccessful.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Commands_ShouldBeInCommandsNamespace()
+    {
+        var result = Types
+            .InAssembly(typeof(CreateOrderCommand).Assembly)
+            .That()
+            .HaveNameEndingWith("Command")
+            .And()
+            .AreNotAbstract()
+            .Should()
+            .ResideInNamespaceContaining("Commands")
+            .GetResult();
+
+        result.IsSuccessful.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Queries_ShouldBeInQueriesNamespace()
+    {
+        var result = Types
+            .InAssembly(typeof(GetOrderQuery).Assembly)
+            .That()
+            .HaveNameEndingWith("Query")
+            .And()
+            .AreNotAbstract()
+            .Should()
+            .ResideInNamespaceContaining("Queries")
+            .GetResult();
+
+        result.IsSuccessful.Should().BeTrue();
+    }
+
+    [Fact]
+    public void Repositories_ShouldImplementInterface()
+    {
+        var result = Types
+            .InAssembly(typeof(OrderRepository).Assembly)
+            .That()
+            .HaveNameEndingWith("Repository")
+            .And()
+            .AreNotInterfaces()
+            .Should()
+            .ImplementInterface(typeof(IOrderRepository))
+            .Or()
+            .ImplementInterface(typeof(IProductRepository))
+            .GetResult();
+
+        // Custom validation since NetArchTest doesn't support OR well
+        result.IsSuccessful.Should().BeTrue();
+    }
+}
+```
+
+## Fake Services
+
+```csharp
+namespace {RootNamespace}.IntegrationTests.Fakes;
+
+/// <summary>
+/// Fake external service for testing.
+/// Criar um Fake para cada serviço externo substituído na WebApplicationFactory.
+/// </summary>
+public class FakePaymentService : IPaymentService
+{
+    public List<(Guid OrderId, decimal Amount)> ProcessedPayments { get; } = [];
+
+    public Task<string> ProcessPaymentAsync(
+        Guid orderId,
+        decimal amount,
+        CancellationToken cancellationToken = default)
+    {
+        ProcessedPayments.Add((orderId, amount));
+        return Task.FromResult($"PAY-{Guid.NewGuid():N}");
+    }
+}
+
+/// <summary>
+/// Fake notification service for testing.
+/// </summary>
+public class FakeNotificationService : INotificationService
+{
+    public string DefaultResponse { get; set; } = "Notification sent.";
+
+    public Task<string> SendNotificationAsync(
+        string recipient,
+        string message,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(DefaultResponse);
+    }
+
+    public Task<string> SendTemplateNotificationAsync(
+        string recipient,
+        string templateName,
+        Dictionary<string, string> parameters,
+        CancellationToken cancellationToken = default)
+    {
+        return Task.FromResult(DefaultResponse);
+    }
+}
+```
+
+## Checklist
+
+- [ ] Projeto: `{RootNamespace}.IntegrationTests`
+- [ ] Projeto: `{RootNamespace}.ArchitectureTests`
+- [ ] TestContainers para banco de dados
+- [ ] WebApplicationFactory customizada
+- [ ] Fake services para dependências externas
+- [ ] Collection para compartilhar fixtures
+- [ ] Architecture tests com NetArchTest
+- [ ] Cleanup de dados entre testes
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/code-integrationtest-generate/config.yml
+
+root_namespace: "{RootNamespace}"
+integration_test_project: "{RootNamespace}.IntegrationTests"
+architecture_test_project: "{RootNamespace}.ArchitectureTests"
+
+namespaces:
+  domain: "{RootNamespace}.Domain"
+  application: "{RootNamespace}.Application"
+  infrastructure: "{RootNamespace}.Infrastructure"
+  api: "{RootNamespace}.Api"
+
+database:
+  provider: SqlServer                    # SqlServer | PostgreSQL | Sqlite
+  container_image: "mcr.microsoft.com/mssql/server:2022-latest"
+  connection_factory: IDbConnectionFactory
+
+fake_services:
+  - interface: "{IServiceInterface}"
+    fake: "Fake{ServiceName}"
+
+endpoints:
+  - name: "{ResourceName}"              # Ex: Orders, Products
+    base_path: "/api/{resource}"
+    entity: "{EntityName}"
+    operations:
+      - verb: Get
+        path: "/{id}"
+        success_status: OK
+      - verb: Post
+        path: ""
+        success_status: Created
+      - verb: List
+        path: "?page={page}&pageSize={pageSize}"
+        success_status: OK
+
+repositories:
+  - name: "{RepositoryName}"
+    entity: "{EntityName}"
+    lookup_methods:
+      - GetByIdAsync
+      - ListAsync
+
+architecture_rules:
+  domain_assembly_type: "{DomainEntity}"           # Tipo para typeof() no Domain
+  application_assembly_type: "{Command}"           # Tipo para typeof() no Application
+  handler_assembly_type: "{Handler}"               # Tipo para typeof() dos handlers
+  repository_interfaces:
+    - "{IRepositoryInterface}"
+```

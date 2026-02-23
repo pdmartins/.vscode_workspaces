@@ -1,0 +1,127 @@
+---
+name: code-dotnet-test
+description: Gera testes unitários .NET com framework/mock lib configuráveis por projeto (xUnit/NUnit, NSubstitute/Moq). Padrões BuildSut, AAA, cenários obrigatórios. Lê config.yml do project para convenções. Triggers: "criar teste", "novo test", "testar", "unit test", "coverage", ao criar novo serviço/handler (testes devem acompanhar).
+metadata:
+  author: copilot-core
+  version: "2.0"
+  category: code
+---
+
+# Code Dotnet Test
+
+Gera testes unitários .NET seguindo padrões configuráveis por projeto.
+
+## Quando Usar
+
+- Criar testes para novo serviço ou handler
+- Adicionar testes a código existente
+- Após criar novo serviço (testes devem acompanhar)
+
+## Config Loading
+
+Antes de gerar testes, carregar configurações do projeto:
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/lang-dotnet-test/config.yml`
+2. Se existe, carregar e usar as configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/lang-dotnet-test/SKILL.md`
+4. Se existe, carregar como instruções complementares
+5. Se nenhum existe, usar apenas os padrões genéricos abaixo
+
+## Padrões Genéricos
+
+### Test Framework
+
+Usar framework definido no config. Padrão: xUnit.
+
+### Mock Framework
+
+Usar mock framework definido no config. Padrão: NSubstitute.
+
+### BuildSut Pattern
+
+Centralizar criação do SUT (System Under Test) em método dedicado:
+
+```csharp
+private {SutType} BuildSut(out {IDependency1} dep1, out {IDependency2} dep2)
+{
+    dep1 = Substitute.For<IDependency1>();
+    dep2 = Substitute.For<IDependency2>();
+    return new {SutType}(dep1, dep2);
+}
+```
+
+### AAA Pattern
+
+Todos os testes seguem Arrange / Act / Assert:
+
+```csharp
+[Fact]
+[DisplayName("Descrição do cenário em português")]
+public async Task Method_WhenCondition_ShouldExpectedBehavior()
+{
+    // Arrange
+    var sut = BuildSut(out var dep1, out var dep2);
+
+    // Act
+    var result = await sut.MethodAsync(input, CancellationToken.None);
+
+    // Assert
+    Assert.NotNull(result);
+}
+```
+
+### Cenários Obrigatórios
+
+| Cenário | Prioridade |
+|---------|------------|
+| Construtor com parâmetro nulo → `ArgumentNullException` | Alta |
+| Input válido → resultado esperado | Alta |
+| Input inválido/vazio → validação | Alta |
+| CancellationToken cancelado → retorno early | Alta |
+| Dependência retorna null → tratamento graceful | Média |
+| Exceção na dependência → propagação ou fallback | Média |
+
+### Naming
+
+| Aspecto | Padrão |
+|---------|--------|
+| Nome do teste | `Method_WhenCondition_ShouldExpectedBehavior` |
+| DisplayName | Sempre em português |
+| Theory | `InlineData` para valores inválidos |
+
+## Coverage
+
+- Foco conforme config (padrão: Domain layer)
+- Ferramenta: coverlet + formato cobertura
+- Excluir: Program, Startup, Bootstrapper, Controllers
+
+## Checklist
+
+- [ ] Usa framework correto (conforme config)
+- [ ] BuildSut/CreateSut pattern
+- [ ] AAA pattern (Arrange/Act/Assert)
+- [ ] DisplayName em português
+- [ ] Cenários obrigatórios cobertos
+- [ ] Sem dependência de estado externo
+- [ ] CancellationToken testado
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/lang-dotnet-test/config.yml
+framework: xUnit                    # xUnit | NUnit | MSTest
+mock: NSubstitute                   # NSubstitute | Moq | FakeItEasy
+extras: [Bogus, AutoMapper]         # additional test libraries
+sut-pattern: BuildSut               # BuildSut | CreateSut | Factory
+naming:
+  method: "{Method}_When{Condition}_Should{Expected}"
+  display-language: pt              # pt | en
+coverage:
+  scope: Domain                     # which layer to cover
+  tool: coverlet
+  format: cobertura
+  exclude: [Api, Tests, Program, Startup, Bootstrapper]
+conventions:
+  new-tests-mock: NSubstitute       # for projects migrating mock frameworks
+  legacy-mock: Moq                  # keep existing tests with this
+```

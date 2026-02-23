@@ -1,0 +1,41 @@
+"""Verify catalog completeness and routing consistency."""
+
+import pytest
+from conftest import SKILLS_ROOT, VALID_TYPES
+
+
+@pytest.mark.behavioral
+class TestCatalogCompleteness:
+    def test_types_with_many_skills_have_catalog(self, catalogs):
+        """Types with 3+ skills should have a catalog-query skill."""
+        for type_name in VALID_TYPES:
+            type_dir = SKILLS_ROOT / type_name
+            if not type_dir.exists():
+                continue
+            count = sum(
+                1
+                for d in type_dir.iterdir()
+                if d.is_dir() and (d / "SKILL.md").exists()
+            )
+            if count >= 3:
+                assert type_name in catalogs, (
+                    f"Type '{type_name}' has {count} skills but no catalog"
+                )
+
+    def test_catalog_has_routing_table(self, catalogs):
+        """Each catalog should have a routing section."""
+        for type_name, content in catalogs.items():
+            has_routing = "Roteamento" in content or "Routing" in content
+            assert has_routing, (
+                f"{type_name}-catalog-query: missing routing table"
+            )
+
+    def test_catalog_has_skills_table(self, catalogs):
+        """Each catalog should have a skills table."""
+        for type_name, content in catalogs.items():
+            has_table = (
+                "Disponíveis" in content or "| Skill" in content
+            )
+            assert has_table, (
+                f"{type_name}-catalog-query: missing skills table"
+            )

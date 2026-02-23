@@ -1,0 +1,132 @@
+# Lessons Learned
+
+Registro de aprendizados e decisões importantes do projeto.
+
+---
+
+## Estrutura
+
+<lesson date="YYYY-MM-DD" category="categoria">
+  <context>Contexto do problema</context>
+  <decision>Decisão tomada</decision>
+  <outcome>Resultado/impacto</outcome>
+</lesson>
+
+---
+
+## Registro
+
+<lesson date="2026-02-02" category="arquitetura">
+  <context>
+    A pasta memory/ continha tanto lições históricas (lessons-learned.md) quanto
+    estado atual do projeto (project-context.md). Isso misturava dois conceitos
+    diferentes: memória (histórico, append-only) e contexto (estado atual, mutável).
+  </context>
+  <decision>
+    Separar em duas skills e duas pastas:
+    - memory/ com lessons-learned.md - histórico de decisões e aprendizados
+    - context/ com project.md - estado atual do projeto (stack, restrições, integrações)
+    - .copilot-core/skills/memory.md - skill para gerenciar memória
+    - .copilot-core/skills/context.md - skill para gerenciar contexto
+  </decision>
+  <outcome>
+    - Separação clara entre histórico (imutável) e estado (mutável)
+    - Skills específicas para cada tipo de informação
+    - Estrutura mais intuitiva para futuras consultas
+  </outcome>
+</lesson>
+
+<lesson date="2026-02-01" category="arquitetura">
+  <context>
+    Necessidade de separar claramente o que é "core do agente" (reutilizável em qualquer projeto)
+    do que é "regra de projeto" (específico para projetos de scripts multi-plataforma).
+    Também havia necessidade de usar submodules para reutilizar o core em outros workspaces.
+  </context>
+  <decision>
+    Reestruturar para:
+    - `.copilot-core/` - Core do agente (clone de repo privado)
+    - `.copilot-project/` - Regras do projeto (clone de repo privado)
+    - `.copilot-project/memory/` - Memória local
+    - `.copilot-core/instructions/default.instructions.md` - Agregador que carrega core + project
+    
+    Core contém: workflow-engine, skills-system, todo-workflow, project-analyzer, project-setup
+    Project contém: conventions, cross-platform, english-version, skills específicos, memory
+    
+    As pastas .copilot-core/ e .copilot-project/ ficam no .gitignore do repo público.
+  </decision>
+  <outcome>
+    - Separação clara entre core (genérico) e project (específico)
+    - Core pode ser reutilizado em qualquer projeto (clone simples)
+    - Memory fica dentro de .copilot-project/ (específico de cada workspace)
+    - Repo público não contém nenhum arquivo de instruções
+  </outcome>
+</lesson>
+
+<lesson date="2026-01-31" category="arquitetura">
+  <context>
+    Projeto precisa suportar novos tipos de scripts (SQL, Python, AWS, etc) sem carregar
+    todas as instruções de uma vez. Estrutura e lista de skills mudam com frequência.
+  </context>
+  <decision>
+    Separar informações dinâmicas em arquivos dedicados:
+    - project-structure.md: estrutura atual do projeto (pastas, tipos)
+    - skills-catalog.md: catálogo de skills com mapeamento extensão→skill
+    - skills/update-structure.md: skill para atualizar estrutura
+    - skills/create-skill.md: skill para criar novos skills
+  </decision>
+  <outcome>
+    - Estrutura extensível para novos tipos de script
+    - Carregamento mínimo (só o necessário)
+    - Auto-documentado (agente sabe como atualizar)
+  </outcome>
+</lesson>
+
+<lesson date="2026-01-31" category="arquitetura">
+  <context>
+    Arquivos .instructions.md com applyTo específico só são carregados quando o arquivo
+    correspondente está no contexto do chat (adicionado com #file ou aberto no editor).
+    Isso significa que pedir para "criar um script bash" não carregaria automaticamente
+    as instruções de bash.instructions.md.
+  </context>
+  <decision>
+    Adotar modelo de "Skills" sob demanda:
+    - Skills ficam em pasta separada
+    - Não usam applyTo (são carregados explicitamente)
+    - Mandatos explícitos para carregar skills quando contexto detectado
+  </decision>
+  <outcome>
+    - Controle explícito sobre quando skills são carregados
+    - Menor overhead (não carrega tudo sempre)
+    - Modelo recebe instrução clara para buscar e aplicar skills
+  </outcome>
+</lesson>
+
+<lesson date="2026-01-31" category="arquitetura">
+  <context>
+    Instruções condicionais (tags <when>) não eram seguidas pelo Copilot porque 
+    LLMs interpretam XML como contexto, não como comandos executáveis.
+  </context>
+  <decision>
+    Migrar para arquitetura de Workflow Engine inspirada no BMAD Method:
+    - workflow-engine.md como motor central
+    - Workflows com steps numerados
+    - Tags <check>, <action>, <validate>, <halt> para controle de fluxo
+  </decision>
+  <outcome>
+    - Instruções organizadas em workflows determinísticos
+    - Skills carregados quando contexto apropriado detectado
+    - Estrutura escalável e fácil de manter
+  </outcome>
+</lesson>
+
+---
+
+## Categorias
+
+| Categoria | Descrição |
+|-----------|-----------|
+| arquitetura | Decisões estruturais |
+| padrões | Convenções de código |
+| segurança | Práticas de segurança |
+| tooling | Ferramentas e automação |
+| debug | Correções importantes |

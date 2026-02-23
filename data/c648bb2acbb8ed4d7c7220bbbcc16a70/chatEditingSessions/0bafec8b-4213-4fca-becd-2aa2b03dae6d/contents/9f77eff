@@ -1,0 +1,7 @@
+# MCP Auto-Setup
+
+- **date**: 2026-02-16
+- **status**: active
+- **context**: Se .vscode/mcp.json não existia ou dados estavam vazios, agente só detectava quando usuário pedia explicitamente. Sem verificação proativa
+- **decision**: Regra "MCP Auto-Setup" nas instruções core (always-loaded): no início de cada sessão, verificar presença de .vscode/mcp.json e estado dos dados. Auto-configurar se necessário
+- **outcome**: MCP auto-configurado proativamente. Três cenários: (1) mcp.json ausente → criar, (2) dados vazios com .md populado → full rebuild, (3) ambos vazios → nenhuma ação

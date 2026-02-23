@@ -1,0 +1,30 @@
+# Configurações específicas do projeto BeWiser Assistant API para infra-repository-generate
+root_namespace: "BeWiser.Assistant"
+
+database_provider: "SqlServer"
+connection_factory: "SqlConnectionFactory"
+options_section_name: "Database"
+
+entities:
+  - name: "Conversation"
+    table_name: "Conversations"
+    repository: "ConversationRepository"
+    scripts:
+      - "GetById"
+      - "GetByPhoneNumber"
+      - "Insert"
+      - "Update"
+      - "ListWithCount"
+  - name: "Message"
+    table_name: "Messages"
+    repository: "MessageRepository"
+    scripts:
+      - "GetById"
+      - "ListByConversation"
+      - "Insert"
+
+type_handlers:
+  - value_object: "PhoneNumberVO"
+    handler: "PhoneNumberVOTypeHandler"
+  - value_object: "MessageContentVO"
+    handler: "MessageContentVOTypeHandler"

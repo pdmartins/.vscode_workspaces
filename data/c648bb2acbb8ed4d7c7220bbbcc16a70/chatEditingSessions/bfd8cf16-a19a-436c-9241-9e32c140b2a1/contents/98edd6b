@@ -1,0 +1,106 @@
+---
+name: project-submodule-create
+description: Guia para criar um novo git submodule de projeto (project-{team}) no docker-framework. Define estrutura de diretórios, configuração do submodule e isolamento por equipe. Triggers: "novo projeto", "nova equipe", "adicionar submodule", "criar project-", "novo time".
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: project
+---
+
+# Project Submodule Create
+
+Guia para criar um novo git submodule de projeto por equipe no docker-framework.
+
+## Quando Usar
+
+- Nova equipe precisa de um espaço isolado para seus projetos
+- Novo grupo de aplicações precisa ser adicionado ao framework
+- Migrar aplicações existentes para o framework
+
+## Conceito
+
+Cada `project-{team}/` é um **git submodule** — um repositório separado vinculado ao docker-framework. Isso garante:
+
+- **Isolamento de equipe**: só quem tem acesso ao repo do submodule vê o conteúdo
+- **Versionamento independente**: cada equipe faz commits/releases no seu ritmo
+- **Permissões por repo**: controle de acesso no nível do Git hosting (GitHub, Azure DevOps, GitLab)
+
+## Workflow
+
+### 1. Criar repositório do projeto
+
+Criar um repositório novo na plataforma Git (GitHub, Azure DevOps, GitLab, etc.):
+
+- Nome: `docker-framework-project-{team}` (recomendado) ou conforme convenção da org
+- Visibilidade: conforme política da equipe
+- README: incluir descrição básica
+
+### 2. Estrutura inicial do repositório
+
+```
+project-{team}/
+├── .gitignore          # Inclui .volumes/
+├── README.md
+└── {app}/              # Primeira aplicação (criada via project-app-create skill)
+    ├── df.yml
+    ├── docker-compose.yml
+    └── init/
+```
+
+### 3. Criar .gitignore do submodule
+
+```gitignore
+# Volumes locais
+.volumes/
+
+# Docker
+.docker/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+```
+
+### 4. Adicionar submodule ao docker-framework
+
+No repositório principal (`docker-framework/`):
+
+```bash
+git submodule add {repo_url} project-{team}
+git commit -m "feat: add project-{team} submodule"
+git push
+```
+
+### 5. Documentar o submodule
+
+Adicionar ao README.md do docker-framework:
+
+```markdown
+| project-{team} | {descrição} | {plataforma} | {url} |
+```
+
+## Convenções de Nomenclatura
+
+| Elemento | Pattern | Exemplo |
+|----------|---------|---------|
+| Diretório | `project-{team}` | `project-hv`, `project-fin` |
+| Repo name | `docker-framework-project-{team}` | `docker-framework-project-hv` |
+| Team name | lowercase, sem espaços | `hv`, `fin`, `infra`, `data` |
+
+## Regras
+
+1. **Nunca cruzar dados entre submodules** — cada equipe é um mundo isolado
+2. **Init scripts ficam dentro do submodule** — a equipe é dona dos seus scripts
+3. **Nenhum submodule referencia outro** — dependências são apenas para infra
+4. **Os repos de projeto podem ser hospedados em qualquer plataforma** — o repo principal fica no GitHub mas submodules podem estar em Azure DevOps, GitLab, etc.
+5. **O .gitignore do submodule deve ignorar `.volumes/`** — dados locais não versionados
+
+## Checklist
+
+- [ ] Repositório criado na plataforma Git
+- [ ] `.gitignore` configurado (inclui `.volumes/`)
+- [ ] `README.md` criado com descrição da equipe/projetos
+- [ ] Submodule adicionado ao docker-framework via `git submodule add`
+- [ ] Commit feito no repo principal
+- [ ] Pelo menos uma app criada (via `project-app-create` skill)

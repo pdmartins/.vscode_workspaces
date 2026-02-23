@@ -1,0 +1,47 @@
+---
+name: infra-catalog-query
+description: Catálogo de skills do tipo infra — Docker, Kubernetes, CI/CD, cache, cloud, mensageria e IA. Consulte este catálogo quando a tarefa envolver infraestrutura, deploy, containerização, pipelines, serviços cloud, ou integração com IA/ML. Triggers: qual skill de infra usar, listar skills infra, Docker, k8s, pipeline, cache, GCP, BigQuery, Vertex AI.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: infra
+---
+
+# Infrastructure Skills Catalog
+
+Catálogo de skills do tipo `infra` para descoberta rápida.
+
+## Skills Disponíveis
+
+| Skill | Ação | Quando Usar | Keywords |
+|-------|------|-------------|----------|
+| `infra-docker-build` | Gerar | Dockerfile, containerização, multi-stage build | Docker, container, Dockerfile, build image |
+| `infra-k8s-deploy` | Gerar | Manifests Kubernetes, deployment, services | k8s, kubernetes, deploy, replicas, health check |
+| `infra-pipeline-deploy` | Gerar | CI/CD pipelines (Azure Pipelines, GitHub Actions) | pipeline, CI/CD, build, deploy, SonarQube |
+| `infra-redis-cache` | Gerar | Cache distribuído com IDistributedCache | cache, Redis, TTL, CacheService |
+| `infra-bigquery-query` | Gerar | Queries BigQuery parametrizadas | BigQuery, consulta, persistência, query |
+| `infra-gcp-integrate` | Configurar | Integração GCP (auth, DI, credential provider) | GCP, Google Cloud, Pub/Sub, GCS, service account |
+| `infra-vertexai-prompt` | Gerenciar | Prompts Vertex AI/Gemini, structured output | Vertex AI, Gemini, prompt, IA, ML, transcrição |
+
+## Roteamento Rápido
+
+| Situação | Skill |
+|----------|-------|
+| Criar/editar Dockerfile | `infra-docker-build` |
+| Manifests Kubernetes | `infra-k8s-deploy` |
+| Pipeline CI/CD | `infra-pipeline-deploy` |
+| Cache Redis/distributed | `infra-redis-cache` |
+| Queries BigQuery | `infra-bigquery-query` |
+| Integração GCP (auth, serviços) | `infra-gcp-integrate` |
+| Prompts IA / Vertex AI | `infra-vertexai-prompt` |
+
+## Project Config
+
+Todas as 7 skills carregam `config.yml` do project para configuração específica:
+- Imagens base, feeds privados, tools de coverage
+- Labels, sidecars, resources, health probes
+- Templates de pipeline, registries, análise estática
+- TTL policies, error handling, Settings classes
+- Tabelas, mapeamento, convenções BigQuery
+- Auth method, serviços habilitados, DI lifetimes
+- Modelos, temperatura, schemas, prompt templates

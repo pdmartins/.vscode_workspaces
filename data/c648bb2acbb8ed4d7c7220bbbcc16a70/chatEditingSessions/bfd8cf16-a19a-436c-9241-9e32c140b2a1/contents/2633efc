@@ -1,0 +1,39 @@
+# Project Context
+
+Estado atual do projeto para referência do Copilot.
+
+---
+
+## Objetivo
+
+{Descreva o objetivo principal do projeto}
+
+## Stack
+
+| Componente | Tecnologia |
+|------------|------------|
+| Linguagem | {linguagem principal} |
+| Framework | {framework, se aplicável} |
+| Database | {banco de dados, se aplicável} |
+| Infra | {infraestrutura, se aplicável} |
+
+## Restrições
+
+- {Restrição 1 - ex: "Não usar biblioteca X"}
+- {Restrição 2 - ex: "Manter compatibilidade com Node 18+"}
+
+## Integrações
+
+| Sistema | Propósito | Status |
+|---------|-----------|--------|
+| {sistema} | {propósito} | {ativo/planejado} |
+
+## Estado Atual
+
+**Fase**: {MVP/Beta/Produção/Manutenção}
+**Status**: {descrição do status atual}
+
+## Última Atualização
+
+**Data**: {YYYY-MM-DD}
+**Motivo**: Criação inicial

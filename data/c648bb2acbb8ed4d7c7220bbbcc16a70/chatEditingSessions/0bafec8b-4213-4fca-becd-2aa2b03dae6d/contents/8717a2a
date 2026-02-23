@@ -1,0 +1,24 @@
+scenario: "Conversation reveals stack/context change"
+description: |
+  When conversation reveals a change in stack, restriction,
+  or integration, agent-turn-reflect Fase 1 should detect it
+  and call project-context-update.
+
+trigger_patterns:
+  - "agora usamos"
+  - "trocamos de"
+  - "nova restrição"
+  - "nova integração"
+
+expected_skills:
+  - name: agent-turn-reflect
+    must_exist: true
+    must_contain:
+      - "Fase 1"
+      - "Contexto"
+  - name: project-context-update
+    must_exist: true
+
+documented_in:
+  - file: instructions/agent-skills-core.instructions.md
+    must_contain: "Reflexão Per-Turn"

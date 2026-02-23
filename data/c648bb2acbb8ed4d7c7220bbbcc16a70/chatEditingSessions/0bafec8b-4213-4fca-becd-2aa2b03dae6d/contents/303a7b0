@@ -1,0 +1,33 @@
+"""Validate skill naming conventions."""
+
+import pytest
+from conftest import NAME_PATTERN
+
+
+@pytest.mark.structural
+class TestNaming:
+    def test_name_three_segments(self, skill):
+        assert NAME_PATTERN.match(skill.name), (
+            f"{skill.path}: name '{skill.name}' doesn't match "
+            f"{{type}}-{{feature}}-{{action}} pattern"
+        )
+
+    def test_directory_matches_name(self, skill):
+        assert skill.directory_name == skill.name, (
+            f"{skill.path}: directory '{skill.directory_name}' "
+            f"!= frontmatter name '{skill.name}'"
+        )
+
+    def test_type_folder_matches_category(self, skill):
+        assert skill.type_folder == skill.category, (
+            f"{skill.path}: type folder '{skill.type_folder}' "
+            f"!= category '{skill.category}'"
+        )
+
+    def test_category_equals_name_prefix(self, skill):
+        if skill.name:
+            prefix = skill.name.split("-")[0]
+            assert prefix == skill.category, (
+                f"{skill.path}: name prefix '{prefix}' "
+                f"!= category '{skill.category}'"
+            )

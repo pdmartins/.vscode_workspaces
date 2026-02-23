@@ -1,0 +1,221 @@
+---
+name: project-backlog-manage
+description: Gerencia backlog persistente de atividades futuras, features planejadas, ideias e TODOs do projeto. Persiste entre sessões em .copilot-project/backlog/backlog.md. Permite adicionar, listar, priorizar, atualizar status e remover itens. Consultado automaticamente no início de sessões complexas. Triggers: "anota para depois", "feature futura", "backlog", "todo persistente", "próximas atividades", "ideia para", "planejo fazer", "lembra de implementar", "pendente", "adiciona ao backlog", "lista backlog", "o que tem pendente", "próximos passos do projeto".
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: project
+  delegable: full
+---
+
+# Project Backlog Manage
+
+Gerencia um backlog persistente de atividades futuras, features, ideias e TODOs do projeto. Diferente de `agent-task-manage` (efêmero, vive apenas na sessão), este backlog é **persistente** e sobrevive entre sessões.
+
+## Quando Usar
+
+- Usuário quer anotar algo para fazer depois
+- Registrar feature planejada ou ideia
+- Listar/consultar atividades pendentes do projeto
+- Atualizar prioridade ou status de itens
+- Remover itens concluídos ou cancelados
+- No início de sessão complexa — consultar pendências existentes
+
+## Quando NÃO Usar
+
+- Tarefas da sessão atual → usar `agent-task-manage`
+- Lições aprendidas → usar `agent-memory-update`
+- Estado do projeto (stack, restrições) → usar `project-context-update`
+- Bugs conhecidos em produção → issue tracker externo
+
+## Diferença dos Outros Skills
+
+| Skill | Orientação | Persistência | Propósito |
+|-------|-----------|--------------|-----------|
+| `agent-task-manage` | Presente (sessão) | Efêmera (morre com o chat) | Executar tarefas agora |
+| `agent-chat-save` | Presente → Futuro | Sessão salva | Continuar trabalho da sessão |
+| `agent-memory-update` | Passado | Permanente | O que aprendi |
+| **`project-backlog-manage`** | **Futuro** | **Permanente** | **O que vou/quero fazer** |
+
+## Armazenamento
+
+Arquivo: `{workspace}/.copilot-project/backlog/backlog.md`
+
+### Formato do Arquivo
+
+```markdown
+---
+project: {nome-do-projeto}
+updated: YYYY-MM-DD
+---
+
+# Backlog
+
+## Alta Prioridade
+
+- [ ] `BKL-001` **{título}** — {descrição breve} `[{categoria}]` _{data}_
+- [x] `BKL-002` **{título}** — {descrição breve} `[{categoria}]` _{data}_ ✅ _{data-conclusão}_
+
+## Média Prioridade
+
+- [ ] `BKL-003` **{título}** — {descrição breve} `[{categoria}]` _{data}_
+
+## Baixa Prioridade
+
+- [ ] `BKL-004` **{título}** — {descrição breve} `[{categoria}]` _{data}_
+
+## Ideias / Explorar
+
+- [ ] `BKL-005` **{título}** — {descrição breve} `[{categoria}]` _{data}_
+
+## Concluídos
+
+- [x] `BKL-006` **{título}** — {descrição breve} `[{categoria}]` _{data}_ ✅ _{data-conclusão}_
+```
+
+### Campos de Cada Item
+
+| Campo | Formato | Obrigatório |
+|-------|---------|-------------|
+| ID | `BKL-{NNN}` sequencial | Sim |
+| Título | Texto curto e descritivo | Sim |
+| Descrição | Uma linha explicativa | Sim |
+| Categoria | `feature`, `refactor`, `fix`, `infra`, `docs`, `skill`, `idea`, `research` | Sim |
+| Data criação | `YYYY-MM-DD` | Sim |
+| Prioridade | Seção onde está: alta, média, baixa, ideias | Sim |
+| Status | `[ ]` pendente, `[x]` concluído | Sim |
+| Data conclusão | `YYYY-MM-DD` (quando concluído) | Se concluído |
+
+## Workflow
+
+### Operação: Adicionar Item
+
+**Triggers**: "anota para depois", "adiciona ao backlog", "feature futura", "ideia para", "pendente", "lembra de implementar"
+
+1. Ler backlog existente (ou criar via Auto-Init)
+2. Determinar próximo ID (`BKL-NNN`)
+3. Classificar categoria com base no contexto
+4. Definir prioridade (perguntar se ambíguo, default: média)
+5. Adicionar item na seção correta
+6. Atualizar campo `updated` no frontmatter
+
+**Output**:
+```
+📋 **Adicionado ao backlog**
+- ID: BKL-{NNN}
+- Título: {título}
+- Prioridade: {alta|média|baixa|ideia}
+- Categoria: {categoria}
+```
+
+### Operação: Listar Backlog
+
+**Triggers**: "lista backlog", "o que tem pendente", "próximas atividades", "mostra backlog", "pendências"
+
+1. Ler backlog
+2. Exibir itens pendentes agrupados por prioridade
+3. Incluir contagem total
+
+**Output**:
+```
+📋 **Backlog do projeto** ({N} itens pendentes)
+
+**Alta** ({n})
+- BKL-001: {título} [{categoria}]
+
+**Média** ({n})
+- BKL-003: {título} [{categoria}]
+
+**Baixa** ({n})
+- BKL-004: {título} [{categoria}]
+
+**Ideias** ({n})
+- BKL-005: {título} [{categoria}]
+```
+
+### Operação: Atualizar Item
+
+**Triggers**: "muda prioridade de BKL-X", "atualiza backlog", "promove BKL-X"
+
+1. Localizar item pelo ID
+2. Aplicar mudança (prioridade, descrição, categoria)
+3. Mover item para seção correta se prioridade mudou
+4. Atualizar campo `updated`
+
+### Operação: Concluir Item
+
+**Triggers**: "conclui BKL-X", "feito BKL-X", "implementei BKL-X", "remove BKL-X"
+
+1. Localizar item pelo ID
+2. Marcar como `[x]` e adicionar data de conclusão
+3. Mover para seção "Concluídos"
+4. Atualizar campo `updated`
+
+**Output**:
+```
+✅ **BKL-{NNN} concluído**: {título}
+```
+
+### Operação: Consulta Automática (início de sessão)
+
+Quando `agent-turn-reflect` detectar início de sessão complexa ou quando o agente consultar contexto do projeto:
+
+1. Verificar se `backlog/backlog.md` existe
+2. Se existe e tem itens pendentes de alta prioridade → informar brevemente
+3. Não interromper o fluxo — apenas mencionar se relevante ao trabalho atual
+
+**Output** (inline, discreto):
+```
+📋 Backlog: {N} itens pendentes ({n} alta prioridade)
+```
+
+## Auto-Init
+
+Quando `backlog/` ou `backlog.md` não existir:
+
+1. Criar diretório: `{workspace}/.copilot-project/backlog/`
+2. Criar `backlog.md` com template:
+
+```markdown
+---
+project: {nome-do-projeto}
+updated: {data-atual}
+---
+
+# Backlog
+
+## Alta Prioridade
+
+
+## Média Prioridade
+
+
+## Baixa Prioridade
+
+
+## Ideias / Explorar
+
+
+## Concluídos
+
+```
+
+3. Prosseguir com a operação solicitada
+
+## Roteamento com Outros Skills
+
+| Situação | Ação |
+|----------|------|
+| Usuário diz "faz agora" | Usar `agent-task-manage` (não backlog) |
+| Usuário diz "faz depois" / "futuramente" | Adicionar ao backlog |
+| Item do backlog sendo implementado | Concluir no backlog + usar `agent-task-manage` para a execução |
+| Sessão salva com pendências | `agent-chat-save` salva sessão; backlog permanece independente |
+| Lição aprendida ao concluir item | `agent-memory-update` para a lição, concluir no backlog |
+
+## Checklist
+
+- [ ] Backlog existe ou foi criado via Auto-Init
+- [ ] IDs são sequenciais e únicos
+- [ ] Cada item tem todos os campos obrigatórios
+- [ ] Itens concluídos estão na seção "Concluídos"
+- [ ] Campo `updated` reflete a data da última modificação

@@ -1,0 +1,7 @@
+# Branch Core Elimination
+
+- **date**: 2026-02-15
+- **status**: active
+- **context**: Existiam duas branches no .copilot-core: main (desenvolvimento) e core (distribuição). sync-core.yml sincronizava main → core. Com migração do self-dogfooding, branch core perdeu razão de existir
+- **decision**: Eliminar branch core e workflow sync-core.yml. Remover .copilot-core/.github/. Apenas branch main como fonte de verdade e distribuição
+- **outcome**: Sem branch core, sem workflow de sincronização, sem .github/ no .copilot-core

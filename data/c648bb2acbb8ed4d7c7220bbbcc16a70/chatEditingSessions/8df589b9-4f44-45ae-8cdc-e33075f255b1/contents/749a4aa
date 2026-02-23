@@ -1,0 +1,36 @@
+---
+name: code-catalog-query
+description: Catálogo de skills do tipo code — análise, refatoração e enforcement de padrões de código. Consulte este catálogo quando a tarefa envolver review de código, refatoração, extração de métodos/classes, ou verificação de padrões. Triggers: qual skill de code usar, listar skills code, review, refatorar, padrões.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: code
+---
+
+# Code Skills Catalog
+
+Catálogo de skills do tipo `code` para descoberta rápida.
+
+## Skills Disponíveis
+
+| Skill | Ação | Quando Usar | Keywords |
+|-------|------|-------------|----------|
+| `code-review-analyze` | Analisar | Code review, revisar PR, verificar qualidade/segurança/performance | review, qualidade, segurança, performance, "está bom?" |
+| `code-refactor-extract` | Extrair | Separar responsabilidades, extrair métodos/classes, simplificar | refatorar, extrair, separar, mover, dividir, "muito grande" |
+| `code-pattern-enforce` | Verificar | Após gerar código, verificar aderência a padrões do projeto | padrões, convenções, padronizar, naming, estrutura |
+
+## Roteamento Rápido
+
+| Situação | Skill |
+|----------|-------|
+| Revisar código existente ou PR | `code-review-analyze` |
+| Código complexo precisa ser simplificado | `code-refactor-extract` |
+| Verificar se código segue convenções | `code-pattern-enforce` |
+| Após gerar código (verificação automática) | `code-pattern-enforce` |
+
+## Project Config
+
+Todas as 3 skills carregam `config.yml` do project para regras específicas:
+- `code-review-analyze` → checklist customizado, severidades
+- `code-refactor-extract` → limites de complexidade, padrões de extração
+- `code-pattern-enforce` → naming conventions, estrutura de pastas

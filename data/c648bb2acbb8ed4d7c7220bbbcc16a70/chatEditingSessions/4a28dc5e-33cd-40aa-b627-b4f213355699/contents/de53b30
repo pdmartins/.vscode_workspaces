@@ -1,0 +1,81 @@
+"""Validate size and complexity limits."""
+
+import re
+import warnings
+import pytest
+
+
+SOFT_LINE_LIMIT = 150
+HARD_LINE_LIMIT = 300
+MAX_WORKFLOW_STEPS = 7
+
+# Generator/template skills embed full code templates — larger by design.
+# Config-heavy skills (jwt, messaging, repository) also exceed base limits.
+# Setup/create skills have many orchestration steps.
+EXTENDED_LIMIT_SKILLS = {
+    # Code generators with inline templates
+    "code-command-generate",
+    "code-contracts-generate",
+    "code-controller-generate",
+    "code-entity-generate",
+    "code-event-generate",
+    "code-integrationtest-generate",
+    "code-mapping-generate",
+    "code-program-configure",
+    "code-query-generate",
+    "code-unittest-generate",
+    "code-valueobject-generate",
+    "code-webhook-generate",
+    # Infrastructure with complex config templates
+    "infra-jwt-configure",
+    "infra-messaging-configure",
+    "infra-repository-generate",
+    # Orchestration / multi-workflow skills
+    "project-workspace-create",
+    "project-setup-bootstrap",
+    # Meta-skills with inherently more validation/creation steps
+    "skill-output-validate",
+    "skill-template-create",
+}
+
+EXTENDED_HARD_LINE_LIMIT = 700
+EXTENDED_MAX_WORKFLOW_STEPS = 15
+
+
+@pytest.mark.structural
+class TestSize:
+    def test_line_count_hard_limit(self, skill):
+        """SKILL.md must not exceed size limit (extended for generators)."""
+        limit = (
+            EXTENDED_HARD_LINE_LIMIT
+            if skill.name in EXTENDED_LIMIT_SKILLS
+            else HARD_LINE_LIMIT
+        )
+        assert skill.line_count <= limit, (
+            f"{skill.path}: {skill.line_count} lines "
+            f"exceeds hard limit ({limit})"
+        )
+
+    def test_line_count_soft_limit(self, skill):
+        """SKILL.md should be <= 150 lines (consider splitting)."""
+        if skill.line_count > SOFT_LINE_LIMIT:
+            warnings.warn(
+                f"{skill.name}: {skill.line_count} lines "
+                f"(recommended <= {SOFT_LINE_LIMIT})",
+                UserWarning,
+                stacklevel=1,
+            )
+
+    def test_workflow_step_count(self, skill):
+        """Workflow should have reasonable step count."""
+        limit = (
+            EXTENDED_MAX_WORKFLOW_STEPS
+            if skill.name in EXTENDED_LIMIT_SKILLS
+            else MAX_WORKFLOW_STEPS
+        )
+        steps = re.findall(r"^### \d+\.", skill.content, re.MULTILINE)
+        if steps:
+            assert len(steps) <= limit, (
+                f"{skill.path}: {len(steps)} workflow steps "
+                f"(max {limit})"
+            )

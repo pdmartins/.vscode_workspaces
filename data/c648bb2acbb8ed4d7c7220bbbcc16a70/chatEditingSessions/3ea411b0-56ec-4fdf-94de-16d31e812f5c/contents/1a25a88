@@ -1,0 +1,412 @@
+---
+name: infra-repository-generate
+description: Padrões para Repositories com ADO.NET + Dapper e SQL Scripts via Source Generator. Lê config.yml do project para convenções específicas. Use ao criar repositórios, queries SQL, ou implementar acesso a dados. Triggers: repository, repositório, Dapper, SQL, pasta Repositories/, Scripts/.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: infra
+---
+
+# Repository Skill (ADO.NET + Dapper)
+
+Padrões para Repositories com ADO.NET + Dapper e SQL Scripts via Source Generator.
+
+## Config Loading
+
+Antes de gerar código, carregar configurações do projeto:
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/infra-repository-generate/config.yml`
+2. Se existe, carregar e usar as configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/infra-repository-generate/SKILL.md`
+4. Se existe, carregar como instruções complementares (extensões específicas do projeto)
+5. Se nenhum existe, usar apenas os padrões genéricos abaixo
+
+## Quando Usar
+
+- Implementar repositórios de domínio
+- Criar queries SQL
+- Configurar Connection Factory
+- Persistência com Dapper
+
+## Estrutura
+
+```
+src/{RootNamespace}.Infrastructure/
+└── Persistence/
+    ├── ConnectionFactory/
+    │   ├── IDbConnectionFactory.cs
+    │   └── {Provider}ConnectionFactory.cs
+    └── Repositories/
+        ├── {Entity}Repository.cs
+        └── Scripts/
+            └── {Entity}/
+                ├── GetById.sql
+                ├── Insert.sql
+                └── Update.sql
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Repository Impl | `[Entidade]Repository` | `OrderRepository` |
+| Connection Factory | `[Provider]ConnectionFactory` | `SqlConnectionFactory`, `NpgsqlConnectionFactory` |
+| Pasta de Scripts | `Scripts/[Entidade]/` | `Scripts/Order/` |
+| Arquivo SQL | `[Operação].sql` | `GetById.sql`, `Insert.sql` |
+| Classe Gerada | `[Entidade]Sql` | `OrderSql` |
+
+## Templates
+
+### Connection Factory Interface
+
+```csharp
+using System.Data;
+
+namespace {RootNamespace}.Infrastructure.Persistence.ConnectionFactory;
+
+/// <summary>
+/// Factory for creating database connections.
+/// </summary>
+public interface IDbConnectionFactory
+{
+    IDbConnection CreateConnection();
+}
+```
+
+### SQL Server Connection Factory
+
+```csharp
+using System.Data;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Options;
+
+namespace {RootNamespace}.Infrastructure.Persistence.ConnectionFactory;
+
+/// <summary>
+/// Creates SQL Server connections.
+/// </summary>
+public class SqlConnectionFactory : IDbConnectionFactory
+{
+    private readonly DatabaseOptions _options;
+
+    public SqlConnectionFactory(IOptions<DatabaseOptions> options)
+    {
+        _options = options.Value;
+    }
+
+    public IDbConnection CreateConnection()
+    {
+        return new SqlConnection(_options.ConnectionString);
+    }
+}
+```
+
+### PostgreSQL Connection Factory
+
+```csharp
+using System.Data;
+using Npgsql;
+using Microsoft.Extensions.Options;
+
+namespace {RootNamespace}.Infrastructure.Persistence.ConnectionFactory;
+
+/// <summary>
+/// Creates PostgreSQL connections.
+/// </summary>
+public class NpgsqlConnectionFactory : IDbConnectionFactory
+{
+    private readonly DatabaseOptions _options;
+
+    public NpgsqlConnectionFactory(IOptions<DatabaseOptions> options)
+    {
+        _options = options.Value;
+    }
+
+    public IDbConnection CreateConnection()
+    {
+        return new NpgsqlConnection(_options.ConnectionString);
+    }
+}
+```
+
+### Database Options
+
+```csharp
+namespace {RootNamespace}.Infrastructure.Options;
+
+/// <summary>
+/// Database connection options.
+/// </summary>
+public class DatabaseOptions
+{
+    public const string SectionName = "Database";
+    
+    public required string ConnectionString { get; init; }
+    public int CommandTimeout { get; init; } = 30;
+}
+```
+
+### Repository Implementation
+
+```csharp
+using Dapper;
+using Microsoft.Extensions.Logging;
+
+namespace {RootNamespace}.Infrastructure.Persistence.Repositories;
+
+/// <summary>
+/// Repository for {Entity} aggregate.
+/// </summary>
+public class {Entity}Repository : I{Entity}Repository
+{
+    private readonly IDbConnectionFactory _connectionFactory;
+    private readonly ILogger<{Entity}Repository> _logger;
+
+    public {Entity}Repository(
+        IDbConnectionFactory connectionFactory,
+        ILogger<{Entity}Repository> logger)
+    {
+        _connectionFactory = connectionFactory;
+        _logger = logger;
+    }
+
+    public async Task<{Entity}?> GetByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Getting {Entity} {Id}", id);
+        
+        using var connection = _connectionFactory.CreateConnection();
+        
+        return await connection.QueryFirstOrDefaultAsync<{Entity}>(
+            {Entity}Sql.GetById,
+            new { Id = id });
+    }
+
+    public async Task<(IReadOnlyList<{Entity}> Items, int TotalCount)> ListAsync(
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        var parameters = new
+        {
+            Offset = (page - 1) * pageSize,
+            Limit = pageSize
+        };
+
+        using var multi = await connection.QueryMultipleAsync(
+            {Entity}Sql.ListWithCount,
+            parameters);
+
+        var items = (await multi.ReadAsync<{Entity}>()).ToList();
+        var totalCount = await multi.ReadSingleAsync<int>();
+
+        return (items, totalCount);
+    }
+
+    public async Task AddAsync(
+        {Entity} entity,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Adding {Entity} {Id}", entity.Id);
+        
+        using var connection = _connectionFactory.CreateConnection();
+        
+        await connection.ExecuteAsync(
+            {Entity}Sql.Insert,
+            new
+            {
+                entity.Id,
+                // Map entity properties to SQL parameters
+                CreatedAt = DateTime.UtcNow
+            });
+    }
+
+    public async Task UpdateAsync(
+        {Entity} entity,
+        CancellationToken cancellationToken = default)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        
+        await connection.ExecuteAsync(
+            {Entity}Sql.Update,
+            new
+            {
+                entity.Id,
+                // Map entity properties to SQL parameters
+                UpdatedAt = DateTime.UtcNow
+            });
+    }
+}
+```
+
+## SQL Scripts
+
+### Scripts/{Entity}/GetById.sql
+
+```sql
+SELECT 
+    Id,
+    -- entity columns
+    CreatedAt,
+    UpdatedAt
+FROM {TableName}
+WHERE Id = @Id
+```
+
+### Scripts/{Entity}/Insert.sql
+
+```sql
+INSERT INTO {TableName} (
+    Id,
+    -- entity columns
+    CreatedAt
+) VALUES (
+    @Id,
+    -- parameter values
+    @CreatedAt
+)
+```
+
+### Scripts/{Entity}/Update.sql
+
+```sql
+UPDATE {TableName}
+SET 
+    -- entity columns = @params
+    UpdatedAt = @UpdatedAt
+WHERE Id = @Id
+```
+
+### Scripts/{Entity}/ListWithCount.sql
+
+```sql
+-- Items
+SELECT 
+    Id,
+    -- entity columns
+    CreatedAt,
+    UpdatedAt
+FROM {TableName}
+ORDER BY CreatedAt DESC
+OFFSET @Offset ROWS
+FETCH NEXT @Limit ROWS ONLY;
+
+-- Total count
+SELECT COUNT(*)
+FROM {TableName};
+```
+
+## Source Generator
+
+O Source Generator lê os arquivos `.sql` e gera classes tipadas:
+
+```csharp
+// Gerado automaticamente por SqlScriptGenerator
+namespace {RootNamespace}.Infrastructure.Persistence.Repositories;
+
+public static partial class {Entity}Sql
+{
+    public const string GetById = """
+        SELECT 
+            Id,
+            ...
+        FROM {TableName}
+        WHERE Id = @Id
+        """;
+
+    public const string Insert = """
+        INSERT INTO {TableName} ...
+        """;
+}
+```
+
+## Type Handlers para Value Objects
+
+```csharp
+using Dapper;
+using System.Data;
+
+namespace {RootNamespace}.Infrastructure.Persistence.TypeHandlers;
+
+public class {ValueObject}TypeHandler : SqlMapper.TypeHandler<{ValueObject}>
+{
+    public override {ValueObject} Parse(object value)
+        => new(value.ToString()!);
+
+    public override void SetValue(IDbDataParameter parameter, {ValueObject}? value)
+        => parameter.Value = value?.Value;
+}
+
+// Registro no DependencyInjection
+public static class DapperConfiguration
+{
+    public static void RegisterTypeHandlers()
+    {
+        SqlMapper.AddTypeHandler(new {ValueObject}TypeHandler());
+    }
+}
+```
+
+## Transações
+
+```csharp
+public async Task TransferAsync(...)
+{
+    using var connection = _connectionFactory.CreateConnection();
+    connection.Open();
+    
+    using var transaction = connection.BeginTransaction();
+    
+    try
+    {
+        await connection.ExecuteAsync(sql1, params1, transaction);
+        await connection.ExecuteAsync(sql2, params2, transaction);
+        
+        transaction.Commit();
+    }
+    catch
+    {
+        transaction.Rollback();
+        throw;
+    }
+}
+```
+
+## Checklist
+
+- [ ] Interface em `Domain/Interfaces/Repositories/`
+- [ ] Implementação em `Infrastructure/Persistence/Repositories/`
+- [ ] Scripts em `Repositories/Scripts/[Entidade]/`
+- [ ] Connection Factory configurada
+- [ ] Type Handlers para Value Objects
+- [ ] Logs em operações importantes
+- [ ] Paginação com total count
+- [ ] Transações quando necessário
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/infra-repository-generate/config.yml
+root_namespace: "{RootNamespace}"
+
+database_provider: "SqlServer"  # SqlServer | PostgreSQL
+connection_factory: "SqlConnectionFactory"  # SqlConnectionFactory | NpgsqlConnectionFactory
+options_section_name: "Database"
+
+entities:
+  - name: "{Entity}"
+    table_name: "{TableName}"
+    repository: "{Entity}Repository"
+    scripts:
+      - "GetById"
+      - "Insert"
+      - "Update"
+      - "ListWithCount"
+
+type_handlers:
+  - value_object: "{ValueObject}"
+    handler: "{ValueObject}TypeHandler"
+```

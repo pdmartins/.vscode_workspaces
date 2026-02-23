@@ -1,0 +1,115 @@
+---
+name: agent-chat-resume
+description: Retoma sessão de chat salva anteriormente, apresentando briefing do estado e permitindo continuação do trabalho. Use quando o usuário quiser continuar de onde parou em outra máquina ou sessão anterior. Triggers: "retoma sessão", "continua sessão", "continua de onde parei", "o que eu estava fazendo", "resumo da última sessão", "última sessão", "sessão anterior", "retoma chat", "continua chat".
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: agent
+  delegable: full
+---
+
+# Agent Chat Resume
+
+Retoma sessão de chat salva anteriormente, apresentando briefing e permitindo continuação.
+
+## Quando Usar
+
+- Usuário quer retomar trabalho de sessão anterior
+- Usuário trocou de máquina e quer continuar
+- Usuário pergunta "o que eu estava fazendo?"
+- Usuário diz "retoma sessão", "continua de onde parei", "última sessão"
+
+## Quando NÃO Usar
+
+- Usuário quer consultar lições aprendidas (usar `agent-memory-query`)
+- Usuário quer ver contexto do projeto (usar `project-context-query`)
+
+## Workflow
+
+### 1. Listar sessões disponíveis
+
+Ler diretório: `{workspace}/.copilot-project/chat-memory/`
+
+**Se diretório não existe ou está vazio:**
+→ Informar: "Não há sessões anteriores salvas. Use `salva sessão` durante o trabalho para preservar contexto."
+→ Encerrar
+
+### 2. Selecionar sessão
+
+**Se usuário especificou qual sessão** (por data, tópico, ou nome):
+→ Localizar o arquivo correspondente
+→ Se não encontrar, listar as disponíveis e perguntar
+
+**Se apenas uma sessão com status `in-progress`:**
+→ Carregar automaticamente essa sessão
+
+**Se múltiplas sessões disponíveis:**
+→ Listar as 5 mais recentes (ordenadas por data, mais recente primeiro):
+
+```
+📋 **Sessões disponíveis**:
+
+| # | Data | Tópico | Status |
+|---|------|--------|--------|
+| 1 | 2026-02-15 | docker-setup | in-progress |
+| 2 | 2026-02-14 | api-refactor | completed |
+| 3 | 2026-02-13 | skill-creation | completed |
+
+Qual sessão deseja retomar?
+```
+
+### 3. Carregar e apresentar briefing
+
+Ler o arquivo da sessão selecionada e apresentar:
+
+```
+📋 **Sessão recuperada**: {título}
+📅 {data} | Status: {status}
+
+**Resumo**: {resumo da sessão}
+
+**Progresso**:
+- [x] {steps concluídos}
+- [ ] {steps pendentes}
+
+**Próximos passos**: {lista de próximos passos}
+```
+
+Se houver decisões pendentes, adicionar:
+```
+⚠️ **Decisões pendentes**: {lista}
+```
+
+Se houver arquivos relevantes, adicionar:
+```
+📁 **Arquivos**: {lista de paths}
+```
+
+### 4. Confirmar continuação
+
+Perguntar ao usuário:
+→ "Quer continuar esta tarefa?"
+
+**Se sim:**
+- Se há steps pendentes → criar `manage_todo_list` com os steps (concluídos como `completed`, pendentes como `not-started`)
+- Iniciar trabalho no primeiro step pendente
+- Atualizar status da sessão para `in-progress` se estava `paused`
+
+**Se não:**
+→ Perguntar se quer ver outra sessão ou iniciar algo novo
+
+### 5. Durante o trabalho retomado
+
+- Tratar como uma sessão normal — o agente deve usar `agent-chat-save` se o usuário pedir para salvar novamente
+- O agente pode atualizar o arquivo existente em vez de criar novo (mesmo tópico, mesma data)
+
+## Formato de Leitura
+
+O agente deve parsear o frontmatter YAML para extrair `date`, `topic`, `status`, e as seções Markdown para o conteúdo.
+
+## Dicas de UX
+
+- Ser conciso no briefing — o objetivo é relembrar rápido, não repetir tudo
+- Destacar os próximos passos — é o mais importante para retomada
+- Se a sessão tem muitos steps, focar nos pendentes
+- Se há decisões pendentes, destacar com ⚠️ — podem ser blockers

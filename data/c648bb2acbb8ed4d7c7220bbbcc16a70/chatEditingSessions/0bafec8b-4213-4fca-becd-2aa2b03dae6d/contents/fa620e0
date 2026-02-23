@@ -1,0 +1,7 @@
+# MCP Cloudflare Migration
+
+- **date**: 2026-02-16
+- **status**: active
+- **context**: MCP memory-service usava SQLite-vec local com Git LFS. Multi-machine exigia sync manual, database binário não escalava
+- **decision**: Migrar para Cloudflare Vectorize + D1. Cloud-only (não híbrido). Config via env vars. Namespace por projeto = branch name. Removido Git LFS
+- **outcome**: Índice semântico cloud — acessível de qualquer máquina. Zero mudanças no workflow de skills. Atualizados: mcp.json, agent-memory-sync, agent-memory-query, setup-scripts, project-setup-bootstrap, project-workspace-create, core instructions

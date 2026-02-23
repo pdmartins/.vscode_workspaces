@@ -1,0 +1,403 @@
+---
+name: infra-messaging
+description: Padrões para mensageria com Azure Service Bus (MassTransit). Use ao criar filas, publicar mensagens, ou processar consumers. Triggers: Service Bus, fila, queue, mensageria, MassTransit, consumer, publisher, pasta Messaging/.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: infrastructure
+---
+
+# Messaging Skill (Azure Service Bus)
+
+Padrões para mensageria com Azure Service Bus usando MassTransit.
+
+## Quando Usar
+
+- Processar mensagens assíncronas
+- Desacoplar componentes
+- Implementar filas de processamento
+- Retry automático de falhas
+
+## Estrutura
+
+```
+src/BeWiser.Assistant.Infrastructure/
+└── Messaging/
+    ├── Messages/
+    │   ├── ProcessMessageMessage.cs
+    │   └── SendReplyMessage.cs
+    ├── Consumers/
+    │   ├── ProcessMessageMessageConsumer.cs
+    │   └── SendReplyMessageConsumer.cs
+    └── Publishers/
+        ├── IMessagePublisher.cs
+        └── MessagePublisher.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Message (Bus) | `[Domínio][Ação]Message` | `ProcessMessageMessage`, `SendReplyMessage` |
+| Consumer | `[Message]Consumer` | `ProcessMessageMessageConsumer` |
+| Publisher Interface | `I[Domínio]Publisher` | `IMessagePublisher` |
+| Publisher Impl | `[Domínio]Publisher` | `MessagePublisher` |
+
+## Templates
+
+### Message
+
+```csharp
+namespace BeWiser.Assistant.Infrastructure.Messaging.Messages;
+
+/// <summary>
+/// Message to process an incoming WhatsApp message.
+/// </summary>
+public record ProcessMessageMessage
+{
+    public Guid MessageId { get; init; }
+    public Guid ConversationId { get; init; }
+    public DateTime QueuedAt { get; init; } = DateTime.UtcNow;
+}
+
+/// <summary>
+/// Message to send a reply via WhatsApp.
+/// </summary>
+public record SendReplyMessage
+{
+    public Guid ConversationId { get; init; }
+    public required string PhoneNumber { get; init; }
+    public required string Content { get; init; }
+    public DateTime QueuedAt { get; init; } = DateTime.UtcNow;
+}
+```
+
+### Consumer
+
+```csharp
+using MassTransit;
+using Microsoft.Extensions.Logging;
+
+namespace BeWiser.Assistant.Infrastructure.Messaging.Consumers;
+
+/// <summary>
+/// Consumer for ProcessMessageMessage.
+/// </summary>
+public class ProcessMessageMessageConsumer 
+    : IConsumer<ProcessMessageMessage>
+{
+    private readonly IAiService _aiService;
+    private readonly IConversationRepository _repository;
+    private readonly IMessagePublisher _publisher;
+    private readonly ILogger<ProcessMessageMessageConsumer> _logger;
+
+    public ProcessMessageMessageConsumer(
+        IAiService aiService,
+        IConversationRepository repository,
+        IMessagePublisher publisher,
+        ILogger<ProcessMessageMessageConsumer> logger)
+    {
+        _aiService = aiService;
+        _repository = repository;
+        _publisher = publisher;
+        _logger = logger;
+    }
+
+    public async Task Consume(ConsumeContext<ProcessMessageMessage> context)
+    {
+        var message = context.Message;
+        
+        _logger.LogInformation(
+            "Processing message {MessageId} from conversation {ConversationId}",
+            message.MessageId,
+            message.ConversationId);
+
+        try
+        {
+            // 1. Load conversation with messages
+            var conversation = await _repository.GetByIdWithMessagesAsync(
+                message.ConversationId,
+                context.CancellationToken);
+
+            if (conversation is null)
+            {
+                _logger.LogWarning(
+                    "Conversation {ConversationId} not found",
+                    message.ConversationId);
+                return;
+            }
+
+            // 2. Generate AI response
+            var response = await _aiService.GenerateResponseAsync(
+                conversation,
+                context.CancellationToken);
+
+            // 3. Publish reply message
+            await _publisher.PublishSendReplyAsync(
+                new SendReplyMessage
+                {
+                    ConversationId = conversation.Id,
+                    PhoneNumber = conversation.PhoneNumber.Value,
+                    Content = response
+                },
+                context.CancellationToken);
+
+            _logger.LogInformation(
+                "Message {MessageId} processed successfully",
+                message.MessageId);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Error processing message {MessageId}",
+                message.MessageId);
+            throw; // Re-throw for retry
+        }
+    }
+}
+```
+
+### Consumer com Retry Configurado
+
+```csharp
+using MassTransit;
+
+namespace BeWiser.Assistant.Infrastructure.Messaging.Consumers;
+
+/// <summary>
+/// Consumer for SendReplyMessage with retry policy.
+/// </summary>
+public class SendReplyMessageConsumer : IConsumer<SendReplyMessage>
+{
+    private readonly IWhatsAppService _whatsAppService;
+    private readonly IMessageRepository _repository;
+    private readonly ILogger<SendReplyMessageConsumer> _logger;
+
+    public SendReplyMessageConsumer(
+        IWhatsAppService whatsAppService,
+        IMessageRepository repository,
+        ILogger<SendReplyMessageConsumer> logger)
+    {
+        _whatsAppService = whatsAppService;
+        _repository = repository;
+        _logger = logger;
+    }
+
+    public async Task Consume(ConsumeContext<SendReplyMessage> context)
+    {
+        var message = context.Message;
+
+        // Send via WhatsApp
+        var externalId = await _whatsAppService.SendMessageAsync(
+            message.PhoneNumber,
+            message.Content,
+            context.CancellationToken);
+
+        // Save outgoing message
+        await _repository.AddAsync(new Message
+        {
+            Id = Guid.NewGuid(),
+            ConversationId = message.ConversationId,
+            Content = new MessageContentVO(message.Content),
+            Direction = MessageDirection.Outgoing,
+            ExternalId = externalId,
+            Status = MessageStatus.Sent
+        }, context.CancellationToken);
+    }
+}
+
+/// <summary>
+/// Consumer definition with retry policy.
+/// </summary>
+public class SendReplyMessageConsumerDefinition 
+    : ConsumerDefinition<SendReplyMessageConsumer>
+{
+    protected override void ConfigureConsumer(
+        IReceiveEndpointConfigurator endpointConfigurator,
+        IConsumerConfigurator<SendReplyMessageConsumer> consumerConfigurator,
+        IRegistrationContext context)
+    {
+        // Retry 3 times with exponential backoff
+        endpointConfigurator.UseMessageRetry(r => r
+            .Incremental(3, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)));
+            
+        // Circuit breaker
+        endpointConfigurator.UseCircuitBreaker(cb =>
+        {
+            cb.TrackingPeriod = TimeSpan.FromMinutes(1);
+            cb.TripThreshold = 15;
+            cb.ActiveThreshold = 10;
+            cb.ResetInterval = TimeSpan.FromMinutes(5);
+        });
+    }
+}
+```
+
+### Publisher Interface
+
+```csharp
+namespace BeWiser.Assistant.Infrastructure.Messaging.Publishers;
+
+/// <summary>
+/// Publisher for message-related events.
+/// </summary>
+public interface IMessagePublisher
+{
+    Task PublishProcessMessageAsync(
+        ProcessMessageMessage message,
+        CancellationToken cancellationToken = default);
+
+    Task PublishSendReplyAsync(
+        SendReplyMessage message,
+        CancellationToken cancellationToken = default);
+}
+```
+
+### Publisher Implementation
+
+```csharp
+using MassTransit;
+
+namespace BeWiser.Assistant.Infrastructure.Messaging.Publishers;
+
+/// <summary>
+/// MassTransit implementation of IMessagePublisher.
+/// </summary>
+public class MessagePublisher : IMessagePublisher
+{
+    private readonly IPublishEndpoint _publishEndpoint;
+    private readonly ILogger<MessagePublisher> _logger;
+
+    public MessagePublisher(
+        IPublishEndpoint publishEndpoint,
+        ILogger<MessagePublisher> logger)
+    {
+        _publishEndpoint = publishEndpoint;
+        _logger = logger;
+    }
+
+    public async Task PublishProcessMessageAsync(
+        ProcessMessageMessage message,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug(
+            "Publishing ProcessMessageMessage for {MessageId}",
+            message.MessageId);
+
+        await _publishEndpoint.Publish(message, cancellationToken);
+    }
+
+    public async Task PublishSendReplyAsync(
+        SendReplyMessage message,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug(
+            "Publishing SendReplyMessage for conversation {ConversationId}",
+            message.ConversationId);
+
+        await _publishEndpoint.Publish(message, cancellationToken);
+    }
+}
+```
+
+## Configuração MassTransit
+
+```csharp
+using MassTransit;
+
+namespace BeWiser.Assistant.Infrastructure.Extensions;
+
+public static class MessagingExtensions
+{
+    public static IServiceCollection AddMessaging(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var options = configuration
+            .GetSection(ServiceBusOptions.SectionName)
+            .Get<ServiceBusOptions>()!;
+
+        services.AddMassTransit(x =>
+        {
+            // Register consumers
+            x.AddConsumer<ProcessMessageMessageConsumer>();
+            x.AddConsumer<SendReplyMessageConsumer, SendReplyMessageConsumerDefinition>();
+
+            x.UsingAzureServiceBus((context, cfg) =>
+            {
+                cfg.Host(options.ConnectionString);
+
+                // Configure endpoints
+                cfg.ReceiveEndpoint("process-message", e =>
+                {
+                    e.ConfigureConsumer<ProcessMessageMessageConsumer>(context);
+                });
+
+                cfg.ReceiveEndpoint("send-reply", e =>
+                {
+                    e.ConfigureConsumer<SendReplyMessageConsumer>(context);
+                });
+            });
+        });
+
+        services.AddScoped<IMessagePublisher, MessagePublisher>();
+
+        return services;
+    }
+}
+```
+
+### Service Bus Options
+
+```csharp
+namespace BeWiser.Assistant.Infrastructure.Options;
+
+public class ServiceBusOptions
+{
+    public const string SectionName = "ServiceBus";
+    
+    public required string ConnectionString { get; init; }
+    public int MaxConcurrentCalls { get; init; } = 10;
+    public int PrefetchCount { get; init; } = 20;
+}
+```
+
+## Dead Letter Queue
+
+```csharp
+public class ProcessMessageMessageConsumer : IConsumer<ProcessMessageMessage>
+{
+    public async Task Consume(ConsumeContext<ProcessMessageMessage> context)
+    {
+        try
+        {
+            // Process...
+        }
+        catch (NonRecoverableException ex)
+        {
+            // Move to dead letter queue
+            await context.Send(
+                new Uri("queue:process-message-error"),
+                new ProcessMessageError
+                {
+                    OriginalMessage = context.Message,
+                    Error = ex.Message,
+                    FailedAt = DateTime.UtcNow
+                });
+        }
+    }
+}
+```
+
+## Checklist
+
+- [ ] Messages em `Messaging/Messages/`
+- [ ] Consumers em `Messaging/Consumers/`
+- [ ] Publishers em `Messaging/Publishers/`
+- [ ] Nomenclatura: `[Domínio][Ação]Message`
+- [ ] Consumer Definition para retry
+- [ ] Logs em publish e consume
+- [ ] Tratamento de erros
+- [ ] Dead Letter Queue configurada
+- [ ] Options em classe separada

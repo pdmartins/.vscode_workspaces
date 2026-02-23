@@ -1,0 +1,478 @@
+---
+name: auth-jwt
+description: Padrões para autenticação JWT em ASP.NET Core seguindo arquitetura em camadas. Use ao configurar autenticação, implementar login/registro, proteger endpoints. Triggers: JWT, autenticação, login, [Authorize], Identity, token.
+metadata:
+  author: copilot-project
+  version: "2.0"
+  category: auth
+---
+
+# JWT Authentication Skill
+
+Padrões para autenticação JWT em ASP.NET Core seguindo arquitetura em camadas.
+
+## Quando Usar
+
+- Configurar autenticação JWT
+- Implementar login/registro
+- Proteger endpoints com `[Authorize]`
+- Gerenciar claims e roles
+
+## Arquitetura
+
+A autenticação é configurada na **Infrastructure Layer** através de extensão:
+
+```
+src/
+├── Api/
+│   ├── Program.cs                    # Apenas: builder.Services.AddAuthentication(config)
+│   └── Controllers/
+│       └── AuthController.cs         # Endpoints de auth
+│
+├── Application/
+│   ├── Interfaces/
+│   │   ├── ITokenService.cs          # Interface do serviço de token
+│   │   └── IAuthService.cs           # Interface do serviço de auth
+│   └── Services/
+│       └── AuthService.cs            # Lógica de autenticação
+│
+└── Infrastructure/
+    ├── DependencyInjection.cs        # AddAuthentication() extension
+    ├── Settings/
+    │   └── JwtSettings.cs            # Configurações JWT
+    └── Services/
+        └── TokenService.cs           # Geração/validação de tokens
+```
+
+## Configuração no Program.cs
+
+```csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// ... outras camadas ...
+
+// Infrastructure - Authentication
+builder.Services.AddAuthentication(builder.Configuration);
+
+var app = builder.Build();
+
+// Pipeline - UseAuthentication é chamado dentro de UsePresentation()
+app.UsePresentation();
+
+app.Run();
+```
+
+## Templates
+
+### Infrastructure/DependencyInjection.cs (Extensão)
+
+```csharp
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+
+namespace Bewiser.Assistant.Infrastructure;
+
+public static partial class DependencyInjection
+{
+    public static IServiceCollection AddAuthentication(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        // Bind settings
+        services.Configure<JwtSettings>(
+            configuration.GetSection(JwtSettings.SectionName));
+
+        var jwtSettings = configuration
+            .GetSection(JwtSettings.SectionName)
+            .Get<JwtSettings>()!;
+
+        // Configure JWT Bearer
+        services
+            .AddAuthentication(options =>
+            {
+                options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+                options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+            })
+            .AddJwtBearer(options =>
+            {
+                options.TokenValidationParameters = new TokenValidationParameters
+                {
+                    ValidateIssuer = true,
+                    ValidateAudience = true,
+                    ValidateLifetime = true,
+                    ValidateIssuerSigningKey = true,
+                    ValidIssuer = jwtSettings.Issuer,
+                    ValidAudience = jwtSettings.Audience,
+                    IssuerSigningKey = new SymmetricSecurityKey(
+                        Encoding.UTF8.GetBytes(jwtSettings.Secret)),
+                    ClockSkew = TimeSpan.Zero
+                };
+            });
+
+        services.AddAuthorization();
+
+        // Register services
+        services.AddScoped<ITokenService, TokenService>();
+
+        return services;
+    }
+}
+```
+
+### Infrastructure/Settings/JwtSettings.cs
+
+```csharp
+namespace Bewiser.Assistant.Infrastructure.Settings;
+
+public class JwtSettings
+{
+    public const string SectionName = "Jwt";
+    
+    public required string Secret { get; init; }
+    public required string Issuer { get; init; }
+    public required string Audience { get; init; }
+    public int ExpirationMinutes { get; init; } = 60;
+    public int RefreshExpirationDays { get; init; } = 7;
+}
+```
+
+### Application/Interfaces/ITokenService.cs
+
+```csharp
+using System.Security.Claims;
+
+namespace Bewiser.Assistant.Application.Interfaces;
+
+public interface ITokenService
+{
+    string GenerateAccessToken(User user);
+    string GenerateRefreshToken();
+    ClaimsPrincipal? ValidateToken(string token);
+}
+```
+
+### Infrastructure/Services/TokenService.cs
+
+```csharp
+using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Security.Cryptography;
+using System.Text;
+
+namespace Bewiser.Assistant.Infrastructure.Services;
+
+public class TokenService : ITokenService
+{
+    private readonly JwtSettings _jwtSettings;
+
+    public TokenService(IOptions<JwtSettings> jwtSettings)
+    {
+        _jwtSettings = jwtSettings.Value;
+    }
+
+    public string GenerateAccessToken(User user)
+    {
+        var claims = new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier, user.Id.ToString()),
+            new(ClaimTypes.Email, user.Email),
+            new(ClaimTypes.Name, user.Name),
+            new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString())
+        };
+
+        foreach (var role in user.Roles)
+        {
+            claims.Add(new Claim(ClaimTypes.Role, role.Name));
+        }
+
+        var key = new SymmetricSecurityKey(
+            Encoding.UTF8.GetBytes(_jwtSettings.Secret));
+        var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+
+        var token = new JwtSecurityToken(
+            issuer: _jwtSettings.Issuer,
+            audience: _jwtSettings.Audience,
+            claims: claims,
+            expires: DateTime.UtcNow.AddMinutes(_jwtSettings.ExpirationMinutes),
+            signingCredentials: credentials
+        );
+
+        return new JwtSecurityTokenHandler().WriteToken(token);
+    }
+
+    public string GenerateRefreshToken()
+    {
+        var randomNumber = new byte[64];
+        using var rng = RandomNumberGenerator.Create();
+        rng.GetBytes(randomNumber);
+        return Convert.ToBase64String(randomNumber);
+    }
+
+    public ClaimsPrincipal? ValidateToken(string token)
+    {
+        var tokenHandler = new JwtSecurityTokenHandler();
+        var key = Encoding.UTF8.GetBytes(_jwtSettings.Secret);
+
+        try
+        {
+            return tokenHandler.ValidateToken(token, new TokenValidationParameters
+            {
+                ValidateIssuerSigningKey = true,
+                IssuerSigningKey = new SymmetricSecurityKey(key),
+                ValidateIssuer = true,
+                ValidIssuer = _jwtSettings.Issuer,
+                ValidateAudience = true,
+                ValidAudience = _jwtSettings.Audience,
+                ValidateLifetime = false // Allow expired for refresh
+            }, out _);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+}
+```
+
+### Api/Controllers/AuthController.cs
+
+```csharp
+using Bewiser.Assistant.Api.Contracts.Requests;
+using Bewiser.Assistant.Api.Contracts.Responses;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+
+namespace Bewiser.Assistant.Api.Controllers;
+
+[ApiController]
+[Route("api/[controller]")]
+public class AuthController : ControllerBase
+{
+    private readonly IAuthService _authService;
+
+    public AuthController(IAuthService authService)
+    {
+        _authService = authService;
+    }
+
+    /// <summary>
+    /// Registers a new user.
+    /// </summary>
+    [HttpPost("register")]
+    [ProducesResponseType(typeof(RegisterUserResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<RegisterUserResponse>> Register(
+        [FromBody] RegisterUserRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _authService.RegisterAsync(request, cancellationToken);
+        return CreatedAtAction(nameof(Register), response);
+    }
+
+    /// <summary>
+    /// Authenticates a user.
+    /// </summary>
+    [HttpPost("login")]
+    [ProducesResponseType(typeof(LoginUserResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<LoginUserResponse>> Login(
+        [FromBody] LoginUserRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _authService.LoginAsync(request, cancellationToken);
+        
+        if (response is null)
+            return Unauthorized();
+            
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Refreshes the access token.
+    /// </summary>
+    [HttpPost("refresh")]
+    [ProducesResponseType(typeof(RefreshTokenResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    public async Task<ActionResult<RefreshTokenResponse>> Refresh(
+        [FromBody] RefreshTokenRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _authService.RefreshTokenAsync(request, cancellationToken);
+        
+        if (response is null)
+            return Unauthorized();
+            
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Gets the current user profile.
+    /// </summary>
+    [HttpGet("me")]
+    [Authorize]
+    [ProducesResponseType(typeof(GetCurrentUserResponse), StatusCodes.Status200OK)]
+    public async Task<ActionResult<GetCurrentUserResponse>> GetCurrentUser(
+        CancellationToken cancellationToken = default)
+    {
+        var userId = User.GetUserId();
+        var response = await _authService.GetCurrentUserAsync(userId, cancellationToken);
+        return Ok(response);
+    }
+}
+```
+
+### Api/Extensions/ClaimsPrincipalExtensions.cs
+
+```csharp
+using System.Security.Claims;
+
+namespace Bewiser.Assistant.Api.Extensions;
+
+public static class ClaimsPrincipalExtensions
+{
+    public static Guid GetUserId(this ClaimsPrincipal principal)
+    {
+        var claim = principal.FindFirst(ClaimTypes.NameIdentifier)
+            ?? throw new InvalidOperationException("User ID claim not found");
+        return Guid.Parse(claim.Value);
+    }
+
+    public static string GetEmail(this ClaimsPrincipal principal)
+    {
+        return principal.FindFirst(ClaimTypes.Email)?.Value
+            ?? throw new InvalidOperationException("Email claim not found");
+    }
+}
+```
+
+## Contracts (Requests/Responses)
+
+### Contracts/Requests/
+
+```csharp
+// RegisterUserRequest.cs
+public record RegisterUserRequest
+{
+    [Required]
+    [EmailAddress]
+    public required string Email { get; init; }
+    
+    [Required]
+    [StringLength(100, MinimumLength = 3)]
+    public required string Name { get; init; }
+    
+    [Required]
+    [StringLength(100, MinimumLength = 8)]
+    public required string Password { get; init; }
+}
+
+// LoginUserRequest.cs
+public record LoginUserRequest
+{
+    [Required]
+    [EmailAddress]
+    public required string Email { get; init; }
+    
+    [Required]
+    public required string Password { get; init; }
+}
+
+// RefreshTokenRequest.cs
+public record RefreshTokenRequest
+{
+    [Required]
+    public required string AccessToken { get; init; }
+    
+    [Required]
+    public required string RefreshToken { get; init; }
+}
+```
+
+### Contracts/Responses/
+
+```csharp
+// RegisterUserResponse.cs
+public record RegisterUserResponse
+{
+    public Guid Id { get; init; }
+    public required string Email { get; init; }
+    public required string Name { get; init; }
+}
+
+// LoginUserResponse.cs
+public record LoginUserResponse
+{
+    public required string AccessToken { get; init; }
+    public required string RefreshToken { get; init; }
+    public DateTime ExpiresAt { get; init; }
+}
+
+// RefreshTokenResponse.cs
+public record RefreshTokenResponse
+{
+    public required string AccessToken { get; init; }
+    public required string RefreshToken { get; init; }
+    public DateTime ExpiresAt { get; init; }
+}
+
+// GetCurrentUserResponse.cs
+public record GetCurrentUserResponse
+{
+    public Guid Id { get; init; }
+    public required string Email { get; init; }
+    public required string Name { get; init; }
+    public IReadOnlyList<string> Roles { get; init; } = [];
+}
+```
+
+## Protegendo Endpoints
+
+```csharp
+// Requer autenticação
+[Authorize]
+public class ProtectedController : ControllerBase { }
+
+// Requer role específico
+[Authorize(Roles = "Admin")]
+public Task<IActionResult> AdminOnly() { }
+
+// Requer policy
+[Authorize(Policy = "CanEditAssistants")]
+public Task<IActionResult> EditAssistant() { }
+
+// Permitir acesso anônimo
+[AllowAnonymous]
+public Task<IActionResult> PublicEndpoint() { }
+```
+
+## appsettings.json
+
+```json
+{
+  "Jwt": {
+    "Secret": "USAR_USER_SECRETS_EM_DEV_E_KEY_VAULT_EM_PROD",
+    "Issuer": "bewiser-assistant-api",
+    "Audience": "bewiser-assistant-client",
+    "ExpirationMinutes": 60,
+    "RefreshExpirationDays": 7
+  }
+}
+```
+
+> **IMPORTANTE**: Nunca commitar o Secret. Usar User Secrets em dev e Azure Key Vault em produção.
+
+## Checklist
+
+- [ ] Extensão `AddAuthentication()` criada em Infrastructure
+- [ ] Settings em classe separada com `SectionName`
+- [ ] Secret em User Secrets (não em appsettings)
+- [ ] Tokens com expiração curta (< 1h)
+- [ ] Refresh tokens implementados
+- [ ] Contracts seguem nomenclatura `[Verbo][Domínio]Request/Response`
+- [ ] `[Authorize]` em endpoints protegidos
+- [ ] Claims adequadas no token

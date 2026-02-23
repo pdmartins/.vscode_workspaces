@@ -1,0 +1,61 @@
+---
+name: code-catalog-query
+description: Catálogo de skills do tipo code — análise, refatoração, enforcement de padrões, e geração de código específico de linguagem/framework. Consulte este catálogo quando a tarefa envolver review de código, refatoração, extração de métodos/classes, verificação de padrões, geração de serviços, handlers, testes, ou padrões de framework. Triggers: qual skill de code usar, listar skills code, review, refatorar, padrões, gerar serviço, criar teste, .NET, dotnet.
+metadata:
+  author: copilot-core
+  version: "2.0"
+  category: code
+---
+
+# Code Skills Catalog
+
+Catálogo de skills do tipo `code` para descoberta rápida.
+
+## Skills Disponíveis
+
+### Análise & Qualidade
+
+| Skill | Ação | Quando Usar | Keywords |
+|-------|------|-------------|----------|
+| `code-review-analyze` | Analisar | Code review, revisar PR, verificar qualidade/segurança/performance | review, qualidade, segurança, performance, "está bom?" |
+| `code-refactor-extract` | Extrair | Separar responsabilidades, extrair métodos/classes, simplificar | refatorar, extrair, separar, mover, dividir, "muito grande" |
+| `code-pattern-enforce` | Verificar | Após gerar código, verificar aderência a padrões do projeto | padrões, convenções, padronizar, naming, estrutura |
+
+### Geração de Código
+
+| Skill | Ação | Quando Usar | Keywords |
+|-------|------|-------------|----------|
+| `code-dotnet-service` | Gerar | Serviços, handlers, commands, queries, interfaces .NET | serviço, handler, command, query, wrapper, endpoint, .NET |
+| `code-dotnet-test` | Gerar | Testes unitários .NET (xUnit/NUnit, NSubstitute/Moq) | teste, unit test, coverage, mock, xUnit, NSubstitute |
+
+## Roteamento Rápido
+
+| Situação | Skill |
+|----------|-------|
+| Revisar código existente ou PR | `code-review-analyze` |
+| Código complexo precisa ser simplificado | `code-refactor-extract` |
+| Verificar se código segue convenções | `code-pattern-enforce` |
+| Após gerar código (verificação automática) | `code-pattern-enforce` |
+| Criar serviço, handler, command, query .NET | `code-dotnet-service` |
+| Criar testes unitários .NET | `code-dotnet-test` |
+| Após criar serviço (testes devem acompanhar) | `code-dotnet-test` |
+
+## Project Config
+
+Todas as skills carregam `config.yml` do project para regras específicas:
+- `code-review-analyze` → checklist customizado, severidades
+- `code-refactor-extract` → limites de complexidade, padrões de extração
+- `code-pattern-enforce` → naming conventions, estrutura de pastas
+- `code-dotnet-service` → arquitetura, namespaces, DI, patterns
+- `code-dotnet-test` → framework de teste, mock lib, convenções
+
+## Project Skills
+
+Projetos podem adicionar skills `code-*` adicionais no `.copilot-project/skills/`:
+- Controllers, webhooks, contratos de API
+- Entities, value objects, domain events
+- Commands/queries CQRS, DTOs, mappings
+- Scripts Bash/PowerShell
+- Testes de integração
+
+Consulte o `skills/README.md` do project para lista completa.

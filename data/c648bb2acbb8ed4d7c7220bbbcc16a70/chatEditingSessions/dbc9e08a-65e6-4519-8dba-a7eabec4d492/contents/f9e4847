@@ -1,0 +1,186 @@
+---
+name: skill-output-validate
+description: Valida a estrutura e qualidade dos artefatos de metadata do sistema — SKILL.md, instructions, catálogos, context, memory, code-map. Verifica frontmatter schema, naming conventions, consistência entre artefatos, e formato correto. Use após criar/editar skills, instructions, ou artefatos de metadata. Triggers: "valida skills", "verifica estrutura", "valida instructions", "verifica consistência", após skill-template-create.
+metadata:
+  author: copilot-core
+  version: "2.0"
+  category: skill
+  delegable: full
+---
+
+# Skill Output Validate
+
+Valida estrutura e qualidade dos artefatos de metadata do sistema de skills.
+
+## Quando Usar
+
+- Após `skill-template-create` criar um novo skill
+- Após edições manuais em SKILL.md, instructions, catálogos
+- Sob demanda com "valida skills", "verifica estrutura"
+- Como parte de uma review completa (chamado por `agent-action-review`)
+- Antes de commit/push de mudanças no `.copilot-core` ou `.copilot-project`
+
+## Quando NÃO Usar
+
+- Validação de código-fonte (usar `code-review-analyze`)
+- Validação de completude de side-effects (usar `agent-action-review`)
+- Validação de API patterns (usar `code-api-validate`)
+
+## Workflow
+
+### 1. Determinar escopo
+
+Aceitar um dos seguintes como input:
+
+| Input | Escopo |
+|-------|--------|
+| Nome de skill específico | Validar apenas esse SKILL.md + presença nos catálogos/instructions |
+| Tipo de artefato (`skills`, `instructions`, `catalogs`, `context`, `memory`, `codemap`) | Validar todos artefatos desse tipo |
+| `all` | Validar tudo |
+| Nenhum | Default: validar skills alterados na sessão atual |
+
+### 2. Validar SKILL.md
+
+Para cada SKILL.md no escopo:
+
+#### Frontmatter Schema
+
+| Campo | Regra | Severidade |
+|-------|-------|------------|
+| `name` | Presente, formato `{tipo}-{feature}-{ação}`, 3 segmentos, kebab-case | 🔴 |
+| `description` | Presente, inclui triggers, >20 chars | ⚠️ |
+| `metadata.author` | Presente | ⚠️ |
+| `metadata.version` | Presente, formato semver | ⚠️ |
+| `metadata.category` | Presente, igual ao primeiro segmento de `name` | 🔴 |
+| `metadata.delegable` | Presente, valor em `full\|orchestrated\|none` | ⚠️ |
+
+#### Naming Convention
+
+| Regra | Exemplo válido | Exemplo inválido |
+|-------|---------------|-----------------|
+| Exatamente 3 segmentos separados por `-` | `agent-chat-save` | `agent-save`, `agent-chat-save-v2` |
+| Primeiro segmento = tipo válido | `agent`, `code`, `infra`, `project`, `skill`, `editor` | `tool`, `misc` |
+| kebab-case | `agent-chat-save` | `agent-Chat-Save`, `agent_chat_save` |
+
+#### Seções Obrigatórias
+
+| Seção | Obrigatória para |
+|-------|-----------------|
+| `## Quando Usar` | Todos |
+| `## Workflow` | Todos |
+| `## Config Loading` | Skills dos tipos `infra` e `code` |
+
+#### Tamanho
+
+| Regra | Limite |
+|-------|--------|
+| SKILL.md < 500 linhas | Progressive disclosure — se maior, considerar split |
+
+### 3. Validar Instructions
+
+Verificar consistência entre os 3 arquivos de instructions:
+
+| Arquivo | Path |
+|---------|------|
+| Core | `.copilot-core/instructions/agent-skills-core.instructions.md` |
+| Template | `.copilot-core/templates/workspace.instructions.md` |
+| Project | `.copilot-project/instructions/agent-skills-project.instructions.md` |
+
+#### Capability Manifest
+
+| Verificação | Como |
+|-------------|------|
+| Contagem por tipo correta? | Contar skills físicos em `.copilot-core/skills/{tipo}/` vs Qtd no Manifest |
+| Catálogos "N skills" | Contar skills no SKILL.md do catálogo vs N declarado |
+| "full (N)" / "orchestrated (N)" / "none (N)" | Contar skills classificados vs N declarado (em `agent-subagent-delegate`) |
+
+#### Consistência entre Manifests
+
+| Verificação | Como |
+|-------------|------|
+| Contagens idênticas? | Cross-check core vs template vs project |
+| Always-Known consistente? | Lista de ~10 skills idêntica nos 3 arquivos |
+| Skill existe fisicamente? | Verificar se `{tipo}/{name}/SKILL.md` existe em `.copilot-core/skills/` |
+
+### 4. Validar Catálogos
+
+Para cada `{tipo}-catalog-query/SKILL.md`:
+
+| Verificação | Como |
+|-------------|------|
+| Todos os skills do tipo listados? | Listar skills em `.copilot-core/skills/{tipo}/` vs tabela do catálogo |
+| Roteamento rápido cobre cenários? | Verificar se situações comuns têm routing |
+| Description inclui keywords? | Campo description no frontmatter menciona keywords de todos os skills indexados |
+
+### 5. Validar Context (`project.md`)
+
+| Verificação | Como |
+|-------------|------|
+| Arquivo existe? | Check `.copilot-project/context/project.md` |
+| Seções obrigatórias presentes? | Objetivo, Stack, Estado Atual |
+| "Última Atualização" recente? | Data vs data atual |
+
+### 6. Validar Memory (`lessons-learned.md`)
+
+| Verificação | Como |
+|-------------|------|
+| Formato XML correto? | Cada `<lesson>` tem `date`, `category`, `<context>`, `<decision>`, `<outcome>` |
+| Categorias válidas? | Uma das: `arquitetura`, `padrões`, `tooling`, `workflow`, `debug`, `performance`, `segurança`, `regras`, `estrutura` |
+| Sem duplicatas? | Verificar lições com context/decision similares |
+| `supersedes` referencia lição existente? | Se presente, verificar que a lição referenciada existe |
+
+### 7. Validar Code-Map
+
+| Verificação | Como |
+|-------------|------|
+| `index.md` existe? | Check `.copilot-project/context/code-map/index.md` |
+| Artefatos correspondem a arquivos reais? | Cross-check paths listados vs filesystem |
+| Tipagem consistente? | service, model, api, component, util, config |
+
+### 8. Gerar Relatório
+
+```
+📋 **Validação de Artefatos**
+
+### SKILL.md
+✅ `agent-chat-save` — frontmatter válido, naming OK, seções completas
+⚠️ `infra-docker-build` — falta seção "Config Loading" (obrigatória para tipo infra)
+🔴 `code-novo-skill` — category "code" mas name começa com "code" incorretamente → 2 segmentos apenas
+
+### Instructions
+✅ Capability Manifest: contagens corretas (agent=10, code=22, project=10, infra=12, skill=2, editor=2)
+⚠️ Template workspace.instructions.md Manifest diverge do core (code diz 21, deveria ser 22)
+🔴 `agent-impact-validate` não listado no catálogo agent-catalog-query
+
+### Catálogos
+✅ `code-catalog-query` — 21 skills listados, todos existem
+⚠️ `agent-catalog-query` — description não menciona keyword "review"
+
+### Memory
+✅ 8 lições — formato XML válido, categorias válidas
+⚠️ Possível duplicata: lição 2026-02-15 "naming" e lição 2026-02-15 "chat naming"
+
+**Ações necessárias**: {lista priorizada}
+```
+
+### Severidades
+
+| Nível | Significado | Exemplo |
+|-------|-------------|---------|
+| ✅ | Válido | Frontmatter completo e correto |
+| ⚠️ | Atenção — funciona mas não ideal | Description sem triggers, contagem desatualizada |
+| 🔴 | Inválido — precisa de correção | Naming convention violada, skill não listado |
+
+## Checklist Rápida
+
+- [ ] Frontmatter: name, description, metadata.author, metadata.version, metadata.category, metadata.delegable
+- [ ] Naming: 3 segmentos, kebab-case, tipo válido, category = tipo
+- [ ] Seções: Quando Usar, Workflow, Config Loading (se infra/code)
+- [ ] Tamanho: < 500 linhas
+- [ ] Instructions: Capability Manifest contagens corretas nos 3 arquivos
+- [ ] Instructions: Manifests idênticos entre core, template e project
+- [ ] Catálogo: skill listado no catálogo do seu tipo
+- [ ] agent-subagent-delegate: skill listado com classificação correta
+- [ ] MCP config: `.vscode/mcp.json` válido (se existir)
+- [ ] Memory: formato XML, categorias válidas, sem duplicatas
+- [ ] Code-map: artefatos correspondem a arquivos existentes

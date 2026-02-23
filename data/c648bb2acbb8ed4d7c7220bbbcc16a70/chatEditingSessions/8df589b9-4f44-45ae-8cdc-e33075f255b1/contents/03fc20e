@@ -1,0 +1,67 @@
+# code-dotnet-test — STT Project Configuration
+# Consumed by core skill: .copilot-core/skills/code/code-dotnet-test/SKILL.md
+
+language: csharp
+framework: dotnet-8
+test_framework: xunit
+
+projects:
+  api:
+    test_project: Hapvida.TI.VoiceTranscription.UnitTests
+    namespace: Hapvida.TI.VoiceTranscription.UnitTests.Units
+    mock_framework: nsubstitute   # NSubstitute for NEW tests
+    mock_framework_legacy: moq    # Moq exists in legacy tests — keep when extending
+    sut_pattern: BuildSut         # static method with out parameters
+    test_name_lang: english       # Handle_WhenCondition_ShouldExpectedBehavior
+    display_name_lang: portuguese
+    extras:
+      - AutoMapper
+      - Bogus
+
+  consumer:
+    test_project: Hapvida.TI.VoiceTranscription.Ai.UnitTests
+    namespace: Hapvida.TI.VoiceTranscription.Ai.UnitTests.Units
+    mock_framework: moq
+    sut_pattern: CreateSut        # instance method, mocks as fields
+    test_name_lang: portuguese    # Method_ComCondicao_DeveComportamento
+    display_name_lang: portuguese
+    extras:
+      - Bogus
+
+directory_structure: |
+  UnitTests/Units/
+  ├── Commands/v1/{Name}/{Name}HandlerTests.cs
+  ├── Queries/v1/{Name}/{Name}HandlerTests.cs
+  ├── Services/v1/{Name}Tests.cs
+  └── Helpers/{Name}Tests.cs
+
+required_scenarios:
+  - name: null_constructor
+    priority: high
+    description: "Construtor com parâmetro nulo → ArgumentNullException"
+  - name: valid_input
+    priority: high
+    description: "Input válido → resultado esperado"
+  - name: invalid_input
+    priority: high
+    description: "Input inválido/vazio → validação"
+  - name: cancellation_token
+    priority: high
+    description: "CancellationToken cancelado → retorno early"
+  - name: null_dependency
+    priority: medium
+    description: "Dependência retorna null → tratamento graceful"
+  - name: exception_dependency
+    priority: medium
+    description: "Exceção na dependência → propagação ou fallback"
+
+coverage:
+  format: cobertura
+  tool: coverlet
+  include: "[*.Domain?]*"
+  exclude:
+    - "[*.Api]*"
+    - "[*.Tests]*"
+    - "Program"
+    - "Startup"
+    - "Bootstrapper"

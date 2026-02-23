@@ -1,0 +1,109 @@
+---
+name: project-structure-analyze
+description: Analisa a estrutura de um projeto e sugere skills apropriados. Use em novo projeto sendo configurado, quando usuário pedir para "analisar projeto" ou "configurar prompts", ou no primeiro uso do copilot-agent em um workspace. Triggers: "analisar projeto", "sugerir skills", "configurar copilot", novo workspace.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: project
+  delegable: full
+---
+
+# Project Structure Analyze
+
+Analisa estrutura de um projeto e guia o usuário na configuração de skills.
+
+## Quando Usar
+
+- Novo projeto sendo configurado
+- Usuário pede para "analisar projeto"
+- Usuário pede para "configurar prompts"
+- Primeiro uso do copilot em um workspace
+
+## Workflow
+
+### 1. Coletar informações do projeto
+
+**Automaticamente:**
+- Listar estrutura de pastas do workspace
+- Identificar arquivos de configuração (package.json, pom.xml, etc)
+- Identificar linguagens pelos arquivos (.ts, .py, .cs, etc)
+- Identificar frameworks pelos configs
+
+**Output**:
+```
+📊 **Análise inicial do projeto**
+- Estrutura: {monorepo/single-app/library}
+- Linguagens: {lista}
+- Frameworks: {lista}
+```
+
+### 2. Fazer perguntas ao usuário
+
+Perguntar apenas o necessário:
+
+1. Qual é o objetivo principal deste projeto?
+2. Existem padrões de código que devem ser seguidos?
+3. Precisa de suporte multi-plataforma? (Windows/Linux/Mac)
+4. Quais são as regras de negócio mais importantes?
+5. Existem integrações externas? (APIs, serviços)
+
+### 3. Mapear skills necessárias
+
+| Categoria | Quando Sugerir |
+|-----------|----------------|
+| Linguagem | Arquivos da linguagem detectados |
+| Framework | Framework específico em uso |
+| Documentação | Projeto precisa de docs padronizados |
+| Validação | Regras de negócio específicas |
+| Integração | APIs ou serviços externos |
+
+### 4. Apresentar recomendações
+
+**Output**:
+```
+📋 **Skills recomendados**
+
+| Skill | Motivo | Prioridade |
+|-------|--------|------------|
+| {nome} | {justificativa} | Alta/Média/Baixa |
+```
+
+### 5. Criar estrutura (se aprovado)
+
+**Se usuário aprovar:**
+- Usar skill `project-setup-bootstrap` para criar estrutura base
+- Usar skill `project-context-update` para inicializar contexto
+- Usar skill `agent-memory-query` para consultar/inicializar memória
+
+**Output**:
+```
+✅ **Projeto configurado**
+- Skills criados: {n}
+- Estrutura pronta em `.copilot-project/`
+```
+
+## Template de Análise
+
+```markdown
+# Análise do Projeto: {nome}
+
+## Estrutura Detectada
+{árvore de pastas resumida}
+
+## Linguagens/Frameworks
+| Tipo | Detectado |
+|------|-----------|
+| Linguagens | {lista} |
+| Frameworks | {lista} |
+| Build Tools | {lista} |
+
+## Skills Recomendados
+| Skill | Motivo | Prioridade |
+|-------|--------|------------|
+| {nome} | {justificativa} | Alta/Média/Baixa |
+
+## Próximos Passos
+1. Aprovar recomendações
+2. Inicializar estrutura
+3. Configurar contexto
+```

@@ -1,0 +1,29 @@
+---
+name: agent-catalog-query
+description: Catálogo de skills do tipo agent — memória, tarefas e comportamento do agente. Consulte este catálogo quando a tarefa envolver lições aprendidas, memória, registro de decisões, ou gestão de tarefas complexas. Triggers: qual skill de agent usar, listar skills agent, memória, lições, tarefas.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: agent
+---
+
+# Agent Skills Catalog
+
+Catálogo de skills do tipo `agent` para descoberta rápida.
+
+## Skills Disponíveis
+
+| Skill | Ação | Quando Usar | Keywords |
+|-------|------|-------------|----------|
+| `agent-memory-query` | Consultar | Início de tarefas complexas, verificar decisões passadas, evitar erros documentados | lições, decisões, histórico, padrões aprendidos |
+| `agent-memory-register` | Registrar | Após decisões importantes, correção de código gerado, descoberta de padrões | guardar, salvar, anotar, lembrar, memorizar, "não é assim" |
+| `agent-task-manage` | Gerenciar | Tarefa com 4+ steps, múltiplos pedidos, múltiplos arquivos | todo, tarefas, planejar, steps, "fazer X, Y e Z" |
+
+## Roteamento Rápido
+
+| Situação | Skill |
+|----------|-------|
+| Usuário pede para guardar/lembrar algo (lições, padrões) | `agent-memory-register` |
+| Antes de tarefa complexa (verificar experiência prévia) | `agent-memory-query` |
+| Tarefa com múltiplos steps independentes | `agent-task-manage` |
+| Usuário corrige código gerado pelo agente | `agent-memory-register` (automático) |

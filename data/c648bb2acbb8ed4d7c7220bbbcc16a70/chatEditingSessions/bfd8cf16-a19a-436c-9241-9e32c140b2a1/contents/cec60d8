@@ -1,0 +1,416 @@
+---
+name: infra-service-integrate
+description: Padrões para Services externos e Clients na Infrastructure. Use ao integrar com APIs externas como Twilio, Azure OpenAI, ou outros provedores. Triggers: service, client, Twilio, OpenAI, integração, HTTP client, pasta Services/, Clients/.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: infra
+---
+
+# External Services Skill
+
+Padrões para Services e Clients que integram com APIs externas.
+
+## Quando Usar
+
+- Integrar com Twilio (WhatsApp)
+- Integrar com Azure OpenAI
+- Integrar com Azure AI Search
+- Criar HTTP clients tipados
+
+## Estrutura
+
+```
+src/BeWiser.Assistant.Infrastructure/
+├── Services/
+│   ├── AI/
+│   │   ├── AzureOpenAiService.cs
+│   │   └── AzureSearchService.cs
+│   └── WhatsApp/
+│       └── TwilioWhatsAppService.cs
+├── Clients/
+│   ├── TwilioClient.cs
+│   └── AzureSearchClient.cs
+└── Options/
+    ├── TwilioOptions.cs
+    ├── AzureOpenAiOptions.cs
+    └── AzureSearchOptions.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Service Interface | `I[Domínio]Service` | `IAiService`, `IWhatsAppService` |
+| Service Impl | `[Provedor][Domínio]Service` | `TwilioWhatsAppService`, `AzureOpenAiService` |
+| Client | `[Provedor]Client` | `TwilioClient`, `AzureSearchClient` |
+| Options | `[Serviço]Options` | `TwilioOptions`, `AzureOpenAiOptions` |
+
+## Templates
+
+### Service Interface
+
+```csharp
+namespace BeWiser.Assistant.Application.Interfaces.Services;
+
+/// <summary>
+/// Service for AI text generation.
+/// </summary>
+public interface IAiService
+{
+    Task<string> GenerateResponseAsync(
+        Conversation conversation,
+        CancellationToken cancellationToken = default);
+
+    Task<string> GenerateResponseAsync(
+        string systemPrompt,
+        IReadOnlyList<ChatMessage> history,
+        CancellationToken cancellationToken = default);
+}
+
+/// <summary>
+/// Service for sending WhatsApp messages.
+/// </summary>
+public interface IWhatsAppService
+{
+    Task<string> SendMessageAsync(
+        string phoneNumber,
+        string message,
+        CancellationToken cancellationToken = default);
+
+    Task<string> SendTemplateAsync(
+        string phoneNumber,
+        string templateName,
+        Dictionary<string, string> parameters,
+        CancellationToken cancellationToken = default);
+}
+```
+
+### Azure OpenAI Service
+
+```csharp
+using Azure;
+using Azure.AI.OpenAI;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
+
+namespace BeWiser.Assistant.Infrastructure.Services.AI;
+
+/// <summary>
+/// Azure OpenAI implementation of IAiService.
+/// </summary>
+public class AzureOpenAiService : IAiService
+{
+    private readonly OpenAIClient _client;
+    private readonly AzureOpenAiOptions _options;
+    private readonly ILogger<AzureOpenAiService> _logger;
+
+    public AzureOpenAiService(
+        IOptions<AzureOpenAiOptions> options,
+        ILogger<AzureOpenAiService> logger)
+    {
+        _options = options.Value;
+        _logger = logger;
+        
+        _client = new OpenAIClient(
+            new Uri(_options.Endpoint),
+            new AzureKeyCredential(_options.ApiKey));
+    }
+
+    public async Task<string> GenerateResponseAsync(
+        Conversation conversation,
+        CancellationToken cancellationToken = default)
+    {
+        var assistant = conversation.Assistant;
+        var history = conversation.Messages
+            .OrderBy(m => m.CreatedAt)
+            .Select(m => new ChatRequestMessage(
+                m.Direction == MessageDirection.Incoming 
+                    ? ChatRole.User 
+                    : ChatRole.Assistant,
+                m.Content.Value))
+            .ToList();
+
+        return await GenerateResponseAsync(
+            assistant.SystemPrompt,
+            history,
+            cancellationToken);
+    }
+
+    public async Task<string> GenerateResponseAsync(
+        string systemPrompt,
+        IReadOnlyList<ChatMessage> history,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug(
+            "Generating response with {MessageCount} messages in history",
+            history.Count);
+
+        var chatOptions = new ChatCompletionsOptions(_options.DeploymentName)
+        {
+            Temperature = _options.Temperature,
+            MaxTokens = _options.MaxTokens,
+            Messages =
+            {
+                new ChatRequestSystemMessage(systemPrompt)
+            }
+        };
+
+        foreach (var message in history)
+        {
+            chatOptions.Messages.Add(message.Role == "user"
+                ? new ChatRequestUserMessage(message.Content)
+                : new ChatRequestAssistantMessage(message.Content));
+        }
+
+        var response = await _client.GetChatCompletionsAsync(
+            chatOptions,
+            cancellationToken);
+
+        var content = response.Value.Choices[0].Message.Content;
+        
+        _logger.LogDebug(
+            "Generated response with {TokenCount} tokens",
+            response.Value.Usage.TotalTokens);
+
+        return content;
+    }
+}
+```
+
+### Twilio WhatsApp Service
+
+```csharp
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
+using Twilio;
+using Twilio.Rest.Api.V2010.Account;
+using Twilio.Types;
+
+namespace BeWiser.Assistant.Infrastructure.Services.WhatsApp;
+
+/// <summary>
+/// Twilio implementation of IWhatsAppService.
+/// </summary>
+public class TwilioWhatsAppService : IWhatsAppService
+{
+    private readonly TwilioOptions _options;
+    private readonly ILogger<TwilioWhatsAppService> _logger;
+
+    public TwilioWhatsAppService(
+        IOptions<TwilioOptions> options,
+        ILogger<TwilioWhatsAppService> logger)
+    {
+        _options = options.Value;
+        _logger = logger;
+        
+        TwilioClient.Init(_options.AccountSid, _options.AuthToken);
+    }
+
+    public async Task<string> SendMessageAsync(
+        string phoneNumber,
+        string message,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "Sending WhatsApp message to {PhoneNumber}",
+            phoneNumber);
+
+        var messageResource = await MessageResource.CreateAsync(
+            to: new PhoneNumber($"whatsapp:{phoneNumber}"),
+            from: new PhoneNumber($"whatsapp:{_options.WhatsAppNumber}"),
+            body: message);
+
+        _logger.LogInformation(
+            "Message sent with SID {MessageSid}",
+            messageResource.Sid);
+
+        return messageResource.Sid;
+    }
+
+    public async Task<string> SendTemplateAsync(
+        string phoneNumber,
+        string templateName,
+        Dictionary<string, string> parameters,
+        CancellationToken cancellationToken = default)
+    {
+        // Twilio supports content templates
+        var contentSid = await GetContentSidAsync(templateName);
+        
+        var messageResource = await MessageResource.CreateAsync(
+            to: new PhoneNumber($"whatsapp:{phoneNumber}"),
+            from: new PhoneNumber($"whatsapp:{_options.WhatsAppNumber}"),
+            contentSid: contentSid,
+            contentVariables: System.Text.Json.JsonSerializer.Serialize(parameters));
+
+        return messageResource.Sid;
+    }
+
+    private Task<string> GetContentSidAsync(string templateName)
+    {
+        // Map template name to Twilio Content SID
+        return Task.FromResult(_options.Templates[templateName]);
+    }
+}
+```
+
+### Options Classes
+
+```csharp
+namespace BeWiser.Assistant.Infrastructure.Options;
+
+/// <summary>
+/// Azure OpenAI configuration options.
+/// </summary>
+public class AzureOpenAiOptions
+{
+    public const string SectionName = "AzureOpenAi";
+    
+    public required string Endpoint { get; init; }
+    public required string ApiKey { get; init; }
+    public required string DeploymentName { get; init; }
+    public float Temperature { get; init; } = 0.7f;
+    public int MaxTokens { get; init; } = 1000;
+}
+
+/// <summary>
+/// Twilio configuration options.
+/// </summary>
+public class TwilioOptions
+{
+    public const string SectionName = "Twilio";
+    
+    public required string AccountSid { get; init; }
+    public required string AuthToken { get; init; }
+    public required string WhatsAppNumber { get; init; }
+    public Dictionary<string, string> Templates { get; init; } = new();
+}
+
+/// <summary>
+/// Azure AI Search configuration options.
+/// </summary>
+public class AzureSearchOptions
+{
+    public const string SectionName = "AzureSearch";
+    
+    public required string Endpoint { get; init; }
+    public required string ApiKey { get; init; }
+    public required string IndexName { get; init; }
+}
+```
+
+### Typed HTTP Client
+
+```csharp
+using System.Net.Http.Json;
+
+namespace BeWiser.Assistant.Infrastructure.Clients;
+
+/// <summary>
+/// Typed HTTP client for external API.
+/// </summary>
+public class ExternalApiClient
+{
+    private readonly HttpClient _httpClient;
+    private readonly ILogger<ExternalApiClient> _logger;
+
+    public ExternalApiClient(
+        HttpClient httpClient,
+        ILogger<ExternalApiClient> logger)
+    {
+        _httpClient = httpClient;
+        _logger = logger;
+    }
+
+    public async Task<TResponse?> GetAsync<TResponse>(
+        string path,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("GET {Path}", path);
+        
+        var response = await _httpClient.GetAsync(path, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        
+        return await response.Content.ReadFromJsonAsync<TResponse>(cancellationToken);
+    }
+
+    public async Task<TResponse?> PostAsync<TRequest, TResponse>(
+        string path,
+        TRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("POST {Path}", path);
+        
+        var response = await _httpClient.PostAsJsonAsync(path, request, cancellationToken);
+        response.EnsureSuccessStatusCode();
+        
+        return await response.Content.ReadFromJsonAsync<TResponse>(cancellationToken);
+    }
+}
+```
+
+### Registro de HTTP Client
+
+```csharp
+public static IServiceCollection AddExternalServices(
+    this IServiceCollection services,
+    IConfiguration configuration)
+{
+    // Azure OpenAI
+    services.Configure<AzureOpenAiOptions>(
+        configuration.GetSection(AzureOpenAiOptions.SectionName));
+    services.AddScoped<IAiService, AzureOpenAiService>();
+
+    // Twilio
+    services.Configure<TwilioOptions>(
+        configuration.GetSection(TwilioOptions.SectionName));
+    services.AddScoped<IWhatsAppService, TwilioWhatsAppService>();
+
+    // Typed HTTP Client
+    services
+        .AddHttpClient<ExternalApiClient>((sp, client) =>
+        {
+            var options = sp.GetRequiredService<IOptions<ExternalApiOptions>>().Value;
+            client.BaseAddress = new Uri(options.BaseUrl);
+            client.DefaultRequestHeaders.Add("X-Api-Key", options.ApiKey);
+        })
+        .AddStandardResilienceHandler(); // Polly retry/circuit breaker
+
+    return services;
+}
+```
+
+## Resiliência com Polly
+
+```csharp
+services
+    .AddHttpClient<ExternalApiClient>()
+    .AddResilienceHandler("default", builder =>
+    {
+        builder
+            .AddRetry(new RetryStrategyOptions<HttpResponseMessage>
+            {
+                MaxRetryAttempts = 3,
+                Delay = TimeSpan.FromSeconds(1),
+                BackoffType = DelayBackoffType.Exponential
+            })
+            .AddCircuitBreaker(new CircuitBreakerStrategyOptions<HttpResponseMessage>
+            {
+                FailureRatio = 0.5,
+                MinimumThroughput = 10,
+                BreakDuration = TimeSpan.FromSeconds(30)
+            })
+            .AddTimeout(TimeSpan.FromSeconds(10));
+    });
+```
+
+## Checklist
+
+- [ ] Interface em `Application/Interfaces/Services/`
+- [ ] Implementação em `Infrastructure/Services/[Categoria]/`
+- [ ] Options em `Infrastructure/Options/`
+- [ ] Nomenclatura: `[Provedor][Domínio]Service`
+- [ ] Logs em operações externas
+- [ ] Retry/Circuit Breaker configurado
+- [ ] Secrets via User Secrets/Key Vault
+- [ ] CancellationToken propagado

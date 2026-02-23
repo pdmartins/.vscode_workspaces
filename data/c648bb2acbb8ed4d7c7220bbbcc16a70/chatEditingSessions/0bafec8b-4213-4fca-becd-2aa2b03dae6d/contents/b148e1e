@@ -1,0 +1,70 @@
+# Project Context — LLM-as-Judge Test Project
+
+Projeto de teste para validação de skills via avaliação LLM (GHCP como juiz).
+
+---
+
+## Objetivo
+
+Avaliar a eficácia dos prompts das skills do `.copilot-core` usando o próprio GitHub Copilot como juiz. Cenários estruturados em YAML definem inputs, skills esperadas, rubrics de avaliação e âncoras de grounding. O GHCP executa avaliações e registra resultados — tudo isolado nesta branch sem afetar projetos reais.
+
+## Abordagem
+
+**LLM-as-Judge semi-automatizado**: cenários YAML + skill `code-skill-evaluate` + GHCP evaluation.
+
+3 dimensões avaliadas:
+
+| Dimensão | O que testa | Como |
+|----------|------------|------|
+| **Routing** | Dado user message, skill correta é ativada? | Comparar expected_skills vs skill que o agente ativaria |
+| **Quality** | Output segue template e é útil? | Rubric com critérios weighted 1-5 |
+| **Hallucination** | Agente inventa dados? | Grounding anchors + forbidden claims |
+
+## Stack
+
+| Componente | Tecnologia |
+|------------|------------|
+| Cenários | YAML (extensão do formato de fixtures de conversação) |
+| Validação estática | pytest (`@pytest.mark.evaluation`) |
+| Avaliação LLM | GitHub Copilot Chat (manual, guiado por skill) |
+| Resultados | Markdown (memory/decisions/ + score tracker) |
+
+## Estrutura
+
+```
+_test/llm-judge/
+├── context/
+│   └── project.md              ← este arquivo
+├── memory/
+│   ├── index.md                ← catálogo de memória
+│   └── decisions/              ← findings das avaliações
+├── chat-memory/                ← sessões de avaliação
+├── instructions/
+│   └── agent-skills-project.instructions.md
+├── skills/
+│   └── code-skill-evaluate/
+│       └── config.yml          ← thresholds e weights
+└── scenarios/                  ← cenários de avaliação
+    ├── routing/                ← 8 cenários routing accuracy
+    ├── quality/                ← 5 cenários output quality
+    └── hallucination/          ← 5 cenários anti-hallucination
+```
+
+## Isolamento
+
+- **Branch**: `_test/llm-judge` (derivada de `main`)
+- **Worktree**: `.copilot-project-worktrees/_test/llm-judge/`
+- **Memórias**: registradas apenas nesta branch, não poluem projetos reais
+
+## Convenções
+
+1. Cenários em inglês (nomes de arquivo e campos YAML)
+2. Rubric criteria em inglês
+3. Findings/results em português
+4. Um cenário = um arquivo YAML
+5. Nomes: `{NNN}-{descrição-curta}.yaml` (NNN = sequencial por tipo)
+
+## Estado Atual
+
+**Fase**: Inicial
+**Status**: Estrutura criada, cenários iniciais definidos, skill `code-skill-evaluate` no core

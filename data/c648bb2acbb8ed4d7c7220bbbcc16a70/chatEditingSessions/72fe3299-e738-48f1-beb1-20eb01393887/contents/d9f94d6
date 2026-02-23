@@ -1,0 +1,22 @@
+---
+project: copilot-core
+updated: 2026-02-17
+---
+
+# Backlog
+
+## Alta Prioridade
+
+- [ ] `BKL-001` **Onboarding de projetos em andamento** — Criar solução/skill para que o agente consiga entender e mapear um projeto já em andamento quando o .copilot-core é plugado pela primeira vez (deep scan de estrutura, stack, dependências, padrões existentes, estado atual). Deve preencher automaticamente project.md, code-map e contexto relevante a partir da análise do repositório existente. `[research]` _2026-02-17_
+
+## Média Prioridade
+
+
+## Baixa Prioridade
+
+
+## Ideias / Explorar
+
+
+## Concluídos
+

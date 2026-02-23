@@ -1,0 +1,110 @@
+---
+name: agent-guide-stepbystep
+description: Guia o usuário interativamente através de um processo passo a passo. Apresenta visão macro primeiro, depois detalha um passo por vez, aguardando feedback antes de avançar. Complementa agent-task-manage (agente executa) — esta skill é para quando o agente GUIA o usuário. Triggers: passo a passo, me guia, como fazer step by step, me ensina, walkthrough, guia interativo, me explica como fazer, tutorial, me mostra o processo.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: agent
+  delegable: none
+---
+
+# Agent Guide Step-by-Step
+
+Protocolo de guia interativo para processos multi-etapa dirigidos ao usuário.
+
+## Quando Usar
+
+- Usuário pede "passo a passo", "me guia", "como fazer X"
+- Processo com múltiplas etapas que o **usuário** vai executar
+- Onboarding, tutorial, explicação de workflow
+- Usuário quer entender um processo antes de executar
+
+## Quando NÃO Usar
+
+- Agente executando tarefas autonomamente → `agent-task-manage`
+- Pergunta direta com resposta curta
+- Consulta de informação sem processo sequencial
+- Tarefa que o agente resolve sozinho sem interação
+
+## Workflow
+
+### 1. Apresentar visão macro
+
+Mostrar overview completo do processo com 1-2 linhas por passo:
+
+```
+📋 **Processo geral** ({N} passos):
+
+1. **{Título do Passo 1}** — {descrição curta}
+2. **{Título do Passo 2}** — {descrição curta}
+3. **{Título do Passo 3}** — {descrição curta}
+...
+
+Vamos começar pelo Passo 1?
+```
+
+Aguardar confirmação do usuário antes de detalhar.
+
+### 2. Detalhar um passo por vez
+
+Para cada passo, apresentar com indicador de progresso:
+
+```
+📌 **Passo {X}/{N} — {Título}**
+
+{Explicação detalhada}
+{Exemplos, comandos, código se aplicável}
+{Contexto e notas importantes}
+
+---
+✅ Concluiu este passo? Alguma dúvida antes de avançar?
+```
+
+### 3. Aguardar feedback
+
+**NUNCA** avançar para o próximo passo sem resposta do usuário.
+
+| Resposta do usuário | Ação |
+|---------------------|------|
+| Confirmou / "pronto" / "próximo" | Apresentar próximo passo |
+| Tem dúvida | Resolver dúvida, depois perguntar novamente se pode avançar |
+| Reportou erro | Ajudar a resolver, depois perguntar se pode avançar |
+| Quer pular passo | Informar consequências, pular se confirmado |
+| Quer voltar a passo anterior | Re-apresentar o passo solicitado |
+
+### 4. Adaptar ao contexto
+
+- Se o usuário demonstra experiência → reduzir explicações
+- Se o usuário tem dificuldade → expandir com mais exemplos
+- Se surgir impedimento → ajudar a resolver antes de continuar
+
+### 5. Finalizar
+
+Ao completar o último passo:
+
+```
+🎯 **Processo concluído!**
+
+Resumo do que foi feito:
+1. ✅ {Passo 1}
+2. ✅ {Passo 2}
+3. ✅ {Passo 3}
+```
+
+## Regras
+
+| Regra | Descrição |
+|-------|-----------|
+| Um passo por vez | Nunca mostrar mais de um passo detalhado por mensagem |
+| Aguardar sempre | Nunca pular para o próximo sem confirmação do usuário |
+| Visão macro primeiro | Sempre começar com overview antes de detalhar |
+| Progresso visível | Sempre mostrar indicador `Passo X/N` |
+| Adaptativo | Ajustar nível de detalhe ao feedback do usuário |
+
+## Interação com Outras Skills
+
+| Situação | Skill |
+|----------|-------|
+| Usuário pede para o agente **executar** os passos | → `agent-task-manage` |
+| Processo envolve decisões de memória/contexto | → `agent-memory-update`, `project-context-update` |
+| Guia envolve configuração de projeto | Combinar com `project-setup-bootstrap` |

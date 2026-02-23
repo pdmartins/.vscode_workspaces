@@ -1,0 +1,21 @@
+scenario: "User explicitly asks to analyze the current turn"
+evaluation_type: routing
+difficulty: medium
+
+user_message: "Analisa o que fizemos neste turno e registra o que for relevante."
+
+context:
+  project_stack: ["dotnet", "8.0"]
+  existing_files:
+  has_copilot_project: true
+
+expected_skills:
+  - name: agent-turn-reflect
+    must_activate: true
+    reason: "Direct request matching agent-turn-reflect triggers"
+  - name: agent-action-review
+    must_activate: false
+    reason: "Not post-action review, it's per-turn reflection"
+  - name: agent-memory-update
+    must_activate: false
+    reason: "Reflection decides what to register, not direct registration"

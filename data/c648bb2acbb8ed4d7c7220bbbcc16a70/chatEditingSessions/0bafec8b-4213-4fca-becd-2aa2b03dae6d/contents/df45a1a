@@ -1,0 +1,309 @@
+"""Validate evaluation scenario YAML files against schema and skill existence.
+
+Static validation only — does NOT run LLM evaluation.
+Ensures scenario files are well-formed and reference real skills.
+"""
+
+import yaml
+import pytest
+from pathlib import Path
+from conftest import CORE_ROOT
+
+# Scenarios live in the test project worktree
+WORKSPACE_ROOT = CORE_ROOT.parent  # copilot/
+SCENARIOS_ROOT = (
+    WORKSPACE_ROOT
+    / ".copilot-project-worktrees"
+    / "_test"
+    / "llm-judge"
+    / "scenarios"
+)
+
+VALID_EVALUATION_TYPES = {"routing", "quality", "hallucination"}
+VALID_DIFFICULTIES = {"easy", "medium", "hard"}
+
+
+def load_scenarios() -> list[dict]:
+    """Load all evaluation scenario YAML files."""
+    scenarios = []
+    if not SCENARIOS_ROOT.exists():
+        return scenarios
+    for type_dir in sorted(SCENARIOS_ROOT.iterdir()):
+        if not type_dir.is_dir():
+            continue
+        for f in sorted(type_dir.glob("*.yaml")):
+            content = yaml.safe_load(f.read_text(encoding="utf-8"))
+            content["_file"] = f"{type_dir.name}/{f.name}"
+            content["_type_dir"] = type_dir.name
+            scenarios.append(content)
+    return scenarios
+
+
+EVALUATION_SCENARIOS = load_scenarios()
+
+
+@pytest.mark.evaluation
+class TestEvaluationScenarioSchema:
+    """Validate that all scenario YAML files have required fields."""
+
+    @pytest.mark.parametrize(
+        "scenario",
+        EVALUATION_SCENARIOS,
+        ids=[s["_file"] for s in EVALUATION_SCENARIOS],
+    )
+    def test_required_fields_present(self, scenario):
+        """Every scenario must have scenario, evaluation_type, user_message."""
+        for field in ("scenario", "evaluation_type", "user_message"):
+            assert field in scenario, (
+                f"Scenario '{scenario['_file']}': missing required field '{field}'"
+            )
+
+    @pytest.mark.parametrize(
+        "scenario",
+        EVALUATION_SCENARIOS,
+        ids=[s["_file"] for s in EVALUATION_SCENARIOS],
+    )
+    def test_evaluation_type_valid(self, scenario):
+        """evaluation_type must be one of the valid types."""
+        eval_type = scenario.get("evaluation_type", "")
+        assert eval_type in VALID_EVALUATION_TYPES, (
+            f"Scenario '{scenario['_file']}': "
+            f"invalid evaluation_type '{eval_type}' "
+            f"(valid: {VALID_EVALUATION_TYPES})"
+        )
+
+    @pytest.mark.parametrize(
+        "scenario",
+        EVALUATION_SCENARIOS,
+        ids=[s["_file"] for s in EVALUATION_SCENARIOS],
+    )
+    def test_type_matches_directory(self, scenario):
+        """Scenario evaluation_type must match its parent directory."""
+        eval_type = scenario.get("evaluation_type", "")
+        dir_type = scenario["_type_dir"]
+        assert eval_type == dir_type, (
+            f"Scenario '{scenario['_file']}': "
+            f"evaluation_type '{eval_type}' doesn't match directory '{dir_type}'"
+        )
+
+    @pytest.mark.parametrize(
+        "scenario",
+        EVALUATION_SCENARIOS,
+        ids=[s["_file"] for s in EVALUATION_SCENARIOS],
+    )
+    def test_difficulty_valid(self, scenario):
+        """difficulty must be easy, medium, or hard."""
+        if "difficulty" not in scenario:
+            return  # optional field
+        diff = scenario["difficulty"]
+        assert diff in VALID_DIFFICULTIES, (
+            f"Scenario '{scenario['_file']}': "
+            f"invalid difficulty '{diff}'"
+        )
+
+    @pytest.mark.parametrize(
+        "scenario",
+        EVALUATION_SCENARIOS,
+        ids=[s["_file"] for s in EVALUATION_SCENARIOS],
+    )
+    def test_has_context(self, scenario):
+        """Scenarios should have a context object."""
+        assert "context" in scenario, (
+            f"Scenario '{scenario['_file']}': missing 'context' object"
+        )
+
+
+@pytest.mark.evaluation
+class TestEvaluationRoutingScenarios:
+    """Validate routing-specific scenario fields."""
+
+    ROUTING = [s for s in EVALUATION_SCENARIOS if s.get("evaluation_type") == "routing"]
+
+    @pytest.mark.parametrize(
+        "scenario",
+        ROUTING,
+        ids=[s["_file"] for s in ROUTING],
+    )
+    def test_has_expected_skills(self, scenario):
+        """Routing scenarios must define expected_skills."""
+        assert "expected_skills" in scenario, (
+            f"Routing scenario '{scenario['_file']}': "
+            f"missing 'expected_skills' list"
+        )
+        skills = scenario["expected_skills"]
+        assert isinstance(skills, list) and len(skills) > 0, (
+            f"Routing scenario '{scenario['_file']}': "
+            f"'expected_skills' must be a non-empty list"
+        )
+
+    @pytest.mark.parametrize(
+        "scenario",
+        ROUTING,
+        ids=[s["_file"] for s in ROUTING],
+    )
+    def test_expected_skills_have_name_and_activation(self, scenario):
+        """Each expected skill must have name and must_activate."""
+        for i, skill in enumerate(scenario.get("expected_skills", [])):
+            assert "name" in skill, (
+                f"Routing '{scenario['_file']}': "
+                f"expected_skills[{i}] missing 'name'"
+            )
+            assert "must_activate" in skill, (
+                f"Routing '{scenario['_file']}': "
+                f"expected_skills[{i}] ('{skill.get('name', '?')}') "
+                f"missing 'must_activate'"
+            )
+            assert isinstance(skill["must_activate"], bool), (
+                f"Routing '{scenario['_file']}': "
+                f"must_activate must be boolean"
+            )
+
+    @pytest.mark.parametrize(
+        "scenario",
+        ROUTING,
+        ids=[s["_file"] for s in ROUTING],
+    )
+    def test_referenced_skills_exist(self, scenario, all_skills):
+        """All skills referenced in routing scenarios must exist in core."""
+        skill_names = {s.name for s in all_skills}
+        for expected in scenario.get("expected_skills", []):
+            name = expected["name"]
+            assert name in skill_names, (
+                f"Routing '{scenario['_file']}': "
+                f"references non-existent skill '{name}'"
+            )
+
+
+@pytest.mark.evaluation
+class TestEvaluationQualityScenarios:
+    """Validate quality-specific scenario fields."""
+
+    QUALITY = [s for s in EVALUATION_SCENARIOS if s.get("evaluation_type") == "quality"]
+
+    @pytest.mark.parametrize(
+        "scenario",
+        QUALITY,
+        ids=[s["_file"] for s in QUALITY],
+    )
+    def test_has_target_skill(self, scenario):
+        """Quality scenarios must define target_skill."""
+        assert "target_skill" in scenario, (
+            f"Quality scenario '{scenario['_file']}': missing 'target_skill'"
+        )
+
+    @pytest.mark.parametrize(
+        "scenario",
+        QUALITY,
+        ids=[s["_file"] for s in QUALITY],
+    )
+    def test_target_skill_exists(self, scenario, all_skills):
+        """target_skill must exist in core."""
+        skill_names = {s.name for s in all_skills}
+        target = scenario.get("target_skill", "")
+        assert target in skill_names, (
+            f"Quality '{scenario['_file']}': "
+            f"target_skill '{target}' not found in core skills"
+        )
+
+    @pytest.mark.parametrize(
+        "scenario",
+        QUALITY,
+        ids=[s["_file"] for s in QUALITY],
+    )
+    def test_has_rubric(self, scenario):
+        """Quality scenarios must have a rubric with weighted criteria."""
+        assert "rubric" in scenario, (
+            f"Quality '{scenario['_file']}': missing 'rubric'"
+        )
+        rubric = scenario["rubric"]
+        assert isinstance(rubric, list) and len(rubric) > 0, (
+            f"Quality '{scenario['_file']}': rubric must be non-empty list"
+        )
+
+    @pytest.mark.parametrize(
+        "scenario",
+        QUALITY,
+        ids=[s["_file"] for s in QUALITY],
+    )
+    def test_rubric_weights_valid(self, scenario):
+        """Rubric weights must be 1-5."""
+        for i, item in enumerate(scenario.get("rubric", [])):
+            assert "criterion" in item, (
+                f"Quality '{scenario['_file']}': rubric[{i}] missing 'criterion'"
+            )
+            weight = item.get("weight", 3)
+            assert 1 <= weight <= 5, (
+                f"Quality '{scenario['_file']}': "
+                f"rubric[{i}] weight {weight} not in range 1-5"
+            )
+
+
+@pytest.mark.evaluation
+class TestEvaluationHallucinationScenarios:
+    """Validate hallucination-specific scenario fields."""
+
+    HALLUCINATION = [
+        s for s in EVALUATION_SCENARIOS
+        if s.get("evaluation_type") == "hallucination"
+    ]
+
+    @pytest.mark.parametrize(
+        "scenario",
+        HALLUCINATION,
+        ids=[s["_file"] for s in HALLUCINATION],
+    )
+    def test_has_grounding(self, scenario):
+        """Hallucination scenarios must define grounding anchors."""
+        assert "grounding" in scenario, (
+            f"Hallucination '{scenario['_file']}': missing 'grounding'"
+        )
+        grounding = scenario["grounding"]
+        assert "allowed_sources" in grounding, (
+            f"Hallucination '{scenario['_file']}': "
+            f"grounding missing 'allowed_sources'"
+        )
+        assert "forbidden_claims" in grounding, (
+            f"Hallucination '{scenario['_file']}': "
+            f"grounding missing 'forbidden_claims'"
+        )
+
+    @pytest.mark.parametrize(
+        "scenario",
+        HALLUCINATION,
+        ids=[s["_file"] for s in HALLUCINATION],
+    )
+    def test_has_target_skill(self, scenario):
+        """Hallucination scenarios must define target_skill."""
+        assert "target_skill" in scenario, (
+            f"Hallucination '{scenario['_file']}': missing 'target_skill'"
+        )
+
+    @pytest.mark.parametrize(
+        "scenario",
+        HALLUCINATION,
+        ids=[s["_file"] for s in HALLUCINATION],
+    )
+    def test_target_skill_exists(self, scenario, all_skills):
+        """target_skill must exist in core."""
+        skill_names = {s.name for s in all_skills}
+        target = scenario.get("target_skill", "")
+        assert target in skill_names, (
+            f"Hallucination '{scenario['_file']}': "
+            f"target_skill '{target}' not found in core skills"
+        )
+
+    @pytest.mark.parametrize(
+        "scenario",
+        HALLUCINATION,
+        ids=[s["_file"] for s in HALLUCINATION],
+    )
+    def test_rubric_has_hallucination_type(self, scenario):
+        """At least one rubric item must have type: hallucination."""
+        rubric = scenario.get("rubric", [])
+        has_hallucination = any(
+            item.get("type") == "hallucination" for item in rubric
+        )
+        assert has_hallucination, (
+            f"Hallucination '{scenario['_file']}': "
+            f"rubric must have at least one item with type: hallucination"
+        )

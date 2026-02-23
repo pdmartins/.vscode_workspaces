@@ -1,0 +1,75 @@
+---
+name: code-map-init
+description: Inicializa a estrutura do mapa de código do projeto criando o diretório code-map e o arquivo index.md. Use quando o code-map ainda não existe ou quando o agente detectar que o diretório está ausente. Triggers: "inicializar code map", "criar mapa de código", quando code-map-query ou code-map-update detectar que a estrutura não existe.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: project
+---
+
+# Code Map Init
+
+Inicializa a estrutura do mapa de código para o projeto.
+
+## Quando Usar
+
+- Primeira vez que `code-map-query` ou `code-map-update` detectar que a estrutura não existe
+- Usuário pedir para inicializar o mapa de código
+- Durante `project-bootstrap` de um novo projeto
+
+## Workflow
+
+### 1. Verificar se já existe
+
+Checar se `{workspace}/.github/.copilot-project/context/code-map/` existe.
+
+**Se já existe** → informar e abortar.
+
+### 2. Criar estrutura
+
+Criar o diretório `{workspace}/.github/.copilot-project/context/code-map/`
+
+### 3. Criar index.md
+
+Criar `{workspace}/.github/.copilot-project/context/code-map/index.md` com:
+
+```markdown
+# Code Map
+
+> Atualizado em: {YYYY-MM-DD}
+
+## Arquitetura
+
+{Analisar o projeto e descrever brevemente a arquitetura em 2-3 linhas}
+
+## Módulos
+
+| Módulo | Arquivo do Mapa | Descrição | Artefatos |
+|--------|-----------------|-----------|-----------|
+
+## Dependências entre Módulos
+
+{A ser preenchido conforme artefatos são registrados}
+```
+
+### 4. Escanear código existente (opcional)
+
+Se o projeto já tiver código:
+
+1. Escanear a estrutura de diretórios do projeto
+2. Identificar artefatos existentes (classes, funções, componentes)
+3. Criar os arquivos de mapa relevantes (services.md, models.md, etc.)
+4. Registrar cada artefato encontrado
+5. Atualizar index.md com a contagem
+
+> **Importante**: O scan inicial pode não capturar tudo. O mapa será refinado conforme o agente trabalha.
+
+### 5. Confirmar
+
+**Output**:
+```
+🗺️ **Code Map inicializado**
+- Local: `.github/.copilot-project/context/code-map/`
+- Arquivos criados: {lista}
+- Artefatos registrados: {count}
+```

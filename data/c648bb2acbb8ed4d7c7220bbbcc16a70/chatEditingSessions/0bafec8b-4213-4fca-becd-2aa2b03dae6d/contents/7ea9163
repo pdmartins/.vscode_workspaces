@@ -1,0 +1,21 @@
+scenario: "Trivial user query with no action"
+description: |
+  Simple queries should trigger triage but result in skip
+  silencioso — all 4 questions answered 'no'.
+
+examples:
+  - "qual a raiz quadrada de 144?"
+  - "que diretório tem o código do servidor?"
+
+expected_behavior:
+  agent_turn_reflect:
+    triage_result: skip
+    phases_executed: []
+    output: none
+
+expected_skills:
+  - name: agent-turn-reflect
+    must_exist: true
+    must_contain:
+      - "skip silencioso"
+      - "TODAS"

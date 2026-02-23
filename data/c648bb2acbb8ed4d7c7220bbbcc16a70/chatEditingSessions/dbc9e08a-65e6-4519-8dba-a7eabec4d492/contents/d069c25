@@ -1,0 +1,210 @@
+---
+name: skill-template-create
+description: Cria novos skills seguindo o padrão Agent Skills com nomenclatura {tipo}-{feature}-{ação}. Use quando precisar criar skill para novo tipo de arquivo, novo padrão de código, nova integração, ou quando extensão/contexto não tem skill mapeado. Triggers: "criar skill", "novo skill", "skill para", detectar necessidade de regras específicas.
+metadata:
+  author: copilot-core
+  version: "2.0"
+  category: skill
+  delegable: orchestrated
+---
+
+# Skill Template Create
+
+Guia a criação de novos skills seguindo o padrão Agent Skills.
+
+## Quando Usar
+
+- Novo tipo de arquivo precisa de regras
+- Novo padrão de código a ser enforçado
+- Nova integração requer workflow específico
+- Extensão/contexto sem skill mapeado
+- Usuário pede para "criar skill"
+
+## Padrão Agent Skills
+
+Cada skill é um diretório com `SKILL.md`:
+
+```
+{tipo}-{feature}-{ação}/
+└── SKILL.md
+```
+
+### Nomenclatura
+
+Formato obrigatório: **`{tipo}-{feature}-{ação}`** — sempre 3 segmentos, kebab-case.
+
+- **tipo** — domínio funcional do skill
+- **feature** — recurso ou tecnologia específica
+- **ação** — verbo que descreve o que o skill faz
+
+### Tipos Disponíveis
+
+| Tipo | Propósito | Exemplos |
+|------|-----------|----------|
+| `agent` | Comportamento e memória do agente | `agent-memory-query`, `agent-task-manage` |
+| `code` | Análise, manipulação de código e geração específica de linguagem/framework | `code-review-analyze`, `code-refactor-extract`, `code-dotnet-service`, `code-dotnet-test` |
+| `project` | Gestão de projeto, contexto, codemap | `project-context-query`, `project-codemap-update` |
+| `skill` | Criação e gestão de skills | `skill-template-create` |
+| `editor` | Formatação e linting no editor | `editor-markdown-lint` |
+| `infra` | Infraestrutura, cloud, devops, pipelines | `infra-k8s-deploy`, `infra-gcp-integrate` |
+
+### Regra de `category`
+
+O campo `category` no frontmatter **deve ser igual ao tipo** (primeiro segmento do nome).
+
+## Workflow
+
+### 1. Coletar informações
+
+Perguntar ao usuário:
+
+1. Qual é o nome do skill? (formato: `{tipo}-{feature}-{ação}`)
+2. Qual contexto ativa este skill? (ex: arquivos *.py, Dockerfile)
+3. Quais padrões devem ser enforçados?
+4. Existem templates obrigatórios?
+5. Quais validações são necessárias?
+6. Precisa de configuração por projeto? (config.yml)
+
+### 2. Determinar localização
+
+**Todos os skills com lógica vão no Core** (`.copilot-core/skills/`).
+
+O **Project** (`.copilot-project/skills/`) contém apenas:
+- `config.yml` — dados estruturados específicos do projeto
+- `SKILL.md` (opcional) — instruções complementares em prosa
+
+### 3. Criar diretório e SKILL.md
+
+Usar template:
+
+```markdown
+---
+name: {tipo}-{feature}-{ação}
+description: {descrição completa incluindo quando usar e triggers}
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: {tipo}
+---
+
+# {Nome do Skill}
+
+{Descrição breve do propósito}
+
+## Quando Usar
+
+- {trigger 1}
+- {trigger 2}
+
+## Config Loading
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/{this-skill-name}/config.yml`
+2. Se existe, carregar e usar as configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/{this-skill-name}/SKILL.md`
+4. Se existe, carregar como instruções complementares
+5. Se nenhum existe, usar apenas os padrões genéricos
+
+## Workflow
+
+### 1. {Primeiro passo}
+
+{descrição e ações}
+
+### 2. {Segundo passo}
+
+{descrição e ações}
+
+## Padrões
+
+{padrões específicos a seguir}
+
+## Checklist
+
+- [ ] {verificação 1}
+- [ ] {verificação 2}
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/{tipo}-{feature}-{ação}/config.yml
+{chave}: {valor}
+```
+```
+
+> **Nota:** A seção "Config Loading" é obrigatória para skills dos tipos `infra` e `code`. Opcional para `agent`, `project`, `skill` e `editor`.
+
+### 4. Criar config.yml no project (se aplicável)
+
+Se o skill precisa de configuração por projeto, criar o `config.yml` template no project:
+
+```
+.copilot-project/skills/{tipo}-{feature}-{ação}/
+├── config.yml          # Dados estruturados
+└── SKILL.md            # (opcional) Instruções complementares
+```
+
+### 5. Testar skill
+
+- Verificar se skill é descoberto pelo agente
+- Verificar se config é carregado corretamente
+- Verificar se regras são aplicadas
+
+### 6. Sincronizar com context database
+
+Após criação, executar `agent-memory-sync` (incremental) para indexar o novo skill no MCP.
+
+### 7. Confirmar criação
+
+**Output**:
+```
+✅ **Skill criado**
+- Nome: {nome}
+- Local: {caminho}
+- Config: {sim/não}
+- MCP sync: ✅
+- Pronto para uso
+```
+
+## Boas Práticas
+
+| Prática | Descrição |
+|---------|-----------|
+| Descrição rica | Incluir todos os triggers no campo description |
+| Responsabilidade única | Cada skill faz UMA coisa bem |
+| Simplicidade | Workflow direto sem instruções excessivas — se > 150 linhas, dividir |
+| Clareza para o agente | Linguagem imperativa, steps numerados, tabelas para decisão |
+| 3 segmentos | `{tipo}-{feature}-{ação}` sempre |
+| category = tipo | Primeiro segmento do nome |
+| Core = lógica | Regras genéricas ficam no core |
+| Project = config | Dados específicos ficam no project |
+| Context Database | Após criar/alterar, sempre sincronizar via `agent-memory-sync` |
+
+## Subagent Pattern
+
+**Tipo**: `orchestrated` — pre-collect (6 perguntas → geração)
+
+### Coleta (main agent)
+
+Main agent coleta do usuário:
+1. O que o skill deve fazer (propósito)
+2. Tipo (`agent`, `code`, `editor`, `infra`, `project`, `skill`)
+3. Feature e ação (para nome 3-segmentos)
+4. Localização: Core ou Project
+5. Triggers (quando ativar)
+6. Precisa de config.yml?
+
+### Execução (subagent)
+
+Subagent recebe as 6 respostas e gera:
+- Diretório + SKILL.md com frontmatter correto
+- config.yml template (se aplicável)
+- Valida nomenclatura e category
+
+### Prompt Exemplo
+
+```
+runSubagent({
+  description: "Create new skill",
+  prompt: "Leia .copilot-core/skills/skill/skill-template-create/SKILL.md. Crie skill com: 1) Propósito: {propósito}. 2) Tipo: {tipo}. 3) Nome: {tipo}-{feature}-{ação}. 4) Local: {core|project}. 5) Triggers: {triggers}. 6) Config: {sim|não}. Retorne: arquivos criados com caminhos."
+})
+```

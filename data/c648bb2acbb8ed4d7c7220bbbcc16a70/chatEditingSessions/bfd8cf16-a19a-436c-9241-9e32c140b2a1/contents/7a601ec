@@ -1,0 +1,169 @@
+---
+name: api-validate
+description: Valida aderência de Controllers e Contracts aos padrões do projeto. Use APÓS implementar ou atualizar Controllers, Requests ou Responses. Triggers: após criar controller, após criar request/response, "validar API", "verificar aderência".
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: api
+---
+
+# API Validation Skill
+
+Valida aderência de componentes de API aos padrões do projeto.
+
+## Quando Usar
+
+**SEMPRE** após:
+- Criar/atualizar Controller
+- Criar/atualizar Request
+- Criar/atualizar Response
+- Refatorar endpoints
+
+## Checklist de Validação
+
+### 1. Controllers
+
+| Item | Padrão | Exemplo |
+|------|--------|---------|
+| Nome | Plural + Controller | `AssistantsController` |
+| Rota base | `api/[controller]` | `/api/assistants` |
+| Verbos | GET, POST, PUT, DELETE | Sem PATCH, sem verbos customizados |
+| IDs | GUID na rota | `{id:guid}` |
+| Rotas compostas | kebab-case | `/api/phone-numbers` |
+
+**Verificar:**
+- [ ] Nome no plural
+- [ ] Rota sem verbos (`/api/assistants`, não `/api/getAssistants`)
+- [ ] `[FromQuery]` para requests de listagem
+- [ ] `[FromBody]` para requests de criação/atualização
+- [ ] `ProducesResponseType` em todos os métodos
+- [ ] `CancellationToken` em métodos async
+
+### 2. Requests
+
+| Item | Padrão | Exemplo |
+|------|--------|---------|
+| Nome | `[Verbo][Domínio]Request` | `CreateAssistantRequest` |
+| Pasta | `Contracts/Requests/` | - |
+| Namespace | `*.Contracts.Requests` | - |
+
+**Verificar:**
+- [ ] Nomenclatura correta: `[Verbo][Domínio]Request`
+- [ ] Localização: `Contracts/Requests/`
+- [ ] Usa `record`
+- [ ] Propriedades obrigatórias com `required`
+- [ ] Validação com DataAnnotations ou FluentValidation
+- [ ] Documentação XML
+
+### 3. Responses
+
+| Item | Padrão | Exemplo |
+|------|--------|---------|
+| Nome | `[Verbo][Domínio]Response` | `GetAssistantResponse` |
+| Pasta | `Contracts/Responses/` | - |
+| Namespace | `*.Contracts.Responses` | - |
+
+**Verificar:**
+- [ ] Nomenclatura correta: `[Verbo][Domínio]Response`
+- [ ] Localização: `Contracts/Responses/`
+- [ ] Usa `record`
+- [ ] Propriedades obrigatórias com `required`
+- [ ] Documentação XML
+
+## Workflow de Validação
+
+### Após criar Controller
+
+1. Verificar nome no plural
+2. Verificar rota RESTful
+3. Verificar verbos HTTP corretos
+4. Verificar tipos de Request/Response usados
+5. Verificar se Requests estão em `Contracts/Requests/`
+6. Verificar se Responses estão em `Contracts/Responses/`
+
+### Após criar Request
+
+1. Verificar nomenclatura `[Verbo][Domínio]Request`
+2. Verificar localização em `Contracts/Requests/`
+3. Verificar validação aplicada
+4. Verificar uso de `record`
+
+### Após criar Response
+
+1. Verificar nomenclatura `[Verbo][Domínio]Response`
+2. Verificar localização em `Contracts/Responses/`
+3. Verificar uso de `record`
+
+## Mapeamento Verbo → Nomenclatura
+
+| Operação REST | Verbo HTTP | Request | Response |
+|---------------|------------|---------|----------|
+| Listar | GET (collection) | `List{Domínio}sRequest` | `List{Domínio}sResponse` |
+| Obter | GET (item) | - | `Get{Domínio}Response` |
+| Criar | POST | `Create{Domínio}Request` | `Create{Domínio}Response` |
+| Atualizar | PUT | `Update{Domínio}Request` | `Update{Domínio}Response` |
+| Deletar | DELETE | - | - (NoContent) |
+| Buscar | GET/POST | `Search{Domínio}sRequest` | `Search{Domínio}sResponse` |
+
+## Erros Comuns
+
+### ❌ Nomenclatura incorreta
+
+```
+AssistantRequest          → CreateAssistantRequest
+AssistantResponse         → GetAssistantResponse
+AssistantDto              → GetAssistantResponse
+```
+
+### ❌ Localização incorreta
+
+```
+Models/CreateAssistantRequest.cs    → Contracts/Requests/CreateAssistantRequest.cs
+Dtos/AssistantResponse.cs           → Contracts/Responses/GetAssistantResponse.cs
+```
+
+### ❌ Rota não RESTful
+
+```
+/api/getAssistants        → /api/assistants
+/api/assistant/create     → POST /api/assistants
+/api/assistant/delete/1   → DELETE /api/assistants/1
+```
+
+## Template de Relatório
+
+Após validação, reportar:
+
+```
+✅ **Validação de API Concluída**
+
+**Controller:** AssistantsController
+- [✅] Nome no plural
+- [✅] Rota RESTful: /api/assistants
+- [✅] Verbos HTTP corretos
+
+**Requests:**
+- [✅] CreateAssistantRequest → Contracts/Requests/
+- [✅] UpdateAssistantRequest → Contracts/Requests/
+- [✅] ListAssistantsRequest → Contracts/Requests/
+
+**Responses:**
+- [✅] GetAssistantResponse → Contracts/Responses/
+- [✅] CreateAssistantResponse → Contracts/Responses/
+- [✅] ListAssistantsResponse → Contracts/Responses/
+```
+
+Ou se houver problemas:
+
+```
+⚠️ **Validação de API - Problemas Encontrados**
+
+**Controller:** AssistantController
+- [❌] Nome deve ser plural: AssistantsController
+
+**Requests:**
+- [❌] AssistantRequest deve ser CreateAssistantRequest
+- [❌] Localização incorreta: mover para Contracts/Requests/
+
+**Ação necessária:** Corrigir os itens acima antes de prosseguir.
+```

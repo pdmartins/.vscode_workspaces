@@ -1,0 +1,33 @@
+# Architecture — vscode_workspaces
+
+- **date**: 2026-02-22
+- **status**: active
+
+## Visão Geral
+
+Repositório de scripts utilitários para sincronizar sessões de chat do GitHub Copilot entre computadores. O VS Code armazena chats do Copilot em `workspaceStorage/` e o objetivo é permitir que essas sessões sejam compartilhadas entre diferentes máquinas.
+
+## Estrutura Esperada
+
+```
+.vscode_workspaces/
+├── scripts/
+│   ├── sync-chats.ps1          # Script PowerShell para sincronização
+│   └── sync-chats.sh           # Script Bash para sincronização
+├── README.md
+└── .gitignore
+```
+
+## Fluxo de Sincronização
+
+1. Identificar pasta(s) de `workspaceStorage` com sessões de chat do Copilot
+2. Exportar/copiar os dados de chat relevantes
+3. Sincronizar via Git (push/pull) ou mecanismo definido
+4. Importar/restaurar os dados na máquina destino
+
+## Decisões
+
+| Decisão | Escolha | Rationale |
+|---------|---------|-----------|
+| Dual-script | PowerShell + Bash | Suportar Windows e Linux/macOS nativamente |
+| Armazenamento intermediário | Git repo | Já disponível, versionado, familiar |

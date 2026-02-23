@@ -1,0 +1,7 @@
+# Branch Naming Rules
+
+- **date**: 2026-02-15
+- **status**: active
+- **context**: .copilot-project tinha branch main ativa e worktrees sem prefixo _pm/. Desalinhado do padrão de naming
+- **decision**: Regra: (1) .copilot-project/ deve SEMPRE ter `_pm/copilot-core` ativa, (2) main como worktree, nunca ativa, (3) branches pessoais usam `_pm/`, orgs usam `_{org}/`. Worktrees espelham nomes das branches
+- **outcome**: Branch ativada, main para worktree. Branches renomeadas local + remote

@@ -1,0 +1,293 @@
+{
+	"[html]": {
+		"editor.defaultFormatter": "vscode.html-language-features"
+	},
+	"[java]": {
+		"editor.suggest.snippetsPreventQuickSuggestions": false
+	},
+	"[json]": {
+		"editor.defaultFormatter": "vscode.json-language-features"
+	},
+	"[jsonc]": {
+		"editor.defaultFormatter": "vscode.json-language-features"
+	},
+	"[markdown]": {
+		"editor.defaultFormatter": "yzhang.markdown-all-in-one"
+	},
+	"[python]": {
+		"editor.defaultFormatter": "ms-python.black-formatter"
+	},
+	"[sql]": {
+		"editor.defaultFormatter": "ms-mssql.mssql"
+	},
+	"[xml]": {
+		"editor.defaultFormatter": "redhat.vscode-xml"
+	},
+	"[yaml]": {
+		"editor.defaultFormatter": "redhat.vscode-yaml"
+	},
+	"@azure.argTenant": "",
+	"azureResourceGroups.selectedSubscriptions": [
+		"85d2fd13-356d-4d80-b1b4-bb0e6ab5f09b/c5d4fed3-ca56-4682-8f8e-88ebf5aa033d"
+	],
+	"chat.agent.maxRequests": 250,
+	"chat.instructionsFilesLocations": {
+		".github/instructions": true
+	},
+	"chat.mcp.gallery.enabled": true,
+	"chat.tools.terminal.autoApprove": {
+		// GIT
+		"git": true,
+		"git branch": true,
+		"git commit": false,
+		"git diff": true,
+		"git grep": true,
+		"git log": true,
+		"git show": true,
+		"git status": true,
+
+		// DOT NET
+		"dotnet build": true,
+		"dotnet run": true,
+
+		// PYTHON
+		"pytest": true,
+		"python": true,
+
+		// POWERSHELL
+		"Get-ChildItem": true,
+		"Get-Content": true,
+		"Get-Date": true,
+		"Get-Location": true,
+		"Get-Random": true,
+		"iex": false,
+		"Invoke-Expression": false,
+		"Invoke-RestMethod": false,
+		"Invoke-WebRequest": false,
+		"irm": false,
+		"iwr": false,
+		"Join-Path": true,
+		"Remove-Item": false,
+		"ri": false,
+		"Set-Acl": false,
+		"Set-ItemProperty": false,
+		"sp": false,
+		"Split-Path": true,
+		"spps": false,
+		"Start-Sleep": true,
+		"Stop-Process": false,
+		"Where-Object": true,
+		"Write-Host": true,
+		"Write-Output": true,
+
+		// BASH / UNIX
+		"basename": true,
+		"cat": true,
+		"cd": true,
+		"chmod": true,
+		"chown": true,
+		"cmp": true,
+		"column": true,
+		"curl": false,
+		"cut": true,
+		"date": true,
+		"dd": false,
+		"df": true,
+		"dirname": true,
+		"du": true,
+		"echo": true,
+		"eval": false,
+		"file": true,
+		"find": true,
+		"grep": true,
+		"head": true,
+		"jq": false,
+		"kill": false,
+		"ls": true,
+		"nl": true,
+		"ps": false,
+		"pwd": true,
+		"readlink": true,
+		"realpath": true,
+		"sleep": true,
+		"sort": true,
+		"stat": true,
+		"tail": true,
+		"top": false,
+		"tr": true,
+		"tree": true,
+		"wc": true,
+		"wget": false,
+		"which": true,
+		"xargs": false,
+
+		// WINDOWS / CMD
+		"del": false,
+		"erase": false,
+		"findstr": true,
+		"rd": false,
+		"rm": false,
+		"rmdir": false,
+		"taskkill": false,
+		"taskkill.exe": false,
+	},
+	"claudeCode.preferredLocation": "panel",
+	"diffEditor.ignoreTrimWhitespace": false,
+	"editor.detectIndentation": false,
+	"editor.formatOnPaste": true,
+	"editor.formatOnType": true,
+	"editor.inlineSuggest.edits.allowCodeShifting": "never",
+	"editor.inlineSuggest.enabled": true,
+	"editor.insertSpaces": false,
+	"editor.quickSuggestions": {
+		"comments": "on",
+		"other": "off",
+		"strings": "on"
+	},
+	"editor.renderControlCharacters": true,
+	"editor.semanticTokenColorCustomizations": {},
+	"editor.snippetSuggestions": "none",
+	"editor.unicodeHighlight.ambiguousCharacters": false,
+	"editor.unicodeHighlight.nonBasicASCII": false,
+	"explorer.confirmDelete": false,
+	"explorer.confirmDragAndDrop": false,
+	"git.confirmSync": false,
+	"git.enableSmartCommit": true,
+	"git.openRepositoryInParentFolders": "always",
+	"git.repositoryScanMaxDepth": 3,
+	"github.copilot.chat.agent.thinkingTool": true,
+	"github.copilot.enable": {
+		"*": true,
+		"markdown": true,
+		"plaintext": true,
+		"scminput": false,
+		"typescript": true
+	},
+	"github.copilot.nextEditSuggestions.enabled": true,
+	"gitlens.views.repositories.files.layout": "tree",
+	"hediet.vscode-drawio.resizeImages": null,
+	"java.jdt.ls.java.home": "c:\\Program Files\\OpenJDK",
+	"mssql.connectionGroups": [
+		{
+			"id": "ROOT",
+			"name": "ROOT"
+		},
+		{
+			"name": "Production",
+			"color": "#FC1100",
+			"id": "EA4B5ED3-98CE-405D-891D-98246D7D8ADF",
+			"parentId": "ROOT"
+		}
+	],
+	"mssql.connections": [
+		{
+			"applicationName": "vscode-mssql",
+			"authenticationType": "SqlLogin",
+			"commandTimeout": 30,
+			"connectRetryCount": 1,
+			"connectRetryInterval": 10,
+			"connectTimeout": 30,
+			"database": "wppai",
+			"encrypt": "true",
+			"groupId": "ROOT",
+			"id": "259E1CDE-9662-4C30-91DF-DFF60BC892E0",
+			"password": "",
+			"port": 1433,
+			"profileName": "WhatsApp AI",
+			"savePassword": true,
+			"server": "tcp:wppai.database.windows.net,1433",
+			"trustServerCertificate": true,
+			"user": "wppai"
+		},
+		{
+			"server": "127.0.0.1,1433",
+			"port": 1433,
+			"database": "plurie",
+			"user": "sa",
+			"password": "",
+			"authenticationType": "SqlLogin",
+			"encrypt": "False",
+			"trustServerCertificate": true,
+			"connectTimeout": 30,
+			"commandTimeout": 30,
+			"connectRetryCount": 1,
+			"connectRetryInterval": 10,
+			"applicationName": "vscode-mssql",
+			"profileName": "Plurie - Docker",
+			"savePassword": true,
+			"groupId": "EA4B5ED3-98CE-405D-891D-98246D7D8ADF",
+			"id": "DEA307A5-D35C-46FB-A045-405548B19356",
+			"profileSource": 0
+		}
+	],
+	"mssql.enableQueryHistoryCapture": false,
+	"mssql.openQueryResultsInTabByDefaultDoNotShowPrompt": true,
+	"notebook.output.scrolling": true,
+	"notebook.output.wordWrap": true,
+	"nxConsole.showNodeVersionOnStartup": false,
+	"python.analysis.typeCheckingMode": "strict",
+	"python.createEnvironment.trigger": "off",
+	"python.defaultInterpreterPath": "C:\\ProgramData\\Anaconda3\\python.exe",
+	"python.venvFolders": [
+		"C:\\_BW\\_PoC\\_Python\\docx_extractor\\antiword"
+	],
+	"redhat.telemetry.enabled": false,
+	"roo-cline.allowedCommands": [
+		"git log",
+		"git diff",
+		"git show"
+	],
+	"roo-cline.deniedCommands": [],
+	"scm.defaultViewMode": "tree",
+	"security.workspace.trust.untrustedFiles": "open",
+	"sonarlint.ls.javaHome": "C:\\Program Files\\OpenJDK",
+	"sync.autoDownload": true,
+	"sync.autoUpload": true,
+	"sync.gist": "ccb04aef130f1d2686c3578d1d196a33",
+	"terminal.integrated.fontSize": 17,
+	"terminal.integrated.persistentSessionScrollback": 5000,
+	"terminal.integrated.shellIntegration.history": 500,
+	"terminal.integrated.stickyScroll.enabled": false,
+	"vsicons.dontShowNewVersionMessage": true,
+	"window.newWindowProfile": "Default",
+	"window.restoreWindows": "none",
+	"workbench.activityBar.location": "top",
+	"sonarlint.connectedMode.connections.sonarqube": [
+		{
+			"serverUrl": "http://localhost:9000",
+			"connectionId": "Sonar Docker WSL"
+		}
+	],
+	"sonarlint.focusOnNewCode": false,
+	"sonarlint.automaticAnalysis": true,
+	"git.autofetchPeriod": 60,
+	"git.autofetch": true,
+	"git.alwaysShowStagedChangesResourceGroup": true,
+	"chat.tools.urls.autoApprove": {
+		"https://ohmyposh.dev": true,
+		"https://github.com": {
+			"approveRequest": false,
+			"approveResponse": true
+		},
+		"https://raw.githubusercontent.com": {
+			"approveRequest": false,
+			"approveResponse": true
+		}
+	},
+	"git.fetchOnPull": true,
+	"git.showPushSuccessNotification": true,
+	"git.terminalGitEditor": true,
+	"diffEditor.hideUnchangedRegions.enabled": true,
+	"debug.breakpointsView.presentation": "tree",
+	"search.defaultViewMode": "tree",
+	"workbench.secondarySideBar.defaultVisibility": "hidden",
+	"github.copilot.chat.anthropic.tools.websearch.maxUses": 20,
+	"chat.useAgentSkills": true,
+	"workbench.iconTheme": "vscode-icons",
+	"chat.viewSessions.orientation": "stacked",
+	"github.copilot.chat.commitMessageGeneration.instructions": [
+		{
+			"file": "~/.vscode/copilot-commit-instructions.md"
+		}
+	]
+}

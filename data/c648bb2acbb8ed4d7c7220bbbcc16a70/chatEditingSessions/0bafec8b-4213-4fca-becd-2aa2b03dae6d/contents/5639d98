@@ -1,0 +1,52 @@
+# Arquitetura — Copilot Core
+
+- **date**: 2026-02-17
+- **status**: active
+
+## Visão Geral
+
+Workspace de desenvolvimento com dois repos lado a lado, seguindo o padrão standard de projetos consumidores.
+
+> Ver `agent-skills-project.instructions.md` para diagrama completo.
+
+## Estratégia de Branches
+
+### `.copilot-core`
+
+- Branch única: `main` (fonte de verdade e distribuição)
+- Projetos consumidores usam `main` (via submodule ou clone)
+
+### `.copilot-project`
+
+| Branch | Propósito |
+|--------|-----------|
+| `main` | Template base agnóstico |
+| `_pm/copilot-core` | Dados deste projeto (workspace de desenvolvimento do core) |
+| `{nome-projeto}` | Dados específicos de cada projeto plugado |
+
+## Projetos Consumidores
+
+Estrutura final nos projetos-alvo:
+
+```
+{projeto}/
+├── .github/
+│   └── instructions/
+│       ├── agent-skills-core.instructions.md      → symlink
+│       └── agent-skills-project.instructions.md   → symlink
+│
+├── .copilot-core/                  # Submodule ou clone (branch main)
+└── .copilot-project/               # Submodule ou clone (branch do projeto)
+    └── instructions/
+        └── agent-skills-project.instructions.md
+```
+
+- **Modo aberto** (submodule): visível no `.gitmodules`, onboarding via `git clone --recursive`
+- **Modo stealth** (clone): `.copilot-core/`, `.copilot-project/` e symlinks no `.gitignore`, onboarding via script manual
+
+## Padrões dos Skills
+
+- **Naming**: `{tipo}-{feature}-{ação}` — sempre 3 segmentos, kebab-case
+- **Tipos**: `agent`, `code`, `project`, `skill`, `editor`, `infra`
+- **Estrutura**: `skills/{tipo}/{name}/SKILL.md`
+- **Config pattern**: Skills `infra` e `code` carregam `config.yml` do project

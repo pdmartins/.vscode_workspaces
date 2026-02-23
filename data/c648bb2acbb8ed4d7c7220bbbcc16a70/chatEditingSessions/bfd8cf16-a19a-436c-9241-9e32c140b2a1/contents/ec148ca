@@ -1,0 +1,32 @@
+# infra-pipeline-deploy — STT Project Extension
+# Complementa o core skill com instruções específicas do projeto STT
+
+## Template Repository
+
+Toda lógica de build/deploy é externalizada para `Hapvida.Core.DevOps.Templates`:
+
+```yaml
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: Hapvida.Core.DevOps.Templates
+      ref: refs/heads/develop
+```
+
+**NUNCA** inline build/deploy logic — sempre usar template references.
+
+## Dual Registry Push
+
+A build pusha para DOIS registries simultaneamente:
+
+```yaml
+parameters:
+  containerRegistry1: hapvidacorp       # ACR
+  containerRegistry2: hapvidacorp-gcp   # GCR
+```
+
+## Known Issues
+
+- Pipeline do Consumer tem um `"` extra no final da linha de build-args (typo herdado)
+- Ambos pipelines são idênticos em estrutura; apenas `backstageCatalogEntity` difere

@@ -1,0 +1,94 @@
+---
+name: code-map-query
+description: Consulta o mapa de código do projeto para verificar artefatos existentes antes de implementar. Use SEMPRE antes de criar novas classes, métodos, funções ou componentes para evitar duplicação e maximizar reaproveitamento. Triggers: antes de criar código, antes de implementar feature, "o que já existe", "já tem algo que faz", "quais serviços existem", "onde fica", "como foi feito", "mostrar estrutura do código".
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: project
+---
+
+# Code Map Query
+
+Consulta o mapa de código existente para evitar duplicação e identificar oportunidades de reaproveitamento antes de implementar.
+
+## Quando Usar
+
+- **Automaticamente** antes de criar qualquer artefato novo (classe, função, componente, etc.)
+- **Automaticamente** antes de alterar artefatos existentes (entender dependências)
+- Quando o usuário perguntar sobre a estrutura do código
+- Quando precisar identificar onde colocar nova funcionalidade
+- Quando precisar reutilizar código existente
+
+## Workflow
+
+### 1. Carregar Code Map
+
+Ler os arquivos em: `{workspace}/.github/.copilot-project/context/code-map/`
+
+**Ordem de leitura:**
+1. `index.md` — visão geral e contagem de artefatos
+2. Arquivo(s) relevante(s) para a tarefa (ex: `services.md` se vai criar um serviço)
+
+**Se diretório não existe:**
+→ Informar que o mapa de código não foi inicializado
+→ Sugerir usar skill `code-map-init`
+
+### 2. Analisar antes de implementar
+
+Ao criar novo artefato, verificar:
+
+| Verificação | Ação |
+|-------------|------|
+| Já existe artefato com mesma responsabilidade? | **Reutilizar** ao invés de criar novo |
+| Existe artefato similar que pode ser estendido? | **Estender** ao invés de criar novo |
+| Existe utilitário que resolve parte do problema? | **Importar e usar** o existente |
+| Novo artefato deve depender de qual existente? | **Listar dependências** corretas |
+| Há padrão de nomenclatura nos artefatos existentes? | **Seguir** o mesmo padrão |
+
+### 3. Reportar ao implementar
+
+**Se encontrou artefato reutilizável:**
+```
+🗺️ **Code Map**: Encontrei `{NomeArtefato}` em `{arquivo}` que já faz {descrição}. Vou reutilizá-lo.
+```
+
+**Se encontrou artefato similar:**
+```
+🗺️ **Code Map**: `{NomeArtefato}` faz algo similar. Posso estendê-lo ou criar novo. {recomendação}
+```
+
+**Se não encontrou nada relevante:**
+→ Prosseguir com criação e registrar via `code-map-update` após implementar
+
+### 4. Responder consultas do usuário
+
+Quando o usuário perguntar sobre a estrutura:
+
+**Output para visão geral:**
+```
+🗺️ **Estrutura do Projeto**:
+
+| Módulo | Artefatos | Descrição |
+|--------|-----------|-----------|
+| Services | {lista} | {descrição} |
+| Models | {lista} | {descrição} |
+...
+```
+
+**Output para busca específica:**
+```
+🗺️ **Artefatos relacionados a "{tema}"**:
+- `NomeArtefato` ({tipo}) — {responsabilidade} — `{arquivo}`
+- ...
+```
+
+## Checklist Pré-Implementação
+
+Antes de criar QUALQUER artefato novo, o agente DEVE:
+
+- [ ] Ler `index.md` para visão geral
+- [ ] Ler o arquivo de mapa relevante (services.md, utils.md, etc.)
+- [ ] Verificar se já existe algo que resolve o problema
+- [ ] Verificar padrão de nomenclatura dos artefatos existentes
+- [ ] Identificar dependências internas que serão usadas
+- [ ] Só então prosseguir com a implementação

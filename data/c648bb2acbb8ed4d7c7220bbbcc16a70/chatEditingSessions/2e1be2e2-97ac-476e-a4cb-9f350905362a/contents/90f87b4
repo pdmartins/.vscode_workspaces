@@ -1,0 +1,94 @@
+---
+name: script-coding-conventions
+description: Convenções de código para scripts PowerShell e Bash do projeto vscode_workspaces. Define padrões de nomenclatura, estrutura de scripts, tratamento de erros e paridade entre shells. Triggers - criar script, novo script, corrigir script, review script, convenções.
+metadata:
+  author: vscode_workspaces
+  version: "1.0"
+  category: code
+---
+
+# Script Coding Conventions
+
+Padrões obrigatórios para scripts PowerShell e Bash neste projeto.
+
+## Quando Usar
+
+- Ao criar ou modificar qualquer script `.ps1` ou `.sh`
+- Ao fazer review de código de scripts
+- Quando o agente gera código para este projeto
+
+## Regras
+
+### Estrutura de Script
+
+Todo script deve ter:
+
+1. **Header comment** — descrição, autor, data
+2. **Validação de parâmetros** — verificar inputs obrigatórios
+3. **Tratamento de erros** — falhar com mensagem clara
+4. **Output padronizado** — usar prefixos `[INFO]`, `[WARN]`, `[ERROR]`
+
+### PowerShell
+
+```powershell
+<#
+.SYNOPSIS
+    Breve descrição do script.
+.DESCRIPTION
+    Descrição detalhada.
+#>
+
+[CmdletBinding()]
+param(
+    [Parameter(Mandatory)]
+    [string]$ParamName
+)
+
+$ErrorActionPreference = 'Stop'
+
+function Write-Info { param([string]$Message) Write-Host "[INFO] $Message" }
+function Write-Warn { param([string]$Message) Write-Host "[WARN] $Message" -ForegroundColor Yellow }
+function Write-Err  { param([string]$Message) Write-Host "[ERROR] $Message" -ForegroundColor Red }
+```
+
+### Bash
+
+```bash
+#!/usr/bin/env bash
+# Description: Breve descrição do script.
+set -euo pipefail
+
+info()  { echo "[INFO] $*"; }
+warn()  { echo "[WARN] $*" >&2; }
+error() { echo "[ERROR] $*" >&2; exit 1; }
+```
+
+### Paridade entre Shells
+
+- Cada script `.ps1` DEVE ter equivalente `.sh` (e vice-versa)
+- Mesma funcionalidade, mesmos parâmetros, mesmo output
+- Nomear igualmente: `sync-chats.ps1` ↔ `sync-chats.sh`
+
+### VS Code Paths
+
+Usar detecção automática de OS para localizar `workspaceStorage`:
+
+```powershell
+# PowerShell
+$vscodePath = if ($IsWindows) {
+    Join-Path $env:APPDATA "Code\User\workspaceStorage"
+} elseif ($IsMacOS) {
+    Join-Path $HOME "Library/Application Support/Code/User/workspaceStorage"
+} else {
+    Join-Path $HOME ".config/Code/User/workspaceStorage"
+}
+```
+
+```bash
+# Bash
+case "$(uname -s)" in
+    Darwin*) VSCODE_PATH="$HOME/Library/Application Support/Code/User/workspaceStorage" ;;
+    Linux*)  VSCODE_PATH="$HOME/.config/Code/User/workspaceStorage" ;;
+    *)       echo "[ERROR] Unsupported OS"; exit 1 ;;
+esac
+```

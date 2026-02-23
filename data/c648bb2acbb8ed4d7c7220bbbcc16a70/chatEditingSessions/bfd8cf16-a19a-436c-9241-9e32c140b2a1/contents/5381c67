@@ -1,0 +1,437 @@
+---
+name: infra-repository-generate
+description: Padrões para Repositories com ADO.NET + Dapper e SQL Scripts via Source Generator. Use ao criar repositórios, queries SQL, ou implementar acesso a dados. Triggers: repository, repositório, Dapper, SQL, pasta Repositories/, Scripts/.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: infra
+---
+
+# Repository Skill (ADO.NET + Dapper)
+
+Padrões para Repositories com ADO.NET + Dapper e SQL Scripts via Source Generator.
+
+## Quando Usar
+
+- Implementar repositórios de domínio
+- Criar queries SQL
+- Configurar Connection Factory
+- Persistência com Dapper
+
+## Estrutura
+
+```
+src/BeWiser.Assistant.Infrastructure/
+└── Persistence/
+    ├── ConnectionFactory/
+    │   ├── IDbConnectionFactory.cs
+    │   └── SqlConnectionFactory.cs
+    └── Repositories/
+        ├── ConversationRepository.cs
+        ├── MessageRepository.cs
+        └── Scripts/
+            ├── Conversation/
+            │   ├── GetById.sql
+            │   ├── GetByPhoneNumber.sql
+            │   ├── Insert.sql
+            │   └── Update.sql
+            └── Message/
+                ├── GetById.sql
+                ├── ListByConversation.sql
+                └── Insert.sql
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Repository Impl | `[Entidade]Repository` | `ConversationRepository` |
+| Connection Factory | `[Provider]ConnectionFactory` | `SqlConnectionFactory` |
+| Pasta de Scripts | `Scripts/[Entidade]/` | `Scripts/Conversation/` |
+| Arquivo SQL | `[Operação].sql` | `GetById.sql`, `Insert.sql` |
+| Classe Gerada | `[Entidade]Sql` | `ConversationSql` |
+
+## Templates
+
+### Connection Factory Interface
+
+```csharp
+using System.Data;
+
+namespace BeWiser.Assistant.Infrastructure.Persistence.ConnectionFactory;
+
+/// <summary>
+/// Factory for creating database connections.
+/// </summary>
+public interface IDbConnectionFactory
+{
+    IDbConnection CreateConnection();
+}
+```
+
+### SQL Server Connection Factory
+
+```csharp
+using System.Data;
+using Microsoft.Data.SqlClient;
+using Microsoft.Extensions.Options;
+
+namespace BeWiser.Assistant.Infrastructure.Persistence.ConnectionFactory;
+
+/// <summary>
+/// Creates SQL Server connections.
+/// </summary>
+public class SqlConnectionFactory : IDbConnectionFactory
+{
+    private readonly DatabaseOptions _options;
+
+    public SqlConnectionFactory(IOptions<DatabaseOptions> options)
+    {
+        _options = options.Value;
+    }
+
+    public IDbConnection CreateConnection()
+    {
+        return new SqlConnection(_options.ConnectionString);
+    }
+}
+```
+
+### PostgreSQL Connection Factory
+
+```csharp
+using System.Data;
+using Npgsql;
+using Microsoft.Extensions.Options;
+
+namespace BeWiser.Assistant.Infrastructure.Persistence.ConnectionFactory;
+
+/// <summary>
+/// Creates PostgreSQL connections.
+/// </summary>
+public class NpgsqlConnectionFactory : IDbConnectionFactory
+{
+    private readonly DatabaseOptions _options;
+
+    public NpgsqlConnectionFactory(IOptions<DatabaseOptions> options)
+    {
+        _options = options.Value;
+    }
+
+    public IDbConnection CreateConnection()
+    {
+        return new NpgsqlConnection(_options.ConnectionString);
+    }
+}
+```
+
+### Database Options
+
+```csharp
+namespace BeWiser.Assistant.Infrastructure.Options;
+
+/// <summary>
+/// Database connection options.
+/// </summary>
+public class DatabaseOptions
+{
+    public const string SectionName = "Database";
+    
+    public required string ConnectionString { get; init; }
+    public int CommandTimeout { get; init; } = 30;
+}
+```
+
+### Repository Implementation
+
+```csharp
+using Dapper;
+using Microsoft.Extensions.Logging;
+
+namespace BeWiser.Assistant.Infrastructure.Persistence.Repositories;
+
+/// <summary>
+/// Repository for Conversation aggregate.
+/// </summary>
+public class ConversationRepository : IConversationRepository
+{
+    private readonly IDbConnectionFactory _connectionFactory;
+    private readonly ILogger<ConversationRepository> _logger;
+
+    public ConversationRepository(
+        IDbConnectionFactory connectionFactory,
+        ILogger<ConversationRepository> logger)
+    {
+        _connectionFactory = connectionFactory;
+        _logger = logger;
+    }
+
+    public async Task<Conversation?> GetByIdAsync(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Getting conversation {Id}", id);
+        
+        using var connection = _connectionFactory.CreateConnection();
+        
+        return await connection.QueryFirstOrDefaultAsync<Conversation>(
+            ConversationSql.GetById,
+            new { Id = id });
+    }
+
+    public async Task<Conversation?> GetByPhoneNumberAsync(
+        string phoneNumber,
+        CancellationToken cancellationToken = default)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        
+        return await connection.QueryFirstOrDefaultAsync<Conversation>(
+            ConversationSql.GetByPhoneNumber,
+            new { PhoneNumber = phoneNumber });
+    }
+
+    public async Task<(IReadOnlyList<Conversation> Items, int TotalCount)> ListAsync(
+        Guid? assistantId,
+        int page,
+        int pageSize,
+        CancellationToken cancellationToken = default)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+
+        var parameters = new
+        {
+            AssistantId = assistantId,
+            Offset = (page - 1) * pageSize,
+            Limit = pageSize
+        };
+
+        using var multi = await connection.QueryMultipleAsync(
+            ConversationSql.ListWithCount,
+            parameters);
+
+        var items = (await multi.ReadAsync<Conversation>()).ToList();
+        var totalCount = await multi.ReadSingleAsync<int>();
+
+        return (items, totalCount);
+    }
+
+    public async Task AddAsync(
+        Conversation conversation,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug("Adding conversation {Id}", conversation.Id);
+        
+        using var connection = _connectionFactory.CreateConnection();
+        
+        await connection.ExecuteAsync(
+            ConversationSql.Insert,
+            new
+            {
+                conversation.Id,
+                PhoneNumber = conversation.PhoneNumber.Value,
+                AssistantPhoneNumber = conversation.AssistantPhoneNumber.Value,
+                Status = (int)conversation.Status,
+                conversation.AssistantId,
+                CreatedAt = DateTime.UtcNow
+            });
+    }
+
+    public async Task UpdateAsync(
+        Conversation conversation,
+        CancellationToken cancellationToken = default)
+    {
+        using var connection = _connectionFactory.CreateConnection();
+        
+        await connection.ExecuteAsync(
+            ConversationSql.Update,
+            new
+            {
+                conversation.Id,
+                Status = (int)conversation.Status,
+                conversation.EndedAt,
+                UpdatedAt = DateTime.UtcNow
+            });
+    }
+}
+```
+
+## SQL Scripts
+
+### Scripts/Conversation/GetById.sql
+
+```sql
+SELECT 
+    Id,
+    PhoneNumber,
+    AssistantPhoneNumber,
+    Status,
+    AssistantId,
+    CreatedAt,
+    UpdatedAt,
+    EndedAt
+FROM Conversations
+WHERE Id = @Id
+```
+
+### Scripts/Conversation/GetByPhoneNumber.sql
+
+```sql
+SELECT TOP 1
+    Id,
+    PhoneNumber,
+    AssistantPhoneNumber,
+    Status,
+    AssistantId,
+    CreatedAt,
+    UpdatedAt,
+    EndedAt
+FROM Conversations
+WHERE PhoneNumber = @PhoneNumber
+    AND Status = 1 -- Active
+ORDER BY CreatedAt DESC
+```
+
+### Scripts/Conversation/Insert.sql
+
+```sql
+INSERT INTO Conversations (
+    Id,
+    PhoneNumber,
+    AssistantPhoneNumber,
+    Status,
+    AssistantId,
+    CreatedAt
+) VALUES (
+    @Id,
+    @PhoneNumber,
+    @AssistantPhoneNumber,
+    @Status,
+    @AssistantId,
+    @CreatedAt
+)
+```
+
+### Scripts/Conversation/Update.sql
+
+```sql
+UPDATE Conversations
+SET 
+    Status = @Status,
+    EndedAt = @EndedAt,
+    UpdatedAt = @UpdatedAt
+WHERE Id = @Id
+```
+
+### Scripts/Conversation/ListWithCount.sql
+
+```sql
+-- Items
+SELECT 
+    Id,
+    PhoneNumber,
+    AssistantPhoneNumber,
+    Status,
+    AssistantId,
+    CreatedAt,
+    UpdatedAt,
+    EndedAt
+FROM Conversations
+WHERE (@AssistantId IS NULL OR AssistantId = @AssistantId)
+ORDER BY CreatedAt DESC
+OFFSET @Offset ROWS
+FETCH NEXT @Limit ROWS ONLY;
+
+-- Total count
+SELECT COUNT(*)
+FROM Conversations
+WHERE (@AssistantId IS NULL OR AssistantId = @AssistantId);
+```
+
+## Source Generator
+
+O Source Generator lê os arquivos `.sql` e gera classes tipadas:
+
+```csharp
+// Gerado automaticamente por SqlScriptGenerator
+namespace BeWiser.Assistant.Infrastructure.Persistence.Repositories;
+
+public static partial class ConversationSql
+{
+    public const string GetById = """
+        SELECT 
+            Id,
+            PhoneNumber,
+            ...
+        FROM Conversations
+        WHERE Id = @Id
+        """;
+
+    public const string Insert = """
+        INSERT INTO Conversations ...
+        """;
+}
+```
+
+## Type Handlers para Value Objects
+
+```csharp
+using Dapper;
+using System.Data;
+
+namespace BeWiser.Assistant.Infrastructure.Persistence.TypeHandlers;
+
+public class PhoneNumberVOTypeHandler : SqlMapper.TypeHandler<PhoneNumberVO>
+{
+    public override PhoneNumberVO Parse(object value)
+        => new(value.ToString()!);
+
+    public override void SetValue(IDbDataParameter parameter, PhoneNumberVO? value)
+        => parameter.Value = value?.Value;
+}
+
+// Registro no DependencyInjection
+public static class DapperConfiguration
+{
+    public static void RegisterTypeHandlers()
+    {
+        SqlMapper.AddTypeHandler(new PhoneNumberVOTypeHandler());
+        SqlMapper.AddTypeHandler(new MessageContentVOTypeHandler());
+    }
+}
+```
+
+## Transações
+
+```csharp
+public async Task TransferAsync(...)
+{
+    using var connection = _connectionFactory.CreateConnection();
+    connection.Open();
+    
+    using var transaction = connection.BeginTransaction();
+    
+    try
+    {
+        await connection.ExecuteAsync(sql1, params1, transaction);
+        await connection.ExecuteAsync(sql2, params2, transaction);
+        
+        transaction.Commit();
+    }
+    catch
+    {
+        transaction.Rollback();
+        throw;
+    }
+}
+```
+
+## Checklist
+
+- [ ] Interface em `Domain/Interfaces/Repositories/`
+- [ ] Implementação em `Infrastructure/Persistence/Repositories/`
+- [ ] Scripts em `Repositories/Scripts/[Entidade]/`
+- [ ] Connection Factory configurada
+- [ ] Type Handlers para Value Objects
+- [ ] Logs em operações importantes
+- [ ] Paginação com total count
+- [ ] Transações quando necessário

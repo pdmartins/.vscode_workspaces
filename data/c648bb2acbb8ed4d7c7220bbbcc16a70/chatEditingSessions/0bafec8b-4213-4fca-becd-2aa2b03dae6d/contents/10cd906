@@ -1,0 +1,97 @@
+"""Cross-artifact consistency validation."""
+
+import re
+import pytest
+from conftest import CORE_ROOT, SKILLS_ROOT, VALID_TYPES, NAME_PATTERN
+
+
+@pytest.mark.structural
+class TestConsistency:
+    def test_capability_manifest_counts(self, core_instructions):
+        """Skill counts in Capability Manifest must match physical directories."""
+        for type_name in VALID_TYPES:
+            type_dir = SKILLS_ROOT / type_name
+            if not type_dir.exists():
+                continue
+
+            physical = sum(
+                1
+                for d in type_dir.iterdir()
+                if d.is_dir() and (d / "SKILL.md").exists()
+            )
+
+            pattern = rf"\|\s*`{type_name}`\s*\|[^|]+\|[^|]+\|\s*(\d+)\s*\|"
+            match = re.search(pattern, core_instructions)
+            if match:
+                manifest = int(match.group(1))
+                assert physical == manifest, (
+                    f"Type '{type_name}': "
+                    f"physical={physical}, manifest={manifest}"
+                )
+
+    def test_total_skill_count(self, core_instructions, all_skills):
+        """Total skill count in instructions must match reality."""
+        match = re.search(r"\*\*(\d+) skills\*\*", core_instructions)
+        if match:
+            stated = int(match.group(1))
+            actual = len(all_skills)
+            assert actual == stated, (
+                f"Total skills: stated={stated}, actual={actual}"
+            )
+
+    def test_always_known_skills_exist(self, core_instructions, all_skills):
+        """All Always-Known skills must actually exist as SKILL.md files."""
+        skill_names = {s.name for s in all_skills}
+
+        # Extract skill names from Always-Known table
+        always_known_section = re.search(
+            r"Always-Known.*?(?=###|\Z)", core_instructions, re.DOTALL
+        )
+        if not always_known_section:
+            pytest.skip("Always-Known section not found")
+
+        always_known = re.findall(
+            r"\|\s*`([^`]+)`\s*\|[^|]+\|", always_known_section.group()
+        )
+        always_known = [n for n in always_known if NAME_PATTERN.match(n)]
+
+        for name in always_known:
+            assert name in skill_names, (
+                f"Always-Known skill '{name}' not found in skills/"
+            )
+
+    def test_every_skill_in_catalog(self, all_skills, catalogs):
+        """Every non-catalog skill should be listed in its type's catalog."""
+        for skill in all_skills:
+            if skill.name.endswith("-catalog-query"):
+                continue
+            catalog_content = catalogs.get(skill.type_folder, "")
+            if catalog_content:
+                assert skill.name in catalog_content, (
+                    f"Skill '{skill.name}' not found in "
+                    f"{skill.type_folder}-catalog-query"
+                )
+
+    def test_instructions_manifest_consistent_with_template(
+        self, core_instructions, template_instructions
+    ):
+        """Skill type counts should be consistent between instructions and template."""
+        if not template_instructions:
+            pytest.skip("Template instructions not found")
+
+        for type_name in VALID_TYPES:
+            core_pattern = (
+                rf"\|\s*`{type_name}`\s*\|[^|]+\|[^|]+\|\s*(\d+)\s*\|"
+            )
+            template_pattern = rf"\|\s*`{type_name}`\s*\|\s*(\d+)\s*\|"
+
+            core_match = re.search(core_pattern, core_instructions)
+            template_match = re.search(template_pattern, template_instructions)
+
+            if core_match and template_match:
+                core_count = int(core_match.group(1))
+                template_count = int(template_match.group(1))
+                assert core_count == template_count, (
+                    f"Type '{type_name}': "
+                    f"core={core_count}, template={template_count}"
+                )

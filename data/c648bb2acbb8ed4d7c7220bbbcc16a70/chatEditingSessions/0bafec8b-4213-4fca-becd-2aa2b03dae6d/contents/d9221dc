@@ -1,0 +1,25 @@
+"""Validate mandatory sections in SKILL.md."""
+
+import pytest
+
+
+@pytest.mark.structural
+class TestSections:
+    def test_has_quando_usar(self, skill):
+        heading_texts = [h[1] for h in skill.headings]
+        has_section = any("Quando Usar" in h for h in heading_texts)
+        has_alt = any("Quando NÃO Usar" in h for h in heading_texts)
+        assert has_section or has_alt, (
+            f"{skill.path}: missing '## Quando Usar' section"
+        )
+
+    def test_has_workflow_or_equivalent(self, skill):
+        """Skills must have Workflow, or a catalog table (for catalog-query skills)."""
+        heading_texts = [h[1] for h in skill.headings]
+        has_workflow = any("Workflow" in h for h in heading_texts)
+        has_catalog_table = any("Disponíveis" in h for h in heading_texts)
+        has_steps = any("Steps" in h for h in heading_texts)
+        has_phases = any("Fase" in h for h in heading_texts)
+        assert has_workflow or has_catalog_table or has_steps or has_phases, (
+            f"{skill.path}: missing '## Workflow' or equivalent section"
+        )

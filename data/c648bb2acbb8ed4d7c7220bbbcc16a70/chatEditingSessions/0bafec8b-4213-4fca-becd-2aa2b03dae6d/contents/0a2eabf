@@ -1,0 +1,7 @@
+# Chat Persistence Creation
+
+- **date**: 2026-02-15
+- **status**: active
+- **context**: Sistema não tinha camada de estado de sessão — todo working context se perdia ao trocar de máquina/encerrar chat. manage_todo_list é runtime-only
+- **decision**: Camada de persistência com: (1) pasta `chat-memory/` no .copilot-project, (2) `agent-chat-save` para salvar manual/auto, (3) `agent-chat-resume` para retomar. Três camadas temporais: permanente (memory/, context/), sessão (chat-memory/), efêmero (runtime)
+- **outcome**: Contexto sobrevive entre máquinas via git. Chat-memory é top-level (não dentro de memory/) por ser conceitualmente distinto — sessions são transientes, memória é permanente

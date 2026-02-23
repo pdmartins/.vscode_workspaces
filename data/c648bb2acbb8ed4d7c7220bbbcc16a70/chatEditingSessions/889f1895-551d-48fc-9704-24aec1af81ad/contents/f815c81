@@ -1,0 +1,396 @@
+---
+name: infra-messaging-configure
+description: Padrões para mensageria com MassTransit (Azure Service Bus, RabbitMQ, etc.). Lê config.yml do project para convenções específicas. Use ao criar filas, publicar mensagens, ou processar consumers. Triggers: Service Bus, RabbitMQ, fila, queue, mensageria, MassTransit, consumer, publisher, pasta Messaging/.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: infra
+---
+
+# Messaging Skill (MassTransit)
+
+Padrões para mensageria usando MassTransit com qualquer transport (Azure Service Bus, RabbitMQ, etc.).
+
+## Config Loading
+
+Antes de gerar código, carregar configurações do projeto:
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/infra-messaging-configure/config.yml`
+2. Se existe, carregar e usar as configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/infra-messaging-configure/SKILL.md`
+4. Se existe, carregar como instruções complementares (extensões específicas do projeto)
+5. Se nenhum existe, usar apenas os padrões genéricos abaixo
+
+## Quando Usar
+
+- Processar mensagens assíncronas
+- Desacoplar componentes
+- Implementar filas de processamento
+- Retry automático de falhas
+
+## Estrutura
+
+```
+src/{RootNamespace}.Infrastructure/
+└── Messaging/
+    ├── Messages/
+    │   ├── {Domain}{Action}Message.cs
+    │   └── ...
+    ├── Consumers/
+    │   ├── {Domain}{Action}MessageConsumer.cs
+    │   └── ...
+    └── Publishers/
+        ├── I{Domain}Publisher.cs
+        └── {Domain}Publisher.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Message (Bus) | `[Domínio][Ação]Message` | `OrderCreatedMessage`, `PaymentProcessedMessage` |
+| Consumer | `[Message]Consumer` | `OrderCreatedMessageConsumer` |
+| Consumer Definition | `[Message]ConsumerDefinition` | `OrderCreatedMessageConsumerDefinition` |
+| Publisher Interface | `I[Domínio]Publisher` | `IOrderPublisher` |
+| Publisher Impl | `[Domínio]Publisher` | `OrderPublisher` |
+
+## Templates
+
+### Message
+
+```csharp
+namespace {RootNamespace}.Infrastructure.Messaging.Messages;
+
+/// <summary>
+/// Message to process a {domain} {action}.
+/// </summary>
+public record {Domain}{Action}Message
+{
+    public Guid Id { get; init; }
+    public Guid CorrelationId { get; init; }
+    public DateTime QueuedAt { get; init; } = DateTime.UtcNow;
+    // Domain-specific properties
+}
+```
+
+### Consumer
+
+```csharp
+using MassTransit;
+using Microsoft.Extensions.Logging;
+
+namespace {RootNamespace}.Infrastructure.Messaging.Consumers;
+
+/// <summary>
+/// Consumer for {Domain}{Action}Message.
+/// </summary>
+public class {Domain}{Action}MessageConsumer 
+    : IConsumer<{Domain}{Action}Message>
+{
+    private readonly I{Service} _{service};
+    private readonly I{Repository} _{repository};
+    private readonly ILogger<{Domain}{Action}MessageConsumer> _logger;
+
+    public {Domain}{Action}MessageConsumer(
+        I{Service} {service},
+        I{Repository} {repository},
+        ILogger<{Domain}{Action}MessageConsumer> logger)
+    {
+        _{service} = {service};
+        _{repository} = {repository};
+        _logger = logger;
+    }
+
+    public async Task Consume(ConsumeContext<{Domain}{Action}Message> context)
+    {
+        var message = context.Message;
+        
+        _logger.LogInformation(
+            "Processing {MessageType} {Id}",
+            nameof({Domain}{Action}Message),
+            message.Id);
+
+        try
+        {
+            // 1. Load entity
+            var entity = await _{repository}.GetByIdAsync(
+                message.Id,
+                context.CancellationToken);
+
+            if (entity is null)
+            {
+                _logger.LogWarning(
+                    "Entity {Id} not found",
+                    message.Id);
+                return;
+            }
+
+            // 2. Process business logic
+            var result = await _{service}.ProcessAsync(
+                entity,
+                context.CancellationToken);
+
+            // 3. Publish follow-up message if needed
+            // await context.Publish(new FollowUpMessage { ... });
+
+            _logger.LogInformation(
+                "{MessageType} {Id} processed successfully",
+                nameof({Domain}{Action}Message),
+                message.Id);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(
+                ex,
+                "Error processing {MessageType} {Id}",
+                nameof({Domain}{Action}Message),
+                message.Id);
+            throw; // Re-throw for retry
+        }
+    }
+}
+```
+
+### Consumer com Retry Configurado (ConsumerDefinition)
+
+```csharp
+using MassTransit;
+
+namespace {RootNamespace}.Infrastructure.Messaging.Consumers;
+
+/// <summary>
+/// Consumer definition with retry policy.
+/// </summary>
+public class {Domain}{Action}MessageConsumerDefinition 
+    : ConsumerDefinition<{Domain}{Action}MessageConsumer>
+{
+    protected override void ConfigureConsumer(
+        IReceiveEndpointConfigurator endpointConfigurator,
+        IConsumerConfigurator<{Domain}{Action}MessageConsumer> consumerConfigurator,
+        IRegistrationContext context)
+    {
+        // Retry with exponential backoff
+        endpointConfigurator.UseMessageRetry(r => r
+            .Incremental(3, TimeSpan.FromSeconds(1), TimeSpan.FromSeconds(2)));
+            
+        // Circuit breaker
+        endpointConfigurator.UseCircuitBreaker(cb =>
+        {
+            cb.TrackingPeriod = TimeSpan.FromMinutes(1);
+            cb.TripThreshold = 15;
+            cb.ActiveThreshold = 10;
+            cb.ResetInterval = TimeSpan.FromMinutes(5);
+        });
+    }
+}
+```
+
+### Publisher Interface
+
+```csharp
+namespace {RootNamespace}.Infrastructure.Messaging.Publishers;
+
+/// <summary>
+/// Publisher for {domain}-related events.
+/// </summary>
+public interface I{Domain}Publisher
+{
+    Task Publish{Action}Async(
+        {Domain}{Action}Message message,
+        CancellationToken cancellationToken = default);
+}
+```
+
+### Publisher Implementation
+
+```csharp
+using MassTransit;
+
+namespace {RootNamespace}.Infrastructure.Messaging.Publishers;
+
+/// <summary>
+/// MassTransit implementation of I{Domain}Publisher.
+/// </summary>
+public class {Domain}Publisher : I{Domain}Publisher
+{
+    private readonly IPublishEndpoint _publishEndpoint;
+    private readonly ILogger<{Domain}Publisher> _logger;
+
+    public {Domain}Publisher(
+        IPublishEndpoint publishEndpoint,
+        ILogger<{Domain}Publisher> logger)
+    {
+        _publishEndpoint = publishEndpoint;
+        _logger = logger;
+    }
+
+    public async Task Publish{Action}Async(
+        {Domain}{Action}Message message,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogDebug(
+            "Publishing {MessageType} for {Id}",
+            nameof({Domain}{Action}Message),
+            message.Id);
+
+        await _publishEndpoint.Publish(message, cancellationToken);
+    }
+}
+```
+
+## Configuração MassTransit
+
+### Azure Service Bus
+
+```csharp
+using MassTransit;
+
+namespace {RootNamespace}.Infrastructure.Extensions;
+
+public static class MessagingExtensions
+{
+    public static IServiceCollection AddMessaging(
+        this IServiceCollection services,
+        IConfiguration configuration)
+    {
+        var options = configuration
+            .GetSection(MessageBusOptions.SectionName)
+            .Get<MessageBusOptions>()!;
+
+        services.AddMassTransit(x =>
+        {
+            // Register consumers
+            x.AddConsumer<{Domain}{Action}MessageConsumer>();
+            x.AddConsumer<{Domain}{Action2}MessageConsumer, {Domain}{Action2}MessageConsumerDefinition>();
+
+            x.UsingAzureServiceBus((context, cfg) =>
+            {
+                cfg.Host(options.ConnectionString);
+
+                // Configure endpoints
+                cfg.ReceiveEndpoint("{queue-name-1}", e =>
+                {
+                    e.ConfigureConsumer<{Domain}{Action}MessageConsumer>(context);
+                });
+
+                cfg.ReceiveEndpoint("{queue-name-2}", e =>
+                {
+                    e.ConfigureConsumer<{Domain}{Action2}MessageConsumer>(context);
+                });
+            });
+        });
+
+        services.AddScoped<I{Domain}Publisher, {Domain}Publisher>();
+
+        return services;
+    }
+}
+```
+
+### RabbitMQ
+
+```csharp
+services.AddMassTransit(x =>
+{
+    x.AddConsumer<{Domain}{Action}MessageConsumer>();
+
+    x.UsingRabbitMq((context, cfg) =>
+    {
+        cfg.Host(options.Host, options.VirtualHost, h =>
+        {
+            h.Username(options.Username);
+            h.Password(options.Password);
+        });
+
+        cfg.ConfigureEndpoints(context);
+    });
+});
+```
+
+### Message Bus Options
+
+```csharp
+namespace {RootNamespace}.Infrastructure.Options;
+
+public class MessageBusOptions
+{
+    public const string SectionName = "MessageBus";
+    
+    public required string ConnectionString { get; init; }
+    public int MaxConcurrentCalls { get; init; } = 10;
+    public int PrefetchCount { get; init; } = 20;
+}
+```
+
+## Dead Letter Queue
+
+```csharp
+public class {Domain}{Action}MessageConsumer : IConsumer<{Domain}{Action}Message>
+{
+    public async Task Consume(ConsumeContext<{Domain}{Action}Message> context)
+    {
+        try
+        {
+            // Process...
+        }
+        catch (NonRecoverableException ex)
+        {
+            // Move to dead letter queue
+            await context.Send(
+                new Uri("queue:{queue-name}-error"),
+                new {Domain}{Action}Error
+                {
+                    OriginalMessage = context.Message,
+                    Error = ex.Message,
+                    FailedAt = DateTime.UtcNow
+                });
+        }
+    }
+}
+```
+
+## Checklist
+
+- [ ] Messages em `Messaging/Messages/`
+- [ ] Consumers em `Messaging/Consumers/`
+- [ ] Publishers em `Messaging/Publishers/`
+- [ ] Nomenclatura: `[Domínio][Ação]Message`
+- [ ] Consumer Definition para retry
+- [ ] Logs em publish e consume
+- [ ] Tratamento de erros
+- [ ] Dead Letter Queue configurada
+- [ ] Options em classe separada
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/infra-messaging-configure/config.yml
+root_namespace: "{RootNamespace}"
+
+transport: "AzureServiceBus"  # AzureServiceBus | RabbitMQ | InMemory
+options_section_name: "ServiceBus"
+
+queues:
+  - name: "{queue-name}"
+    consumer: "{Domain}{Action}MessageConsumer"
+    has_definition: false
+    retry:
+      max_attempts: 3
+      initial_interval_seconds: 1
+      interval_increment_seconds: 2
+    circuit_breaker:
+      tracking_period_minutes: 1
+      trip_threshold: 15
+      active_threshold: 10
+      reset_interval_minutes: 5
+
+messages:
+  - name: "{Domain}{Action}Message"
+    properties:
+      - "Id: Guid"
+      - "CorrelationId: Guid"
+
+publishers:
+  - interface: "I{Domain}Publisher"
+    implementation: "{Domain}Publisher"
+```

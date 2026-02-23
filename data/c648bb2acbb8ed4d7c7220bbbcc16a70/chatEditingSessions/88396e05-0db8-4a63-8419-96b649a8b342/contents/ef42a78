@@ -1,0 +1,43 @@
+# Code Map — Copilot Core
+
+Índice mestre de artefatos do projeto.
+
+## Natureza do Projeto
+
+Este projeto é **Markdown-based** — não possui source code tradicional. Os artefatos principais são:
+
+- **Skills** (56 core skills em `.copilot-core/skills/`)
+- **Instructions** (2 arquivos: `default.instructions.md`, `workspace.instructions.md`)
+- **Templates** (2 arquivos em `.copilot-core/templates/`)
+- **Context** (`project.md`, `code-map/`)
+- **Memory** (`lessons-learned.md`, `chat-memory/`)
+
+## Mapa de Artefatos
+
+| Tipo | Localização | Quantidade | Descrição |
+|------|-------------|------------|-----------|
+| Core Skills | `.copilot-core/skills/{tipo}/{name}/SKILL.md` | 56 | Skills genéricos reutilizáveis |
+| Project Skills | `.copilot-project/skills/{name}/SKILL.md` | 0 | Skills específicos do projeto |
+| Instructions | `.copilot-core/instructions/` | 1 | `default.instructions.md` (global) |
+| Instructions | `.copilot-project/instructions/` | 1 | `workspace.instructions.md` (projeto) |
+| Templates | `.copilot-core/templates/` | 2 | `workspace.instructions.md`, `subagent-prompt.md` |
+| Context | `.copilot-project/context/` | 2 | `project.md`, `code-map/` |
+| Memory | `.copilot-project/memory/` | 1 | `lessons-learned.md` |
+| Chat Memory | `.copilot-project/chat-memory/` | 0 | Sessões persistidas |
+| Source Control | `.copilot-core/.source-control/` | 1 | `commit-prompt.md` |
+
+## Skills por Tipo
+
+| Tipo | Count | Catálogo |
+|------|-------|----------|
+| agent | 8 | `agent-catalog-query` |
+| code | 22 | `code-catalog-query` |
+| editor | 2 | *(diretas — sem catálogo)* |
+| infra | 12 | `infra-catalog-query` |
+| project | 10 | `project-catalog-query` |
+| skill | 2 | *(diretas — sem catálogo)* |
+
+## Notas
+
+- Arquivos `services.md`, `models.md`, `api.md`, `components.md`, `utils.md`, `config.md` — não aplicáveis a este projeto (são templates para projetos com source code)
+- O code-map é mantido manualmente para este projeto dado sua natureza Markdown-based

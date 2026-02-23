@@ -1,0 +1,135 @@
+---
+name: editor-markdown-lint
+description: Aplica regras de formatação e linting para arquivos Markdown. Use ao criar ou editar arquivos .md, gerar documentação, escrever README, CHANGELOG ou docs. Requer extensão markdownlint. Triggers: arquivos *.md, "criar readme", "documentação", "markdown".
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: editor
+  delegable: full
+---
+
+# Editor Markdown Lint
+
+Aplica regras de formatação e linting para arquivos Markdown.
+
+## Quando Usar
+
+- Criando ou editando arquivos `*.md`
+- Gerando documentação
+- Escrevendo README, CHANGELOG, ou docs
+
+## Pré-requisito
+
+Extensão VS Code: `davidanson.vscode-markdownlint`
+
+## Workflow
+
+### 1. Criar/editar arquivo
+
+Escrever conteúdo seguindo as regras abaixo.
+
+### 2. Verificar erros
+
+Usar `get_errors` para obter problemas:
+
+```
+get_errors({ filePaths: ["/caminho/do/arquivo.md"] })
+```
+
+### 3. Corrigir erros
+
+Para cada erro reportado:
+- Ler a regra violada (ex: MD009 = trailing spaces)
+- Aplicar correção
+- Verificar novamente
+
+### 4. Validar
+
+**Só finalizar quando** `get_errors` retornar lista vazia.
+
+## Regras Principais
+
+### Headings
+
+| Regra | Descrição |
+|-------|-----------|
+| MD001 | Níveis incrementam de 1 em 1 |
+| MD003 | Usar estilo atx (`# Heading`) |
+| MD018 | Espaço após `#` |
+| MD022 | Blank lines ao redor de headings |
+| MD025 | Apenas um H1 por documento |
+| MD041 | Primeira linha deve ser H1 |
+
+### Whitespace
+
+| Regra | Descrição |
+|-------|-----------|
+| MD009 | Sem trailing spaces |
+| MD010 | Sem tabs, usar espaços |
+| MD012 | Sem múltiplas blank lines |
+| MD047 | Arquivo termina com newline |
+
+### Lists
+
+| Regra | Descrição |
+|-------|-----------|
+| MD004 | Estilo consistente (`-` preferido) |
+| MD007 | Indentação de 2 espaços |
+| MD029 | Prefixo `1.` para todas ordered lists |
+| MD032 | Blank lines ao redor de listas |
+
+### Code
+
+| Regra | Descrição |
+|-------|-----------|
+| MD031 | Blank lines ao redor de code blocks |
+| MD040 | Especificar linguagem em fenced blocks |
+| MD046 | Usar fenced style (```) |
+
+### Links
+
+| Regra | Descrição |
+|-------|-----------|
+| MD034 | Sem URLs nuas, usar `[text](url)` |
+| MD042 | Sem links vazios |
+| MD045 | Imagens devem ter alt text |
+
+## Estrutura Recomendada
+
+```markdown
+# Título Principal
+
+Descrição breve do documento.
+
+## Seção 1
+
+Conteúdo da seção.
+
+### Subseção 1.1
+
+Detalhes adicionais.
+
+## Seção 2
+
+- Item de lista 1
+- Item de lista 2
+
+## Exemplos
+
+```language
+código aqui
+```
+
+## Referências
+
+- [Link descritivo](url)
+```
+
+## Checklist
+
+- [ ] Único H1 no documento
+- [ ] Níveis de heading incrementais
+- [ ] Sem trailing spaces
+- [ ] Arquivo termina com newline
+- [ ] Code blocks têm linguagem
+- [ ] Links têm texto descritivo

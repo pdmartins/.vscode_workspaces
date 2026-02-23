@@ -1,0 +1,8 @@
+# No Git Operations by Agent
+
+- **date**: 2026-02-17
+- **status**: active
+- **trigger**: Agente executou `git add`, `git commit`, `git push` durante workflow de `project-workspace-create`
+- **correction**: O agente NUNCA executa operações git (add/commit/push). Nem diretamente, nem via subagent, nem como parte de workflows automatizados
+- **correct_pattern**: Quando um workflow inclui steps de git (ex: commit + push), apresentar como **instruções para o usuário copiar e colar** no terminal. Exemplo: "Para finalizar, execute no terminal: `git add . && git commit -m '...' && git push -u origin branch`"
+- **wrong_pattern**: Agente chamando `run_in_terminal` com `git add/commit/push` ou delegando para subagent executar esses comandos

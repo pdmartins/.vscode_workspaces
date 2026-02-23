@@ -1,0 +1,39 @@
+"""Validate size and complexity limits."""
+
+import re
+import warnings
+import pytest
+
+
+SOFT_LINE_LIMIT = 150
+HARD_LINE_LIMIT = 300
+MAX_WORKFLOW_STEPS = 7
+
+
+@pytest.mark.structural
+class TestSize:
+    def test_line_count_hard_limit(self, skill):
+        """SKILL.md must not exceed 300 lines."""
+        assert skill.line_count <= HARD_LINE_LIMIT, (
+            f"{skill.path}: {skill.line_count} lines "
+            f"exceeds hard limit ({HARD_LINE_LIMIT})"
+        )
+
+    def test_line_count_soft_limit(self, skill):
+        """SKILL.md should be <= 150 lines (consider splitting)."""
+        if skill.line_count > SOFT_LINE_LIMIT:
+            warnings.warn(
+                f"{skill.name}: {skill.line_count} lines "
+                f"(recommended <= {SOFT_LINE_LIMIT})",
+                UserWarning,
+                stacklevel=1,
+            )
+
+    def test_workflow_step_count(self, skill):
+        """Workflow should have <= 7 top-level steps."""
+        steps = re.findall(r"^### \d+\.", skill.content, re.MULTILINE)
+        if steps:
+            assert len(steps) <= MAX_WORKFLOW_STEPS, (
+                f"{skill.path}: {len(steps)} workflow steps "
+                f"(max {MAX_WORKFLOW_STEPS})"
+            )

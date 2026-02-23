@@ -1,0 +1,57 @@
+# Infrastructure — Stack
+
+## Stack Principal
+
+| Componente | Tecnologia | Versão |
+|------------|------------|--------|
+| Linguagem | C# | 12 |
+| Runtime | .NET | 8 (LTS) |
+| Framework | Minimal API | — |
+| Cloud | Google Cloud Platform | — |
+
+## Serviços GCP
+
+A PoC avaliará **todas** as opções de STT do GCP para determinar a melhor solução para ambiente hospitalar:
+
+| Serviço | API | Propósito na PoC |
+|---------|-----|-------------------|
+| Speech-to-Text v1 | `google.cloud.speech.v1` | Baseline — API estável e madura |
+| Speech-to-Text v2 | `google.cloud.speech.v2` | API mais recente com melhorias |
+| Chirp | via STT v2 | Modelo universal do Google — avaliar qualidade PT-BR médico |
+| Cloud Storage | `google.cloud.storage` | Armazenamento de áudios para processamento batch |
+| Vertex AI | `google.cloud.aiplatform` | Modelos avançados, possível pós-processamento de transcrição |
+
+## Estrutura do Projeto
+
+Projeto único (PoC simples):
+
+```
+stt_gcp/
+├── SttGcp.Api/                    # Minimal API (.NET 8)
+│   ├── Program.cs                 # Entry point + endpoints
+│   ├── Services/                  # Service layer (STT clients)
+│   ├── Models/                    # Request/Response DTOs
+│   ├── Configuration/             # GCP config, settings
+│   └── appsettings.json
+├── SttGcp.Api.sln
+└── README.md
+```
+
+## Dependências NuGet (esperadas)
+
+| Package | Propósito |
+|---------|-----------|
+| `Google.Cloud.Speech.V1` | Client STT v1 |
+| `Google.Cloud.Speech.V2` | Client STT v2 |
+| `Google.Cloud.Storage.V1` | Upload/download de áudios |
+| `Google.Cloud.AIPlatform.V1` | Vertex AI integration |
+
+## Autenticação GCP
+
+- **Desenvolvimento**: Application Default Credentials (ADC) via `gcloud auth application-default login`
+- **Produção**: Service Account Key (JSON) via `GOOGLE_APPLICATION_CREDENTIALS`
+
+## Última Atualização
+
+**Data**: 2026-02-17
+**Motivo**: Criação inicial

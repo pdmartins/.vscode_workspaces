@@ -1,0 +1,133 @@
+---
+name: infra-vertexai-prompt
+description: Gerencia prompts para Vertex AI/Gemini (structured output, schemas, generation config). Padrão genérico, lê config.yml do project para modelos, temperatura, schemas, prompt templates. Triggers: "novo prompt", "alterar prompt", "Gemini", "Vertex AI", "transcrição", "structured output", "schema de resposta", ao trabalhar com IA/ML.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: infra
+---
+
+# Infra VertexAI Prompt
+
+Gerencia prompts e configurações para Vertex AI / Gemini, configurável por projeto.
+
+## Quando Usar
+
+- Criar ou modificar prompts de IA
+- Alterar configuração de geração (temperatura, topP)
+- Modificar response schema (structured output)
+- Trabalhar com integração Vertex AI
+
+## Config Loading
+
+1. Verificar se existe `{workspace}/.github/.copilot-project/skills/infra-vertexai-prompt/config.yml`
+2. Se existe, carregar configurações do projeto
+3. Verificar se existe `{workspace}/.github/.copilot-project/skills/infra-vertexai-prompt/SKILL.md`
+4. Se existe, carregar instruções complementares (prompts específicos, schemas)
+5. Se nenhum existe, usar padrões genéricos
+
+## Padrões Genéricos
+
+### Generation Config
+
+| Parâmetro | Descrição | Default |
+|-----------|-----------|---------|
+| Temperature | Criatividade (0=determinístico, 1=criativo) | Conforme config |
+| TopP | Nucleus sampling | 0.95 |
+| ResponseMimeType | Formato da resposta | application/json |
+| MaxOutputTokens | Limite de tokens na resposta | Conforme modelo |
+
+### Structured Output
+
+Usar `ResponseSchema` para garantir formato JSON consistente:
+
+```csharp
+var config = new GenerateContentConfig
+{
+    Temperature = settings.Temperature,
+    TopP = settings.TopP,
+    ResponseMimeType = "application/json",
+    ResponseSchema = MySchemaResponse.Schema
+};
+```
+
+### Input Types
+
+| Tipo | Formato |
+|------|---------|
+| Texto | Content com Part texto |
+| Arquivo (GCS) | `FileData` com URI `gs://bucket/file` |
+| Inline | Base64 encoded (evitar para arquivos grandes) |
+
+### Error Handling
+
+| Erro | Ação |
+|------|------|
+| Rate limit (429) | Retry com backoff |
+| Client error (4xx) | Log + fail (não retry) |
+| Server error (5xx) | Retry com backoff |
+| Timeout | Retry |
+
+### Token Tracking
+
+Após cada chamada, registrar:
+- `PromptTokenCount`
+- `CandidatesTokenCount`
+- `TotalTokenCount`
+- `FinishReason`
+
+### Labels
+
+Usar labels para rastreamento e billing:
+
+```csharp
+var labels = new Dictionary<string, string>
+{
+    { "source", platform },
+    { "version", "v1" }
+};
+```
+
+## Checklist
+
+- [ ] Temperature conforme config do projeto
+- [ ] ResponseMimeType = application/json (se structured output)
+- [ ] Schema atualizado se campos de resposta mudaram
+- [ ] Token tracking implementado
+- [ ] Error handling com retry para 429 e 5xx
+- [ ] Labels para rastreamento
+- [ ] Input via GCS reference (nunca inline para arquivos grandes)
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/infra-vertexai-prompt/config.yml
+model: gemini-2.5-flash
+generation:
+  temperature: 0.0
+  topP: 0.95
+  responseMimeType: application/json
+  thinkingBudget: 0                 # 0 = CoT disabled
+input:
+  type: gcs-reference               # gcs-reference | inline | text-only
+  mime-type: audio/mpeg
+response:
+  schema-class: TranscriptionSchemaResponse
+  schema-location: "Domain/Models/v1/"
+labels:
+  source-field: platform
+  helper-class: SourcePlatformHelper
+prompts:
+  storage: bigquery                  # bigquery | appsettings | file
+  table: Prompts
+  fallback-class: PromptDefault
+  default-prompt: Anamnesis
+token-tracking:
+  enabled: true
+  storage: bigquery
+  table: Token_Data
+error-handling:
+  rate-limit: retry
+  client-error: fail
+  server-error: retry
+```

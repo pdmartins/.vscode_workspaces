@@ -1,0 +1,28 @@
+# Infrastructure — vscode_workspaces
+
+- **date**: 2026-02-22
+- **status**: active
+
+## Stack
+
+| Componente | Tecnologia |
+|------------|------------|
+| Linguagem principal | PowerShell |
+| Linguagem secundária | Bash |
+| Versionamento | Git |
+| Repositório | `https://github.com/pdmartins/.vscode_workspaces` |
+| Plataformas | Windows, Linux, macOS |
+
+## Dependências
+
+- VS Code (fonte dos dados de chat)
+- Git (sincronização entre máquinas)
+- Acesso ao `workspaceStorage` do VS Code
+
+## Paths Relevantes
+
+| SO | Path do workspaceStorage |
+|----|--------------------------|
+| Windows | `%APPDATA%\Code\User\workspaceStorage\` |
+| Linux | `~/.config/Code/User/workspaceStorage/` |
+| macOS | `~/Library/Application Support/Code/User/workspaceStorage/` |

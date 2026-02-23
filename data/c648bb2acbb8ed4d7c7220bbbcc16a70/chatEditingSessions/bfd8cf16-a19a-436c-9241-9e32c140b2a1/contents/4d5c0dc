@@ -1,0 +1,301 @@
+---
+name: api-contracts
+description: Padrões para contratos de API (Requests e Responses) em ASP.NET Core. Use ao criar classes de request/response, implementar validação, ou revisar contratos. Triggers: criar request, criar response, Contracts/, validação, arquivos *Request.cs, *Response.cs.
+metadata:
+  author: copilot-project
+  version: "2.0"
+  category: api
+---
+
+# API Contracts Skill
+
+Padrões para contratos de API (Requests e Responses) em ASP.NET Core.
+
+## Quando Usar
+
+- Criar classes de Request/Response
+- Implementar validação de entrada
+- Revisar contratos de API
+- Verificar nomenclatura e localização
+
+## Estrutura de Pastas
+
+```
+src/Api/
+└── Contracts/
+    ├── Requests/
+    │   ├── CreateAssistantRequest.cs
+    │   ├── UpdateAssistantRequest.cs
+    │   ├── ListAssistantsRequest.cs
+    │   └── ...
+    └── Responses/
+        ├── GetAssistantResponse.cs
+        ├── ListAssistantsResponse.cs
+        ├── CreateAssistantResponse.cs
+        └── ...
+```
+
+## Nomenclatura
+
+### Padrão: `[Verbo][Domínio]Request` / `[Verbo][Domínio]Response`
+
+| Operação | Request | Response |
+|----------|---------|----------|
+| Listar | `List{Domínio}sRequest` | `List{Domínio}sResponse` |
+| Obter | - (usa route param) | `Get{Domínio}Response` |
+| Criar | `Create{Domínio}Request` | `Create{Domínio}Response` |
+| Atualizar | `Update{Domínio}Request` | `Update{Domínio}Response` |
+| Deletar | - (usa route param) | - (NoContent) |
+
+### Verbos Padrão
+
+| Verbo | Uso |
+|-------|-----|
+| `List` | Listar coleção (com filtros/paginação) |
+| `Get` | Obter único recurso |
+| `Create` | Criar novo recurso |
+| `Update` | Atualizar recurso existente |
+| `Delete` | Remover recurso |
+| `Search` | Busca avançada com múltiplos critérios |
+
+### Exemplos por Domínio
+
+**Domínio: Assistant**
+- `CreateAssistantRequest` / `CreateAssistantResponse`
+- `UpdateAssistantRequest` / `UpdateAssistantResponse`
+- `GetAssistantResponse`
+- `ListAssistantsRequest` / `ListAssistantsResponse`
+
+**Domínio: Conversation**
+- `CreateConversationRequest` / `CreateConversationResponse`
+- `ListConversationsRequest` / `ListConversationsResponse`
+- `SearchConversationsRequest` / `SearchConversationsResponse`
+
+## Templates
+
+### Request (Create)
+
+```csharp
+namespace Bewiser.Assistant.Api.Contracts.Requests;
+
+/// <summary>
+/// Request to create a new {domínio}.
+/// </summary>
+public record Create{Domínio}Request
+{
+    /// <summary>
+    /// The name of the {domínio}.
+    /// </summary>
+    /// <example>My {Domínio}</example>
+    [Required]
+    [StringLength(100, MinimumLength = 3)]
+    public required string Name { get; init; }
+    
+    /// <summary>
+    /// The description (optional).
+    /// </summary>
+    [StringLength(500)]
+    public string? Description { get; init; }
+}
+```
+
+### Request (Update)
+
+```csharp
+namespace Bewiser.Assistant.Api.Contracts.Requests;
+
+/// <summary>
+/// Request to update a {domínio}.
+/// </summary>
+public record Update{Domínio}Request
+{
+    /// <summary>
+    /// The new name.
+    /// </summary>
+    [Required]
+    [StringLength(100, MinimumLength = 3)]
+    public required string Name { get; init; }
+    
+    /// <summary>
+    /// The new description.
+    /// </summary>
+    [StringLength(500)]
+    public string? Description { get; init; }
+}
+```
+
+### Request (List com Paginação)
+
+```csharp
+namespace Bewiser.Assistant.Api.Contracts.Requests;
+
+/// <summary>
+/// Request to list {domínios} with pagination.
+/// </summary>
+public record List{Domínio}sRequest
+{
+    /// <summary>
+    /// Page number (1-based).
+    /// </summary>
+    [Range(1, int.MaxValue)]
+    public int Page { get; init; } = 1;
+    
+    /// <summary>
+    /// Items per page.
+    /// </summary>
+    [Range(1, 100)]
+    public int PageSize { get; init; } = 20;
+    
+    /// <summary>
+    /// Optional filter by name.
+    /// </summary>
+    [StringLength(100)]
+    public string? Name { get; init; }
+}
+```
+
+### Response (Single)
+
+```csharp
+namespace Bewiser.Assistant.Api.Contracts.Responses;
+
+/// <summary>
+/// Response containing a {domínio}.
+/// </summary>
+public record Get{Domínio}Response
+{
+    /// <summary>
+    /// The unique identifier.
+    /// </summary>
+    public Guid Id { get; init; }
+    
+    /// <summary>
+    /// The name.
+    /// </summary>
+    public required string Name { get; init; }
+    
+    /// <summary>
+    /// The description.
+    /// </summary>
+    public string? Description { get; init; }
+    
+    /// <summary>
+    /// When the {domínio} was created.
+    /// </summary>
+    public DateTime CreatedAt { get; init; }
+    
+    /// <summary>
+    /// When the {domínio} was last updated.
+    /// </summary>
+    public DateTime? UpdatedAt { get; init; }
+}
+```
+
+### Response (Create)
+
+```csharp
+namespace Bewiser.Assistant.Api.Contracts.Responses;
+
+/// <summary>
+/// Response after creating a {domínio}.
+/// </summary>
+public record Create{Domínio}Response
+{
+    /// <summary>
+    /// The ID of the created {domínio}.
+    /// </summary>
+    public Guid Id { get; init; }
+    
+    /// <summary>
+    /// The name.
+    /// </summary>
+    public required string Name { get; init; }
+    
+    /// <summary>
+    /// When the {domínio} was created.
+    /// </summary>
+    public DateTime CreatedAt { get; init; }
+}
+```
+
+### Response (List com Paginação)
+
+```csharp
+namespace Bewiser.Assistant.Api.Contracts.Responses;
+
+/// <summary>
+/// Paginated response containing {domínios}.
+/// </summary>
+public record List{Domínio}sResponse
+{
+    /// <summary>
+    /// The items in the current page.
+    /// </summary>
+    public required IReadOnlyList<{Domínio}Item> Items { get; init; }
+    
+    /// <summary>
+    /// Total number of items.
+    /// </summary>
+    public int TotalCount { get; init; }
+    
+    /// <summary>
+    /// Current page number.
+    /// </summary>
+    public int Page { get; init; }
+    
+    /// <summary>
+    /// Items per page.
+    /// </summary>
+    public int PageSize { get; init; }
+    
+    /// <summary>
+    /// Total number of pages.
+    /// </summary>
+    public int TotalPages => (int)Math.Ceiling(TotalCount / (double)PageSize);
+}
+
+/// <summary>
+/// Summary item for list responses.
+/// </summary>
+public record {Domínio}Item
+{
+    public Guid Id { get; init; }
+    public required string Name { get; init; }
+    public DateTime CreatedAt { get; init; }
+}
+```
+
+## Validação com FluentValidation
+
+```csharp
+using FluentValidation;
+
+namespace Bewiser.Assistant.Api.Contracts.Validators;
+
+public class Create{Domínio}RequestValidator : AbstractValidator<Create{Domínio}Request>
+{
+    public Create{Domínio}RequestValidator()
+    {
+        RuleFor(x => x.Name)
+            .NotEmpty()
+            .WithMessage("Name is required")
+            .Length(3, 100)
+            .WithMessage("Name must be between 3 and 100 characters");
+            
+        RuleFor(x => x.Description)
+            .MaximumLength(500)
+            .When(x => x.Description is not null);
+    }
+}
+```
+
+## Checklist de Aderência
+
+- [ ] Arquivo em `Contracts/Requests/` ou `Contracts/Responses/`
+- [ ] Nome segue padrão `[Verbo][Domínio]Request/Response`
+- [ ] Namespace correto: `Bewiser.Assistant.Api.Contracts.{Requests|Responses}`
+- [ ] Usar `record` para imutabilidade
+- [ ] `required` em propriedades obrigatórias
+- [ ] Documentação XML com `<summary>` e `<example>`
+- [ ] DataAnnotations ou FluentValidation aplicado
+- [ ] Tipos nullables para campos opcionais

@@ -1,0 +1,161 @@
+# Lessons Learned
+
+Registro de aprendizados e decisões importantes do projeto Copilot Core.
+
+---
+
+## Estrutura
+
+Cada lição segue o formato:
+
+```xml
+<lesson date="YYYY-MM-DD" category="categoria">
+  <context>Contexto do problema</context>
+  <decision>Decisão tomada</decision>
+  <outcome>Resultado/impacto</outcome>
+</lesson>
+```
+
+### Categorias
+
+| Categoria | Descrição |
+|-----------|-----------|
+| arquitetura | Estrutura do projeto |
+| padrões | Convenções de código |
+| tooling | Ferramentas e configs |
+| workflow | Processos |
+| debug | Problemas resolvidos |
+| performance | Otimizações |
+| segurança | Práticas de segurança |
+| regras | Definições e regras do sistema |
+| estrutura | Organização e estrutura de diretórios |
+
+---
+
+## Registro
+
+<lesson date="2026-02-16" category="arquitetura">
+  <context>Auditoria profunda revelou: (1) 56-skill table triplicada em 3 always-loaded instruction files (~3,200 tokens desperdiçados por conversa), (2) symlinks com nomes genéricos (default.instructions.md, workspace.instructions.md) causando potenciais conflitos com outros instruction files, (3) scripts de setup duplicados em 2 skills diferentes (project-workspace-create e project-setup-bootstrap) com ~130 linhas cada, (4) sem mecanismo de validação de impacto em cascata para edições multi-arquivo, (5) sem busca semântica sobre memória e contexto.</context>
+  <decision>Reestruturação profunda em 5 fases: (1) Capability Manifest compacto (~10 linhas) substituiu tabelas de 56 skills nos 3 instruction files, com catálogos como Stage 2 de descoberta. (2) Symlinks renomeados para agent-skills-core.instructions.md e agent-skills-project.instructions.md. (3) Scripts extraídos para templates/setup-scripts.md compartilhado. (4) Criadas 2 novas skills: agent-impact-validate (cascata) e agent-memory-sync (MCP sync). (5) MCP memory-service (doobidoo) configurado com SQLite-vec via Git LFS para busca semântica híbrida BM25+vector.</decision>
+  <outcome>Token efficiency ~50% nos instruction files always-loaded. System cresceu de 56 para 58 skills. Cadeia de finalização expandida: task-manage → action-review → impact-validate (se 3+ arquivos) → chat-save. Memory skills evoluídos para dual-write (.md + MCP). Fonte de verdade permanece nos .md; MCP SQLite é índice derivado reconstruível.</outcome>
+</lesson>
+
+<lesson date="2026-02-16" category="padrões">
+  <context>O padrão de lazy loading de skills através de catálogos funcionava bem, mas a tabela completa de 56 skills nos instruction files consumia tokens desnecessários em TODA conversa, mesmo quando o agente não precisava da lista completa.</context>
+  <decision>Padrão "Capability Manifest": instruction files always-loaded contêm apenas uma tabela compacta com tipo, quantidade, nome do catálogo e exemplos de skills (~10 linhas). Para descoberta completa, o agente consulta {tipo}-catalog-query. Uma lista "Always-Known" de ~10 skills frequentes é mantida inline para ativação direta sem catálogo.</decision>
+  <outcome>Redução de ~158 linhas para ~15 linhas por instruction file. Catálogos passam a ser o mecanismo principal de descoberta. Padrão aplicável a qualquer sistema com inventário grande que precisa ser lazy-loaded.</outcome>
+</lesson>
+
+<lesson date="2026-02-16" category="regras">
+  <context>Symlinks de instructions usavam nomes genéricos default.instructions.md e workspace.instructions.md que poderiam conflitar com outros instruction files em projetos que já usam o mecanismo de instructions do VS Code.</context>
+  <decision>Renomear para nomes não-comuns com prefixo agent-skills-*: agent-skills-core.instructions.md (antes default) e agent-skills-project.instructions.md (antes workspace). Arquivos fonte nos repos também renomeados para manter consistência. 2 symlinks mantidos (não consolidar em 1) porque servem propósitos distintos: core é genérico cross-project, project é específico por branch.</decision>
+  <outcome>Todos os arquivos, symlinks, templates e skills atualizados com novos nomes. Scripts de setup extraídos para template compartilhado com nomes corretos. Risco de conflito eliminado.</outcome>
+</lesson>
+
+<lesson date="2026-02-16" category="tooling">
+  <context>Sistema de memória dependia exclusivamente de leitura sequencial de arquivos .md — sem capacidade de busca semântica. Busca por keywords exigia grep exato, ineficiente para consultas conceituais ("decisões sobre arquitetura").</context>
+  <decision>Integrar mcp-memory-service (@doobidoo) com busca híbrida BM25+vector via SQLite-vec. Configuração em .vscode/mcp.json, database em .copilot-project/memory/memory.db com Git LFS. Fonte de verdade permanece nos .md — MCP SQLite é índice derivado. Dual-write: agent-memory-register grava no .md primeiro, depois sincroniza com MCP. agent-memory-query prioriza MCP search com fallback para .md.</decision>
+  <outcome>Skills evoluídos: agent-memory-query v2.0, agent-memory-register v2.0, project-context-query v2.0. Nova skill agent-memory-sync para rebuild/incremental sync. Arquitetura de 3 camadas preservada: .md (fonte) → MCP (índice) → runtime (sessão).</outcome>
+</lesson>
+
+<lesson date="2026-02-16" category="arquitetura">
+  <context>agent-action-review validava side-effects (codemap atualizado? memória registrada?) mas não verificava impacto em cascata de edições multi-arquivo (referências quebradas, contagens desatualizadas, nomes inconsistentes após renames).</context>
+  <decision>Criar agent-impact-validate complementar ao action-review. Foco: grafo de impacto (arquivo_modificado → referenciado_por), validação de paths pós-rename (grep pelo nome antigo), consistência de contagens entre Manifests, integridade de symlinks, templates vs instâncias derivadas. Cadeia atualizada: task-manage → action-review → impact-validate (se 3+ arquivos) → chat-save.</decision>
+  <outcome>Validação em 2 camadas: completude (action-review) + consistência (impact-validate). Impact-validate é delegable: full, ativado condicionalmente (3+ arquivos). Ambas skills coordenadas — action-review chama impact-validate quando detecta edições multi-arquivo significativas.</outcome>
+</lesson>
+
+<lesson date="2026-02-16" category="estrutura">
+  <context>Scripts de setup PowerShell e Bash apareciam inline em 2 skills (project-workspace-create ~130 linhas e project-setup-bootstrap ~150 linhas), triplicando esforço de manutenção quando nomes de symlinks ou estrutura mudavam.</context>
+  <decision>Extrair scripts para templates/setup-scripts.md centralizado. Skills referenciam o template com bloco de nota: "> 📋 Scripts de setup completos: ver .copilot-core/templates/setup-scripts.md". Template usa variáveis {nome-projeto}, {repo-core}, {repo-project} e documenta ambos os modos (aberto/stealth) com scripts para ambas plataformas.</decision>
+  <outcome>Single source of truth para scripts de setup. Atualização de nomes/caminhos requer editar apenas 1 arquivo. Skills de setup ficaram significativamente menores e focados no workflow, não nos scripts.</outcome>
+</lesson>
+
+<lesson date="2026-02-15" category="arquitetura">
+  <context>O sistema de skills tinha mecanismos reativos de qualidade (agent-memory-register aprende após o usuário corrigir) mas nenhum mecanismo proativo (verificar antes do usuário ver). Não havia: (1) verificação de side-effects obrigatórios (codemap, memória, contexto, contagens), (2) validação de estrutura de artefatos (SKILL.md, instructions, catálogos), (3) quality gate entre task-manage completar e sessão ser salva.</context>
+  <decision>Criadas duas skills complementares: (1) agent-action-review — valida completude e consistência cross-artefato das ações do agente (codemap atualizado? memória registrada? contagens sincronizadas?), disparada automaticamente após agent-task-manage completar. (2) skill-output-validate — valida estrutura e qualidade de artefatos de metadata (frontmatter schema, naming conventions, consistência entre instructions/catálogos, formato de memory/context/codemap). Cada uma no tipo correto: agent (comportamento) e skill (sistema de skills).</decision>
+  <outcome>Cadeia de finalização completa: agent-task-manage → agent-action-review → agent-chat-save. Sistema agora tem validação proativa. Core cresceu de 54 para 56 skills. agent-catalog-query indexa 7 skills. Ambas skills delegable: full — podem ser executadas por subagents.</outcome>
+</lesson>
+
+<lesson date="2026-02-15" category="regras">
+  <context>Havia dúvida se validação pós-ação deveria ser uma skill ou múltiplas, e em qual tipo classificar.</context>
+  <decision>Duas skills com escopos distintos: agent-action-review (tipo agent, foco no comportamento — "o agente fez tudo que deveria?") e skill-output-validate (tipo skill, foco nos artefatos — "o que foi produzido está bem formado?"). A separação segue o princípio de responsabilidade única: uma valida ações/side-effects, outra valida estrutura/qualidade.</decision>
+  <outcome>Padrão: quando validação cobre escopos fundamentalmente diferentes (comportamento vs estrutura), separar em skills distintas em tipos distintos. agent-action-review delega para skill-output-validate quando precisa validar artefatos de metadata.</outcome>
+</lesson>
+
+<lesson date="2026-02-15" category="estrutura">
+  <context>O sistema de skills tinha persistência de longo prazo (lessons-learned, project.md, code-map) via git, mas nenhuma camada de estado de sessão. Todo working context — tarefas em andamento, decisões pendentes, raciocínio, arquivos sendo modificados — se perdia ao trocar de máquina ou encerrar o chat. O manage_todo_list é runtime-only, sem persistência em disco.</context>
+  <decision>Criada camada de persistência de sessão com: (1) pasta chat-memory/ no .copilot-project/ para arquivos de sessão nomeados YYYY-MM-DD_{topic}.md, (2) skill agent-chat-save para salvar estado manualmente ou auto após agent-task-manage completar, (3) skill agent-chat-resume para retomar sessão anterior com briefing formatado. Naming das skills usa prefixo "chat" para alinhar com a pasta chat-memory/.</decision>
+  <outcome>Contexto de trabalho agora sobrevive entre máquinas via git. Sessões são sincronizadas automaticamente com push/pull do .copilot-project. Core cresceu de 51 para 53 skills. Catálogo agent atualizado de 3 para 5 skills.</outcome>
+</lesson>
+
+<lesson date="2026-02-15" category="regras">
+  <context>Skills de persistência de sessão foram inicialmente nomeados agent-session-save e agent-session-resume.</context>
+  <decision>Renomear para agent-chat-save e agent-chat-resume. O feature segment do nome da skill deve espelhar a pasta onde os dados são armazenados (chat-memory/ → chat-*). Isso mantém consistência semântica entre nomenclatura de skills e estrutura de diretórios.</decision>
+  <outcome>Regra de naming: quando skill opera sobre uma pasta específica, o feature segment deve alinhar com o nome da pasta. Exemplos: chat-memory/ → agent-chat-*, memory/ → agent-memory-*.</outcome>
+</lesson>
+
+<lesson date="2026-02-15" category="estrutura">
+  <context>Existiam duas camadas temporais no sistema: permanente (lessons-learned, project.md, code-map) e efêmera (chat history, todo lists). Não havia camada intermediária para estado de sessão transiente mas persistível.</context>
+  <decision>O chat-memory/ é top-level no .copilot-project/ (não dentro de memory/) porque é conceitualmente distinto: sessions são transientes com ciclo de vida próprio (in-progress → paused → completed), enquanto lessons-learned são permanentes. Um arquivo por sessão (não arquivo único) para histórico navegável e evitar conflitos de merge.</decision>
+  <outcome>Três camadas temporais: permanente (memory/, context/), sessão (chat-memory/), efêmero (runtime). Cada camada com localização, formato e ciclo de vida distintos.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="estrutura">
+  <context>Arquivos de instructions (.github/instructions/) eram copiados dos templates — workspace.instructions.md era copiado de .copilot-core/templates/ para .github/instructions/. default.instructions.md ficava apenas dentro do submodule sem link.</context>
+  <decision>Usar SEMPRE symlinks, nunca cópias. default.instructions.md tem symlink para .copilot-core/instructions/. workspace.instructions.md é armazenado em .copilot-project/instructions/ (específico do projeto) com symlink para .github/instructions/. Windows: cmd /c mklink. Linux/Mac: ln -s. Paths relativos: ../../.copilot-core/instructions/ e ../../.copilot-project/instructions/.</decision>
+  <outcome>Alterações nos repos de origem refletem automaticamente no projeto consumidor. workspace.instructions.md passa a ser responsabilidade do .copilot-project (por branch). Atualizados: templates/workspace.instructions.md, .github/instructions/workspace.instructions.md, project-create, project-init, project-bootstrap, QUICK-START.md, context/project.md.</outcome>
+</lesson>
+
+<lesson date="2026-02-14" category="estrutura" supersedes="L002-self-dogfooding">
+  <context>O .copilot-core usava um padrão excepcional de self-dogfooding: contexto e memória ficavam em .copilot-core/.github/ (em vez de .copilot-project) e um junction link .github → .copilot-core/.github/ na raiz do workspace permitia que o Copilot descobrisse os arquivos. Isso criava uma exceção arquitetural que complicava a documentação e tornava o workspace de desenvolvimento diferente dos projetos consumidores.</context>
+  <decision>Migrar para o padrão standard: criar branch _pm/copilot-core no .copilot-project com context/, memory/ e instructions/. Substituir o junction por symlinks individuais em .github/instructions/ (mesmo padrão que projetos consumidores). Eliminar completamente a pasta .copilot-core/.github/.</decision>
+  <outcome>O workspace de desenvolvimento do core agora segue exatamente o mesmo padrão dos projetos consumidores. Eliminadas as seções "Self-Dogfooding" e "Desambiguação de Caminhos" do workspace.instructions.md. Removida a necessidade de explicar o padrão excepcional em documentação e skills.</outcome>
+</lesson>
+
+<lesson date="2026-02-15" category="estrutura" supersedes="L003-branch-core">
+  <context>Existiam duas branches no .copilot-core: main (desenvolvimento completo) e core (distribuição limpa). O workflow sync-core.yml em .copilot-core/.github/workflows/ sincronizava main → core. Com a migração do self-dogfooding para .copilot-project, a branch core perdeu sua razão de existir — todo o conteúdo de .copilot-core/main já é distribuível.</context>
+  <decision>Eliminar a branch core e o workflow sync-core.yml. Remover completamente a pasta .copilot-core/.github/. O .copilot-core passa a ter apenas a branch main como fonte de verdade e distribuição. Projetos consumidores usam exclusivamente branch main.</decision>
+  <outcome>Simplificação: sem branch core, sem workflow de sincronização, sem pasta .github/ no .copilot-core. Atualizados: templates/workspace.instructions.md, .copilot-project instructions e context, skills project-repo-update e project-setup-bootstrap, default.instructions.md.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="regras">
+  <context>O agente só registrava automaticamente correções de código gerado. Definições/correções de regras, estruturas e processos do próprio .copilot-core não eram capturadas.</context>
+  <decision>Ampliar o auto-registro para incluir correções de regras, estrutura e processos. Usar o sistema de memória do .copilot-project para governar o desenvolvimento do core.</decision>
+  <outcome>Adicionada seção "Registro automático — Correções de regras, estrutura e processos" no default.instructions.md. Toda definição ou correção do usuário sobre como o sistema funciona agora é registrada automaticamente.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="estrutura">
+  <context>Para projetos cujos repos não podem ter referência a submodules, a abordagem de junction (mklink /J) foi considerada mas rejeitada porque mudanças de branch no source refletem no projeto consumidor.</context>
+  <decision>Para projetos sem submodules, usar clones independentes na raiz do projeto. Estrutura: .copilot-core/ e .copilot-project/ na raiz, adicionados ao .gitignore junto com os symlinks de instructions. Cada dev roda um script de setup após clonar o projeto.</decision>
+  <outcome>Setup funciona sem tocar nos repos originais. Cada projeto tem seus próprios clones com branches independentes. Copilot descobre instructions em .github/instructions/ relativo ao workspace root. Modo stealth é completamente invisível no repositório remoto.</outcome>
+</lesson>
+
+<lesson date="2026-02-16" category="regras">
+  <context>Em projetos existentes, se .vscode/mcp.json não existia ou memory.db estava vazio, o agente só detectava o problema quando o usuário pedia explicitamente para consultar memória (via agent-memory-query). Não havia verificação proativa no início da sessão.</context>
+  <decision>Adicionar regra "MCP Auto-Setup" nas instruções core (always-loaded): no início de cada sessão em projeto existente, verificar presença de .vscode/mcp.json e estado de memory.db. Se ausente/vazio e .md tem conteúdo → auto-configurar MCP e executar agent-memory-sync full rebuild. Verificação silenciosa se tudo OK.</decision>
+  <outcome>MCP agora é auto-configurado proativamente. Três cenários cobertos: (1) mcp.json ausente → criar, (2) memory.db vazio com .md populado → full rebuild, (3) ambos vazios → nenhuma ação. Output só aparece quando corrige algo.</outcome>
+</lesson>
+
+<lesson date="2026-02-16" category="regras">
+  <context>Skills podiam ser criadas com qualquer complexidade — sem limite prático de tamanho ou número de steps. O limite anterior de 500 linhas era liberal demais para instruções que precisam ser claras e eficientes para o agente GHCP.</context>
+  <decision>Definir padrão de qualidade para skills: (1) máximo ~150 linhas por SKILL.md, (2) máximo 7 steps no workflow, (3) linguagem imperativa sem narrativa longa, (4) tabelas para lógica condicional, (5) obrigatório sincronizar com context database (MCP) após criar/alterar, (6) dividir em múltiplas skills quando tiver 2+ responsabilidades. Regras adicionadas ao core instructions, skill-template-create e skill-output-validate.</decision>
+  <outcome>Skills devem ser compactas e focadas. Threshold de split reduzido de 500 para 150 linhas. Sync com context database agora é step obrigatório no fluxo de criação. Validação atualizada para checar complexidade além de estrutura.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="padrões">
+  <context>Análise profunda revelou inconsistências: workspace.instructions.md desatualizado vs template, categorias dos code-map skills divergentes entre frontmatter e tabelas, project-update com nota incorreta sobre branch main, URLs hardcoded nos skills de setup.</context>
+  <decision>Documentar inconsistências no contexto do projeto para rastreamento e correção futura. Priorizar: (1) corrigir workspace.instructions.md, (2) alinhar categorias, (3) corrigir notas incorretas.</decision>
+  <outcome>Inconsistências catalogadas em context/project.md seção "Inconsistências Conhecidas". Algumas resolvidas na migração de 2026-02-14.</outcome>
+</lesson>
+
+<lesson date="2026-02-15" category="estrutura">
+  <context>Skills em projetos específicos (bw/bewiser.assistant.api, scripts) continham padrões genéricos reutilizáveis misturados com dados específicos do projeto. 21 skills de projeto eram na verdade padrões universais (.NET CQRS, DDD, testes, infra) com namespaces e exemplos hardcoded para BeWiser.</context>
+  <decision>Migração massiva de skills: (1) 4 skills genéricos movidos as-is de scripts/ para core (code-bash-write, code-powershell-write, code-crossplatform-sync, editor-readme-generate). (2) 13 skills refatorados de bw/api para core — genericizados com {RootNamespace} placeholders + Config Loading + Config Schema sections; projeto mantém apenas config.yml. (3) 4 skills split — padrões genéricos para core, conteúdo provider-specific (Twilio, MassTransit, Dapper, HTTP clients) como SKILL.md complementar no projeto. (4) 1 skill redundante eliminado (infra-docker-deploy). Core cresceu de 30 para 51 skills.</decision>
+  <outcome>Core agora contém todos os padrões genéricos .NET/CQRS/DDD/testes/infra. Projetos estendem via config.yml (dados estruturados) + SKILL.md opcional (extensões provider-specific). Atualizados: ambos catálogos, default.instructions.md, workspace.instructions.md (template + project), READMEs de bw/api e scripts.</outcome>
+</lesson>
+
+<lesson date="2026-02-15" category="regras">
+  <context>O .copilot-project no workspace de desenvolvimento do core estava com a branch main ativa (checkout direto) e as worktrees de projetos pessoais (scripts, docker-framework) usavam branches sem prefixo _pm/. Isso desalinhava do padrão de naming _pm/{projeto} usado para projetos pessoais e fazia com que a branch errada fosse ativa no workspace.</context>
+  <decision>Regra obrigatória: (1) .copilot-project/ deve SEMPRE ter a branch _pm/copilot-core ativa (checkout direto) neste workspace. (2) main (template base) deve SEMPRE existir como worktree em .copilot-project-worktrees/main/, nunca como branch ativa. (3) Branches de projetos pessoais usam prefixo _pm/ (ex: _pm/scripts, _pm/docker-framework). Worktrees renomeadas para espelhar os nomes das branches.</decision>
+  <outcome>Branch _pm/copilot-core ativada, main movida para worktree. Branches scripts e docker-framework renomeadas para _pm/scripts e _pm/docker-framework (local + remote). Worktrees realocadas para .copilot-project-worktrees/_pm/{projeto}/. Regra documentada em project.md e workspace.instructions.md.</outcome>
+</lesson>

@@ -1,0 +1,104 @@
+# Quick Start Guide
+
+Configure o sistema de skills do Copilot Agent em seu projeto em **menos de 2 minutos**.
+
+## TL;DR
+
+No workspace `.copilot-core` + `.copilot-project`, abra o Copilot Chat e diga:
+
+> "criar projeto meu-projeto"
+
+O agente:
+1. Pergunta sobre o projeto (escopo, stack, fase)
+2. Cria a branch com contexto preenchido
+3. Fornece um **script** para colar no terminal do projeto-alvo
+
+---
+
+## Estrutura Criada
+
+```
+seu-projeto/
+└── .github/
+    ├── instructions/
+    │   └── workspace.instructions.md
+    ├── .copilot-core/                 # Submodule - Skills genéricos
+    │   ├── instructions/
+    │   └── skills/
+    │       ├── agent-memory-*/
+    │       ├── project-*/
+    │       └── skill-create/
+    │
+    └── .copilot-project/              # Submodule - Seu projeto
+        ├── context/
+        │   └── project.md
+        ├── memory/
+        │   └── lessons-learned.md
+        └── skills/
+```
+
+---
+
+## Uso no VS Code
+
+### Via Copilot Chat
+
+Após plugar os submodules, abra o Copilot Chat no projeto e diga:
+
+| Comando | O que faz |
+|---------|-----------|
+| "Configure este projeto" | Analisa stack e ajusta contexto |
+| "Analise este projeto" | Usa `project-analyze` |
+| "Registre uma lição" | Usa `agent-memory-register` |
+| "Crie um skill para X" | Usa `skill-create` |
+| "Qual o contexto do projeto?" | Usa `project-context-query` |
+
+---
+
+## Clonando em Nova Máquina
+
+Se você clonar um projeto que já tem os submodules:
+
+```bash
+git clone --recursive https://github.com/seu/projeto.git
+# ou
+git clone https://github.com/seu/projeto.git
+cd projeto
+git submodule update --init --recursive
+```
+
+---
+
+## Troubleshooting
+
+### "fatal: repository not found"
+Verifique se tem acesso aos repositórios via `git clone`.
+
+### "submodule already exists"
+Remova e refaça:
+```bash
+git rm --cached .github/.copilot-core .github/.copilot-project
+rm -rf .github/.copilot-core .github/.copilot-project
+```
+
+### Submodules não aparecem após clone
+```bash
+git submodule update --init --recursive
+```
+
+---
+
+## Próximos Passos
+
+1. **Diga "configure este projeto"** no Copilot Chat para análise de stack e contexto
+2. **Edite `context/project.md`** com detalhes do seu projeto
+3. **Crie skills específicos** em `.copilot-project/skills/`
+4. **Registre lições** após resolver problemas
+
+---
+
+## Links
+
+- [Agent Skills Pattern](https://agentskills.io)
+- [.copilot-core](https://github.com/pdmartins/.copilot-core)
+- [.copilot-project](https://github.com/pdmartins/.copilot-project)

@@ -1,0 +1,358 @@
+---
+name: code-event-generate
+description: Padrões para Domain Events que notificam mudanças importantes no domínio. Lê config.yml do project para convenções específicas. Use ao criar eventos que outras partes do sistema devem reagir. Triggers: domain event, evento, notificação, EventHandler, pasta Events/.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: code
+  delegable: full
+---
+
+# Domain Event Skill
+
+Padrões para Domain Events seguindo DDD.
+
+## Quando Usar
+
+- Notificar outras partes do sistema sobre mudanças
+- Desacoplar aggregates
+- Implementar side effects de forma organizada
+- Trilhas de auditoria
+
+## Config Loading
+
+Antes de gerar código, carregar configurações do projeto:
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/code-event-generate/config.yml`
+2. Se existe, carregar e usar as configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/code-event-generate/SKILL.md`
+4. Se existe, carregar como instruções complementares (extensões específicas do projeto)
+5. Se nenhum existe, usar apenas os padrões genéricos abaixo
+
+## Estrutura
+
+```
+src/{RootNamespace}.Domain/
+└── Events/
+    ├── IDomainEvent.cs
+    ├── OrderCreatedEvent.cs
+    ├── OrderCompletedEvent.cs
+    └── OrderCancelledEvent.cs
+
+src/{RootNamespace}.Application/
+└── EventHandlers/
+    ├── OrderCreatedEventHandler.cs
+    └── OrderCompletedEventHandler.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Domain Event | `[Domínio][Ação]Event` | `OrderCreatedEvent`, `PaymentReceivedEvent` |
+| Event Handler | `[Evento]Handler` | `OrderCreatedEventHandler` |
+
+### Ações Comuns
+
+| Ação | Uso |
+|------|-----|
+| `Received` | Algo foi recebido |
+| `Sent` | Algo foi enviado |
+| `Started` | Processo iniciou |
+| `Ended` | Processo finalizou |
+| `Created` | Entidade criada |
+| `Updated` | Entidade atualizada |
+| `Deleted` | Entidade removida |
+| `Failed` | Algo falhou |
+
+## Templates
+
+### Interface de Domain Event
+
+```csharp
+using MediatR;
+
+namespace {RootNamespace}.Domain.Events;
+
+/// <summary>
+/// Marker interface for domain events.
+/// </summary>
+public interface IDomainEvent : INotification
+{
+    Guid EventId { get; }
+    DateTime OccurredAt { get; }
+}
+```
+
+### Base Domain Event
+
+```csharp
+namespace {RootNamespace}.Domain.Events;
+
+/// <summary>
+/// Base class for domain events.
+/// </summary>
+public abstract record BaseDomainEvent : IDomainEvent
+{
+    public Guid EventId { get; } = Guid.NewGuid();
+    public DateTime OccurredAt { get; } = DateTime.UtcNow;
+}
+```
+
+### Domain Event
+
+```csharp
+namespace {RootNamespace}.Domain.Events;
+
+/// <summary>
+/// Event raised when a new order is created.
+/// </summary>
+public record OrderCreatedEvent : BaseDomainEvent
+{
+    public Guid OrderId { get; init; }
+    public Guid CustomerId { get; init; }
+    public string CustomerEmail { get; init; } = string.Empty;
+    public decimal TotalAmount { get; init; }
+}
+
+/// <summary>
+/// Event raised when an order is completed.
+/// </summary>
+public record OrderCompletedEvent : BaseDomainEvent
+{
+    public Guid OrderId { get; init; }
+    public Guid CustomerId { get; init; }
+    public DateTime CompletedAt { get; init; }
+}
+
+/// <summary>
+/// Event raised when an order is cancelled.
+/// </summary>
+public record OrderCancelledEvent : BaseDomainEvent
+{
+    public Guid OrderId { get; init; }
+    public string Reason { get; init; } = string.Empty;
+    public int TotalItems { get; init; }
+}
+```
+
+### Event Handler
+
+```csharp
+using MediatR;
+using Microsoft.Extensions.Logging;
+
+namespace {RootNamespace}.Application.EventHandlers;
+
+/// <summary>
+/// Handles OrderCreatedEvent.
+/// </summary>
+public class OrderCreatedEventHandler 
+    : INotificationHandler<OrderCreatedEvent>
+{
+    private readonly ILogger<OrderCreatedEventHandler> _logger;
+    private readonly IAnalyticsService _analyticsService;
+
+    public OrderCreatedEventHandler(
+        ILogger<OrderCreatedEventHandler> logger,
+        IAnalyticsService analyticsService)
+    {
+        _logger = logger;
+        _analyticsService = analyticsService;
+    }
+
+    public async Task Handle(
+        OrderCreatedEvent notification,
+        CancellationToken cancellationToken)
+    {
+        _logger.LogInformation(
+            "Order created: {OrderId} for customer {CustomerId}",
+            notification.OrderId,
+            notification.CustomerId);
+
+        // Track analytics
+        await _analyticsService.TrackOrderCreatedAsync(
+            notification.OrderId,
+            notification.CustomerId,
+            cancellationToken);
+    }
+}
+```
+
+### Múltiplos Handlers para Mesmo Evento
+
+```csharp
+// Handler 1: Notificações
+public class NotifyOnOrderCancelledHandler 
+    : INotificationHandler<OrderCancelledEvent>
+{
+    public async Task Handle(
+        OrderCancelledEvent notification,
+        CancellationToken cancellationToken)
+    {
+        // Send notification to admin
+    }
+}
+
+// Handler 2: Analytics
+public class TrackOrderCancelledHandler 
+    : INotificationHandler<OrderCancelledEvent>
+{
+    public async Task Handle(
+        OrderCancelledEvent notification,
+        CancellationToken cancellationToken)
+    {
+        // Track in analytics
+    }
+}
+
+// Handler 3: Cleanup
+public class CleanupOnOrderCancelledHandler 
+    : INotificationHandler<OrderCancelledEvent>
+{
+    public async Task Handle(
+        OrderCancelledEvent notification,
+        CancellationToken cancellationToken)
+    {
+        // Release reserved inventory
+    }
+}
+```
+
+## Emitindo Eventos na Entidade
+
+```csharp
+public class Order : BaseEntity
+{
+    public void Cancel(string reason)
+    {
+        if (Status == OrderStatus.Cancelled)
+            throw new InvalidOperationException("Already cancelled");
+            
+        Status = OrderStatus.Cancelled;
+        CancelledAt = DateTime.UtcNow;
+        
+        // Emit domain event
+        AddDomainEvent(new OrderCancelledEvent
+        {
+            OrderId = Id,
+            Reason = reason,
+            TotalItems = Items.Count
+        });
+    }
+}
+```
+
+## Dispatch de Eventos
+
+```csharp
+using MediatR;
+
+namespace {RootNamespace}.Infrastructure.Persistence;
+
+public class DomainEventDispatcher : IDomainEventDispatcher
+{
+    private readonly IMediator _mediator;
+
+    public DomainEventDispatcher(IMediator mediator)
+    {
+        _mediator = mediator;
+    }
+
+    public async Task DispatchEventsAsync(
+        BaseEntity entity,
+        CancellationToken cancellationToken = default)
+    {
+        var events = entity.DomainEvents.ToList();
+        entity.ClearDomainEvents();
+
+        foreach (var domainEvent in events)
+        {
+            await _mediator.Publish(domainEvent, cancellationToken);
+        }
+    }
+}
+```
+
+## Integração com Repository
+
+```csharp
+public class OrderRepository : IOrderRepository
+{
+    private readonly IDomainEventDispatcher _dispatcher;
+
+    public async Task UpdateAsync(
+        Order order,
+        CancellationToken cancellationToken)
+    {
+        // Persist changes
+        await SaveAsync(order, cancellationToken);
+        
+        // Dispatch domain events
+        await _dispatcher.DispatchEventsAsync(order, cancellationToken);
+    }
+}
+```
+
+## Outbox Pattern (Para mensageria)
+
+```csharp
+// Salvar evento no banco antes de publicar
+public class OutboxDomainEventHandler 
+    : INotificationHandler<IDomainEvent>
+{
+    private readonly IOutboxRepository _outbox;
+
+    public async Task Handle(
+        IDomainEvent notification,
+        CancellationToken cancellationToken)
+    {
+        var outboxMessage = new OutboxMessage
+        {
+            Id = notification.EventId,
+            Type = notification.GetType().FullName!,
+            Payload = JsonSerializer.Serialize(notification),
+            CreatedAt = notification.OccurredAt
+        };
+
+        await _outbox.AddAsync(outboxMessage, cancellationToken);
+    }
+}
+```
+
+## Checklist
+
+- [ ] Eventos em `Domain/Events/`
+- [ ] Handlers em `Application/EventHandlers/`
+- [ ] Nomenclatura: `[Domínio][Ação]Event`
+- [ ] Herdar de `BaseDomainEvent`
+- [ ] Eventos imutáveis (records)
+- [ ] EventId e OccurredAt em todo evento
+- [ ] Dispatch após persistência
+- [ ] Múltiplos handlers independentes
+
+## Config Schema
+
+```yaml
+# config.yml schema for code-event-generate
+language: csharp
+framework: dotnet-8
+solution: string          # Solution name
+
+project:
+  root_namespace: string  # e.g. "MyCompany.MyApp"
+
+events:
+  domain_namespace: string   # e.g. "{RootNamespace}.Domain.Events"
+  handler_namespace: string  # e.g. "{RootNamespace}.Application.EventHandlers"
+  mediator: string           # mediatr | custom
+  items:                     # Project-specific events
+    - entity: string         # e.g. "Order"
+      actions:               # e.g. ["Created", "Completed", "Cancelled"]
+        - string
+      properties:            # Event-specific properties
+        - name: string
+          type: string
+  outbox:
+    enabled: bool            # Whether to use outbox pattern
+```

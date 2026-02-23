@@ -1,0 +1,7 @@
+# Stealth Mode
+
+- **date**: 2026-02-10
+- **status**: active
+- **context**: Repos que não podem ter referência a submodules. Junction (mklink /J) rejeitado por refletir mudanças de branch
+- **decision**: Clones independentes na raiz (.copilot-core/ e .copilot-project/) adicionados ao .gitignore junto com symlinks. Script de setup manual por dev
+- **outcome**: Setup sem tocar nos repos originais. Modo stealth completamente invisível no repositório remoto

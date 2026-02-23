@@ -1,0 +1,180 @@
+# Setup Scripts — Copilot Agent Skills
+
+Scripts para plugar o sistema de skills em projetos-alvo. Referenciado por `project-workspace-create` e `project-setup-bootstrap`.
+
+## Variáveis
+
+| Variável | Descrição | Exemplo |
+|----------|-----------|---------|
+| `{nome-projeto}` | Nome/branch do projeto | `_bw/bewiser.assistant.api` |
+| `{repo-core}` | URL do repo core | `https://github.com/pdmartins/.copilot-core.git` |
+| `{repo-project}` | URL do repo project | `https://github.com/pdmartins/.copilot-project.git` |
+
+---
+
+## Modo Aberto (submodule — visível no repo)
+
+### Windows (PowerShell)
+
+```powershell
+# Copilot Agent Skills - Setup (Modo Aberto)
+mkdir .github\instructions -Force
+git submodule add -b main {repo-core} .copilot-core
+git submodule add -b {nome-projeto} {repo-project} .copilot-project
+# Criar symlinks para instructions
+cmd /c mklink ".github\instructions\agent-skills-core.instructions.md" "..\..\copilot-core\instructions\agent-skills-core.instructions.md"
+cmd /c mklink ".github\instructions\agent-skills-project.instructions.md" "..\..\copilot-project\instructions\agent-skills-project.instructions.md"
+# Configurar MCP memory-service
+mkdir .vscode -Force
+@'
+{
+  "servers": {
+    "memory": {
+      "type": "npx",
+      "command": "npx",
+      "args": ["-y", "@doobidoo/mcp-memory-service@latest"],
+      "env": {
+        "MEMORY_FILE_PATH": "${workspaceFolder}/.copilot-project/memory/memory.db"
+      }
+    }
+  }
+}
+'@ | Set-Content .vscode\mcp.json -Encoding UTF8
+# Git LFS para memory.db
+if (!(Test-Path .gitattributes) -or !(Select-String -Path .gitattributes -Pattern 'memory.db' -Quiet)) {
+  Add-Content .gitattributes ".copilot-project/memory/memory.db filter=lfs diff=lfs merge=lfs -text"
+}
+git add .
+git commit -m "feat: add copilot agent"
+```
+
+### Linux/Mac (Bash)
+
+```bash
+# Copilot Agent Skills - Setup (Modo Aberto)
+mkdir -p .github/instructions
+git submodule add -b main {repo-core} .copilot-core
+git submodule add -b {nome-projeto} {repo-project} .copilot-project
+# Criar symlinks para instructions
+ln -s ../../.copilot-core/instructions/agent-skills-core.instructions.md .github/instructions/agent-skills-core.instructions.md
+ln -s ../../.copilot-project/instructions/agent-skills-project.instructions.md .github/instructions/agent-skills-project.instructions.md
+# Configurar MCP memory-service
+mkdir -p .vscode
+cat > .vscode/mcp.json << 'MCPEOF'
+{
+  "servers": {
+    "memory": {
+      "type": "npx",
+      "command": "npx",
+      "args": ["-y", "@doobidoo/mcp-memory-service@latest"],
+      "env": {
+        "MEMORY_FILE_PATH": "${workspaceFolder}/.copilot-project/memory/memory.db"
+      }
+    }
+  }
+}
+MCPEOF
+# Git LFS para memory.db
+grep -q 'memory.db' .gitattributes 2>/dev/null || echo '.copilot-project/memory/memory.db filter=lfs diff=lfs merge=lfs -text' >> .gitattributes
+git add .
+git commit -m "feat: add copilot agent"
+```
+
+---
+
+## Modo Stealth (clone + gitignore — invisível no repo)
+
+### Windows (PowerShell)
+
+```powershell
+# Copilot Agent Skills - Setup (Modo Stealth)
+git clone -b main {repo-core} .copilot-core
+git clone -b {nome-projeto} {repo-project} .copilot-project
+mkdir .github\instructions -Force
+cmd /c mklink ".github\instructions\agent-skills-core.instructions.md" "..\..\copilot-core\instructions\agent-skills-core.instructions.md"
+cmd /c mklink ".github\instructions\agent-skills-project.instructions.md" "..\..\copilot-project\instructions\agent-skills-project.instructions.md"
+# Configurar MCP memory-service
+mkdir .vscode -Force
+@'
+{
+  "servers": {
+    "memory": {
+      "type": "npx",
+      "command": "npx",
+      "args": ["-y", "@doobidoo/mcp-memory-service@latest"],
+      "env": {
+        "MEMORY_FILE_PATH": "${workspaceFolder}/.copilot-project/memory/memory.db"
+      }
+    }
+  }
+}
+'@ | Set-Content .vscode\mcp.json -Encoding UTF8
+# Adicionar ao .gitignore
+Add-Content .gitignore "`n# Copilot Agent Skills (local only)`n.copilot-core/`n.copilot-project/`n.github/instructions/agent-skills-core.instructions.md`n.github/instructions/agent-skills-project.instructions.md"
+git add .gitignore
+git commit -m "chore: gitignore copilot agent local files"
+```
+
+### Linux/Mac (Bash)
+
+```bash
+# Copilot Agent Skills - Setup (Modo Stealth)
+git clone -b main {repo-core} .copilot-core
+git clone -b {nome-projeto} {repo-project} .copilot-project
+mkdir -p .github/instructions
+ln -s ../../.copilot-core/instructions/agent-skills-core.instructions.md .github/instructions/agent-skills-core.instructions.md
+ln -s ../../.copilot-project/instructions/agent-skills-project.instructions.md .github/instructions/agent-skills-project.instructions.md
+# Configurar MCP memory-service
+mkdir -p .vscode
+cat > .vscode/mcp.json << 'MCPEOF'
+{
+  "servers": {
+    "memory": {
+      "type": "npx",
+      "command": "npx",
+      "args": ["-y", "@doobidoo/mcp-memory-service@latest"],
+      "env": {
+        "MEMORY_FILE_PATH": "${workspaceFolder}/.copilot-project/memory/memory.db"
+      }
+    }
+  }
+}
+MCPEOF
+# Adicionar ao .gitignore
+cat >> .gitignore << 'EOF'
+
+# Copilot Agent Skills (local only)
+.copilot-core/
+.copilot-project/
+.github/instructions/agent-skills-core.instructions.md
+.github/instructions/agent-skills-project.instructions.md
+EOF
+git add .gitignore
+git commit -m "chore: gitignore copilot agent local files"
+```
+
+---
+
+## Onboarding de novo dev (Modo Stealth)
+
+Cada dev precisa rodar os passos de clone + symlinks após clonar o projeto. Recomenda-se criar um script `setup-copilot.sh` / `setup-copilot.ps1`.
+
+## Clonando em nova máquina (Modo Aberto)
+
+```bash
+# Opção 1: Clone recursivo
+git clone --recursive https://github.com/seu/projeto.git
+
+# Opção 2: Clone normal + inicializar submodules
+git clone https://github.com/seu/projeto.git
+cd projeto
+git submodule update --init --recursive
+```
+
+---
+
+## Notas
+
+- Symlinks usam nomes `agent-skills-*` para evitar conflitos com outros instruction files
+- A estrutura final é idêntica em ambos os modos (aberto e stealth)
+- O `.copilot-project` deve ter a branch correta do projeto antes de criar symlinks

@@ -1,0 +1,303 @@
+---
+name: project-backlog-manage
+description: Gerencia backlog persistente de atividades futuras, features planejadas, ideias e TODOs do projeto. Persiste entre sessões em .copilot-project/backlog/backlog.md com arquivo de archive separado. Permite adicionar, listar, priorizar, atualizar status, arquivar e remover itens. Consultado automaticamente no início de sessões complexas. Triggers: "anota para depois", "feature futura", "backlog", "todo persistente", "próximas atividades", "ideia para", "planejo fazer", "lembra de implementar", "pendente", "adiciona ao backlog", "lista backlog", "o que tem pendente", "próximos passos do projeto", "arquiva backlog", "histórico do backlog".
+metadata:
+  author: copilot-core
+  version: "1.1"
+  category: project
+  delegable: full
+---
+
+# Project Backlog Manage
+
+Gerencia um backlog persistente de atividades futuras, features, ideias e TODOs do projeto. Diferente de `agent-task-manage` (efêmero, vive apenas na sessão), este backlog é **persistente** e sobrevive entre sessões.
+
+## Quando Usar
+
+- Usuário quer anotar algo para fazer depois
+- Registrar feature planejada ou ideia
+- Listar/consultar atividades pendentes do projeto
+- Atualizar prioridade ou status de itens
+- Remover itens concluídos ou cancelados
+- No início de sessão complexa — consultar pendências existentes
+
+## Quando NÃO Usar
+
+- Tarefas da sessão atual → usar `agent-task-manage`
+- Lições aprendidas → usar `agent-memory-update`
+- Estado do projeto (stack, restrições) → usar `project-context-update`
+- Bugs conhecidos em produção → issue tracker externo
+
+## Diferença dos Outros Skills
+
+| Skill | Orientação | Persistência | Propósito |
+|-------|-----------|--------------|-----------|
+| `agent-task-manage` | Presente (sessão) | Efêmera (morre com o chat) | Executar tarefas agora |
+| `agent-chat-save` | Presente → Futuro | Sessão salva | Continuar trabalho da sessão |
+| `agent-memory-update` | Passado | Permanente | O que aprendi |
+| **`project-backlog-manage`** | **Futuro** | **Permanente** | **O que vou/quero fazer** |
+
+## Armazenamento
+
+| Arquivo | Propósito |
+|---------|----------|
+| `backlog/backlog.md` | Itens pendentes + últimos 5 concluídos (referência recente) |
+| `backlog/archive.md` | Histórico completo de itens concluídos, agrupados por mês |
+
+### Formato do Arquivo
+
+```markdown
+---
+project: {nome-do-projeto}
+updated: YYYY-MM-DD
+---
+
+# Backlog
+
+## Alta Prioridade
+
+- [ ] `BKL-001` **{título}** — {descrição breve} `[{categoria}]` _{data}_
+- [x] `BKL-002` **{título}** — {descrição breve} `[{categoria}]` _{data}_ ✅ _{data-conclusão}_
+
+## Média Prioridade
+
+- [ ] `BKL-003` **{título}** — {descrição breve} `[{categoria}]` _{data}_
+
+## Baixa Prioridade
+
+- [ ] `BKL-004` **{título}** — {descrição breve} `[{categoria}]` _{data}_
+
+## Ideias / Explorar
+
+- [ ] `BKL-005` **{título}** — {descrição breve} `[{categoria}]` _{data}_
+
+## Concluídos (recentes)
+
+- [x] `BKL-006` **{título}** — {descrição breve} `[{categoria}]` _{data}_ ✅ _{data-conclusão}_
+
+> Máximo 5 itens. Itens mais antigos são movidos para `archive.md`.
+```
+
+### Formato do Archive
+
+Arquivo: `{workspace}/.copilot-project/backlog/archive.md`
+
+```markdown
+---
+project: {nome-do-projeto}
+updated: YYYY-MM-DD
+---
+
+# Backlog — Archive
+
+## 2026-02
+
+- [x] `BKL-003` **{título}** — {descrição breve} `[{categoria}]` _{data}_ ✅ _2026-02-15_
+
+## 2026-01
+
+- [x] `BKL-002` **{título}** — {descrição breve} `[{categoria}]` _{data}_ ✅ _2026-01-20_
+```
+
+### Campos de Cada Item
+
+| Campo | Formato | Obrigatório |
+|-------|---------|-------------|
+| ID | `BKL-{NNN}` sequencial | Sim |
+| Título | Texto curto e descritivo | Sim |
+| Descrição | Uma linha explicativa | Sim |
+| Categoria | `feature`, `refactor`, `fix`, `infra`, `docs`, `skill`, `idea`, `research` | Sim |
+| Data criação | `YYYY-MM-DD` | Sim |
+| Prioridade | Seção onde está: alta, média, baixa, ideias | Sim |
+| Status | `[ ]` pendente, `[x]` concluído | Sim |
+| Data conclusão | `YYYY-MM-DD` (quando concluído) | Se concluído |
+
+## Workflow
+
+### Operação: Adicionar Item
+
+**Triggers**: "anota para depois", "adiciona ao backlog", "feature futura", "ideia para", "pendente", "lembra de implementar"
+
+1. Ler backlog existente (ou criar via Auto-Init)
+2. **Verificar duplicatas** — comparar título/descrição com itens pendentes existentes (match semântico, não exato)
+   - Se encontrar item similar → **atualizar** o item existente (descrição, prioridade, categoria) em vez de criar novo
+   - Output: `📋 **Backlog atualizado**: BKL-{NNN} — {título} (descrição/prioridade ajustada)`
+   - Se não encontrar → prosseguir com criação
+3. Determinar próximo ID (`BKL-NNN`)
+4. Classificar categoria com base no contexto
+5. Definir prioridade (perguntar se ambíguo, default: média)
+6. Adicionar item na seção correta
+7. Atualizar campo `updated` no frontmatter
+
+**Output** (item novo):
+```
+📋 **Adicionado ao backlog**
+- ID: BKL-{NNN}
+- Título: {título}
+- Prioridade: {alta|média|baixa|ideia}
+- Categoria: {categoria}
+```
+
+### Operação: Listar Backlog
+
+**Triggers**: "lista backlog", "o que tem pendente", "próximas atividades", "mostra backlog", "pendências"
+
+1. Ler backlog
+2. Exibir itens pendentes agrupados por prioridade
+3. Incluir contagem total
+
+**Output**:
+```
+📋 **Backlog do projeto** ({N} itens pendentes)
+
+**Alta** ({n})
+- BKL-001: {título} [{categoria}]
+
+**Média** ({n})
+- BKL-003: {título} [{categoria}]
+
+**Baixa** ({n})
+- BKL-004: {título} [{categoria}]
+
+**Ideias** ({n})
+- BKL-005: {título} [{categoria}]
+```
+
+### Operação: Atualizar Item
+
+**Triggers**: "muda prioridade de BKL-X", "atualiza backlog", "promove BKL-X"
+
+1. Localizar item pelo ID
+2. Aplicar mudança (prioridade, descrição, categoria)
+3. Mover item para seção correta se prioridade mudou
+4. Atualizar campo `updated`
+
+### Operação: Concluir Item
+
+**Triggers**: "conclui BKL-X", "feito BKL-X", "implementei BKL-X", "remove BKL-X"
+
+1. Localizar item pelo ID
+2. Marcar como `[x]` e adicionar data de conclusão
+3. Mover para seção "Concluídos (recentes)"
+4. Se seção "Concluídos (recentes)" tem > 5 itens → executar **Arquivar Concluídos** automaticamente
+5. Atualizar campo `updated`
+
+**Output**:
+```
+✅ **BKL-{NNN} concluído**: {título}
+```
+
+### Operação: Arquivar Concluídos
+
+**Triggers**: "arquiva backlog", automático quando Concluídos > 5 itens
+
+1. Ler seção "Concluídos (recentes)" do `backlog.md`
+2. Manter os **5 mais recentes** (por data de conclusão) no `backlog.md`
+3. Mover os restantes para `archive.md`:
+   - Criar `archive.md` se não existir (via Auto-Init)
+   - Inserir itens na seção do mês correspondente (formato `YYYY-MM`)
+   - Criar seção do mês se não existir
+   - Manter ordem cronológica decrescente (meses mais recentes primeiro)
+4. Atualizar campo `updated` em ambos os arquivos
+
+**Output**:
+```
+📦 **Backlog arquivado**: {N} itens movidos para archive.md
+```
+
+### Operação: Consultar Histórico
+
+**Triggers**: "histórico do backlog", "itens arquivados", "o que já foi feito"
+
+1. Ler `archive.md`
+2. Exibir itens agrupados por mês
+3. Incluir contagem total
+
+**Output**:
+```
+📦 **Histórico do backlog** ({N} itens arquivados)
+
+**2026-02** ({n})
+- BKL-003: {título} [{categoria}] ✅ 2026-02-15
+
+**2026-01** ({n})
+- BKL-002: {título} [{categoria}] ✅ 2026-01-20
+```
+
+### Operação: Consulta Automática (início de sessão)
+
+Quando `agent-turn-reflect` detectar início de sessão complexa ou quando o agente consultar contexto do projeto:
+
+1. Verificar se `backlog/backlog.md` existe
+2. Se existe e tem itens pendentes de alta prioridade → informar brevemente
+3. Não interromper o fluxo — apenas mencionar se relevante ao trabalho atual
+
+**Output** (inline, discreto):
+```
+📋 Backlog: {N} itens pendentes ({n} alta prioridade)
+```
+
+## Auto-Init
+
+Quando `backlog/` ou `backlog.md` não existir:
+
+1. Criar diretório: `{workspace}/.copilot-project/backlog/`
+2. Criar `backlog.md` com template:
+
+```markdown
+---
+project: {nome-do-projeto}
+updated: {data-atual}
+---
+
+# Backlog
+
+## Alta Prioridade
+
+
+## Média Prioridade
+
+
+## Baixa Prioridade
+
+
+## Ideias / Explorar
+
+
+## Concluídos (recentes)
+
+
+```
+
+3. Se `archive.md` não existir, criar com template:
+
+```markdown
+---
+project: {nome-do-projeto}
+updated: {data-atual}
+---
+
+# Backlog — Archive
+
+```
+
+4. Prosseguir com a operação solicitada
+
+## Roteamento com Outros Skills
+
+| Situação | Ação |
+|----------|------|
+| Usuário diz "faz agora" | Usar `agent-task-manage` (não backlog) |
+| Usuário diz "faz depois" / "futuramente" | Adicionar ao backlog |
+| Item do backlog sendo implementado | Concluir no backlog + usar `agent-task-manage` para a execução |
+| Sessão salva com pendências | `agent-chat-save` salva sessão; backlog permanece independente |
+| Lição aprendida ao concluir item | `agent-memory-update` para a lição, concluir no backlog |
+
+## Checklist
+
+- [ ] Backlog existe ou foi criado via Auto-Init
+- [ ] IDs são sequenciais e únicos
+- [ ] Cada item tem todos os campos obrigatórios
+- [ ] Itens concluídos estão na seção "Concluídos (recentes)" (máx. 5)
+- [ ] Excedentes arquivados em `archive.md` agrupados por mês
+- [ ] Campo `updated` reflete a data da última modificação em ambos os arquivos

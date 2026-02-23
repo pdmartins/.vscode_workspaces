@@ -1,0 +1,114 @@
+---
+name: infra-redis-cache
+description: Gera código cache-aside com IDistributedCache. Padrão genérico de cache, lê config.yml do project para TTL types, error handling policy, Settings class. Triggers: "cache", "Redis", "distributed cache", "CacheService", "TTL", ao trabalhar com caching.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: infra
+  delegable: full
+---
+
+# Infra Redis Cache
+
+Gera código de integração Redis com cache-aside pattern, configurável por projeto.
+
+## Quando Usar
+
+- Criar ou modificar cache services
+- Implementar cache-aside pattern
+- Trabalhar com `IDistributedCache`
+
+## Config Loading
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/infra-redis-cache/config.yml`
+2. Se existe, carregar configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/infra-redis-cache/SKILL.md`
+4. Se existe, carregar instruções complementares
+5. Se nenhum existe, usar padrões genéricos
+
+## Padrões Genéricos
+
+### Cache-Aside Pattern
+
+```
+Read: Cache → hit? return : fetch from source → store in cache → return
+Write: Update source → invalidate/update cache
+```
+
+### Interface
+
+```csharp
+public interface ICacheService
+{
+    Task<string> GetCacheAsync(string key, CancellationToken cancellationToken);
+    Task SetCacheAsync(string key, string value, CancellationToken cancellationToken);
+}
+```
+
+### Implementation Rules
+
+1. Use `IDistributedCache` — never `IConnectionMultiplexer` directly
+2. **Read**: swallow exceptions → return `string.Empty` or `default`
+3. **Write**: error handling per project config (swallow vs throw)
+4. Always accept `CancellationToken` in all async methods
+5. Use `DistributedCacheEntryOptions` for TTL
+6. Register as Singleton
+
+### DI Registration
+
+```csharp
+services.Configure<CacheSettings>(configuration.GetSection(CacheSettings.SessionName));
+services.AddSingleton<ICacheService, CacheService>();
+services.AddStackExchangeRedisCache(options =>
+{
+    options.Configuration = settings.ConnectionString;
+    options.InstanceName = settings.InstanceName;
+});
+```
+
+### Key Naming
+
+Pattern: `{domain}:{entity}:{identifier}`
+
+### Testing
+
+- Mock `ICacheService` — never mock `IDistributedCache` directly
+- Test both cache hit and cache miss scenarios
+- Test write error handling per project rules
+
+## Checklist
+
+- [ ] `IDistributedCache` (nunca `IConnectionMultiplexer`)
+- [ ] Swallow exceptions on read
+- [ ] Error handling on write conforme config
+- [ ] CancellationToken propagado
+- [ ] TTL via options pattern
+- [ ] Singleton lifetime
+- [ ] Cache key pattern consistente
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/infra-redis-cache/config.yml
+settings:
+  class: CacheSettings
+  config-path: "Core:Cache"
+  connection-string-key: ConnectionString
+  instance-name-key: InstanceName
+ttl:
+  enum: TimeToExpireTokenType
+  values:
+    DefaultTime: 60
+    SystemParameter: 120
+    SystemRegister: 30
+error-handling:
+  read: swallow                     # always swallow on read
+  write-api: swallow                # swallow | throw
+  write-worker: throw               # swallow | throw
+di:
+  settings-injection: IOptions      # IOptions | Direct
+  lifetime: Singleton
+k8s:
+  sidecar: true                     # Redis runs as sidecar container
+  connection: "localhost:6379"
+```

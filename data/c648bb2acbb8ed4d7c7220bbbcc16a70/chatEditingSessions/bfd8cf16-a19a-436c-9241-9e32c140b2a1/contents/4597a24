@@ -1,0 +1,99 @@
+# infra-vertexai-prompt — STT Project Configuration
+# Consumed by core skill: .copilot-core/skills/infra-vertexai-prompt/SKILL.md
+
+provider: vertex-ai
+model: gemini-2.5-flash
+sdk: Google.GenAI
+sdk_version: "0.6.0"
+
+generation_config:
+  temperature: 0.0          # Deterministic — medical transcription requires fidelity
+  top_p: 0.95               # High — allows broad medical vocabulary
+  response_mime_type: application/json
+  thinking_budget: 0         # CoT disabled — focus on speed
+
+# NEVER set temperature above 0 — medical transcription tolerates ZERO variation
+
+response_schema:
+  type: OBJECT
+  required: [transcription, symptoms, suggestedCIDs]
+  properties:
+    transcription:
+      type: STRING
+    symptoms:
+      type: ARRAY
+      items_type: STRING
+    suggestedCIDs:
+      type: ARRAY
+      items:
+        type: OBJECT
+        properties:
+          code: STRING
+          description: STRING
+        required: [code, description]
+  schema_class: Domain/Models/v1/TranscriptionSchemaResponse.cs
+  schema_types_namespace: Google.GenAI.Types
+
+input:
+  content_role: user
+  parts:
+    - type: FileData
+      file_uri_prefix: "gs://"
+      mime_type: audio/mpeg
+    - type: Text
+      source: dynamic_prompt   # From BigQuery or fallback
+
+labels:
+  helper: SourcePlatformHelper.ToLabels
+  values:
+    - { key: source_platform, value: Telehealth }
+    - { key: source_platform, value: Emergency }
+
+dynamic_prompts:
+  storage: bigquery_prompts_table
+  flow:
+    - "API POST /signed/upload receives PromptId + Platform"
+    - "API inserts into File_Transcription with promptId"
+    - "Consumer fetches promptId → queries Prompts table"
+    - "If not found → fallback to PromptDefault.Anamnesis"
+  fallback: PromptDefault.Anamnesis
+
+error_handling:
+  - error: "ClientError 429"
+    action: "Log → return (empty, shouldRetry=true) → Pub/Sub Nack"
+  - error: "ClientError other"
+    action: "Log → return (empty, shouldRetry=false) → Pub/Sub Ack"
+  - error: "Generic Exception"
+    action: "Log → return (empty, shouldRetry=false)"
+  - error: "UsageMetadata null"
+    action: "Log info → continue"
+  - error: "Token insert fails"
+    action: "Log error → continue (non-blocking)"
+
+token_tracking:
+  table: Token_Data
+  fields:
+    - PromptTokenCount
+    - CandidatesTokenCount
+    - TotalTokenCount
+    - FinishMessage
+    - FinishReason
+
+prompt_rules:
+  language: portuguese
+  domain: medical_transcription
+  structure:
+    - CONTEXTO
+    - VALIDAÇÃO PRÉVIA
+    - ESTRUTURA OBRIGATÓRIA
+    - REGRAS ABSOLUTAS
+    - LINGUAGEM
+    - PROIBIÇÕES
+    - FIDELIDADE
+    - CIDs
+    - VALIDAÇÃO FINAL
+  minimum_cids: 5
+  never_remove:
+    - fidelity_rules
+    - prohibitions
+    - zero_interpretation

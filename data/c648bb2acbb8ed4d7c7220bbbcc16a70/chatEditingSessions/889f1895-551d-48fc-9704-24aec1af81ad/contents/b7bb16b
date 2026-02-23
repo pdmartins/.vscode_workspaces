@@ -1,0 +1,143 @@
+---
+name: code-crossplatform-sync
+description: Sincroniza scripts entre plataformas (Bash ↔ PowerShell). Use ao criar/editar scripts em uma plataforma para sincronizar com a outra, ou quando precisar manter paridade funcional entre .sh e .ps1. Triggers: "sincronizar", "criar versão", "paridade", "cross-platform", edição de script com par em outra linguagem.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: code
+---
+
+# Cross-Platform Script Sync Skill
+
+Mantém paridade funcional entre scripts Bash e PowerShell.
+
+## Quando Usar
+
+- Criar script em uma linguagem → criar equivalente na outra
+- Editar script e precisar atualizar par correspondente
+- Verificar paridade entre versões .sh e .ps1
+- Pedido para "sincronizar scripts" ou "criar versão windows/linux"
+
+## Workflow
+
+### 1. Identificar par de arquivos
+
+Padrão de nomenclatura:
+- Bash: `verbo-substantivo.sh` (lowercase-kebab)
+- PowerShell: `Verbo-Substantivo.ps1` (PascalCase)
+
+**Exemplos:**
+| Bash | PowerShell |
+|------|------------|
+| `install-docker.sh` | `Install-Docker.ps1` |
+| `setup-dev-env.sh` | `Setup-DevEnv.ps1` |
+
+### 2. Verificar existência do par
+
+**Se criando/editando .sh:**
+→ Verificar se existe .ps1 equivalente
+
+**Se criando/editando .ps1:**
+→ Verificar se existe .sh equivalente
+
+### 3. Analisar funcionalidade
+
+Mapear cada funcionalidade do script fonte:
+1. Parâmetros de entrada
+2. Verificações de pré-requisitos
+3. Lógica principal
+4. Outputs e mensagens
+
+### 4. Traduzir mantendo comportamento
+
+| Bash | PowerShell |
+|------|------------|
+| `command -v X` | `Get-Command X` |
+| `[[ -f file ]]` | `Test-Path file` |
+| `$HOME` | `$env:USERPROFILE` |
+| `$(pwd)` | `$PWD` / `Get-Location` |
+| `source file` | `. file` |
+| `export VAR=val` | `$env:VAR = "val"` |
+| `echo "text"` | `Write-Host "text"` |
+| `$1, $2...` | `param($P1, $P2)` |
+| `exit 1` | `exit 1` |
+
+### 5. Sincronizar outputs
+
+Garantir mesmos emojis e mensagens:
+
+| Tipo | Bash | PowerShell |
+|------|------|------------|
+| Info | `print_info "msg"` | `Write-Info "msg"` |
+| Success | `print_success "msg"` | `Write-Success "msg"` |
+| Warning | `print_warning "msg"` | `Write-Warning "msg"` |
+| Error | `print_error "msg"` | `Write-Error "msg"` |
+| Step | `print_step "msg"` | `Write-Step "msg"` |
+
+### 6. Validar paridade
+
+Checklist de equivalência:
+- [ ] Mesmos parâmetros de entrada
+- [ ] Mesmas verificações de pré-requisitos
+- [ ] Mesma lógica de negócio
+- [ ] Mesmas mensagens de output
+- [ ] Mesmo comportamento de erro
+
+## Regras de Sincronização
+
+### SEMPRE sincronizar quando:
+- Criar novo script → criar par na outra linguagem
+- Modificar funcionalidade → atualizar par
+- Adicionar/remover parâmetro → refletir no par
+- Corrigir bug → corrigir em ambos
+
+### NÃO sincronizar:
+- Mudanças puramente cosméticas (whitespace, formatting)
+- Comentários internos específicos de implementação
+- Otimizações específicas de plataforma que não mudam comportamento
+
+## Fluxo de Criação Paralela
+
+```
+┌─ Pedido: "criar script install-tools"
+│
+├─ 1. Criar install-tools.sh (seguir code-bash-write)
+├─ 2. Criar Install-Tools.ps1 (seguir code-powershell-write)
+├─ 3. Validar paridade funcional
+└─ 4. Reportar ambos criados
+```
+
+## Fluxo de Atualização
+
+```
+┌─ Pedido: "modificar install-tools.sh"
+│
+├─ 1. Aplicar mudança em install-tools.sh
+├─ 2. Identificar Install-Tools.ps1 como par
+├─ 3. Aplicar mudança equivalente em .ps1
+└─ 4. Reportar ambos atualizados
+```
+
+## Exemplo de Mapeamento
+
+### Bash
+```bash
+check_prerequisites() {
+    print_info "Checking prerequisites..."
+    if ! command -v docker &>/dev/null; then
+        print_error "Docker not found"
+        exit 1
+    fi
+}
+```
+
+### PowerShell
+```powershell
+function Test-Prerequisites {
+    Write-Info "Checking prerequisites..."
+    if (-not (Get-Command docker -ErrorAction SilentlyContinue)) {
+        Write-Error "Docker not found"
+        exit 1
+    }
+}
+```

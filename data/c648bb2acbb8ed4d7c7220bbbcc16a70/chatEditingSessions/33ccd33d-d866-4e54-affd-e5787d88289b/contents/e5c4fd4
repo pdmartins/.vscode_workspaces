@@ -1,0 +1,162 @@
+---
+name: project-init
+description: Guia manual para inicializar estrutura de .copilot-core e .copilot-project em novo workspace. Para setup automatizado, use project-create no workspace core. Triggers - inicializar projeto manualmente, passo a passo, entender estrutura.
+metadata:
+  author: copilot-core
+  version: "2.0"
+  category: project
+---
+
+# Project Init
+
+Guia **manual** para inicializar a estrutura de prompts em um novo workspace.
+
+> 💡 **Quer o caminho mais rápido?**
+> Abra o workspace `.copilot-core` e diga "criar projeto {nome}" no Copilot Chat.
+> O agente cria tudo e te dá um script para colar no projeto.
+
+## Quando Usar Este Guia
+
+- Precisa entender o processo em detalhes
+- Não tem acesso ao workspace core
+- Ambiente com restrições especiais
+
+## Alternativas Recomendadas
+
+| Método | Onde roda | Quando usar |
+|--------|-----------|-------------|
+| **project-create** | Workspace core (Chat) | Cria branch + contexto + gera script |
+| **project-bootstrap** | Projeto-alvo (Chat) | Configura contexto após submodules |
+| **Manual** | Qualquer lugar | Entender ou debug |
+
+## Pré-requisitos
+
+- Git inicializado no workspace
+- Acesso aos repositórios:
+  - `https://github.com/pdmartins/.copilot-core.git`
+  - `https://github.com/pdmartins/.copilot-project.git`
+
+## Arquitetura
+
+```
+{projeto}/
+└── .github/
+    ├── instructions/
+    │   ├── default.instructions.md      → symlink → .copilot-core/instructions/default.instructions.md
+    │   └── workspace.instructions.md    → symlink → .copilot-project/instructions/workspace.instructions.md
+    │
+    ├── .copilot-core/          # Submodule (branch core)
+    │   ├── instructions/
+    │   │   └── default.instructions.md
+    │   ├── skills/
+    │   │   └── {core-skills}/
+    │   └── templates/
+    │       └── workspace.instructions.md
+    │
+    └── .copilot-project/       # Submodule (branch específica)
+        ├── context/
+        │   └── project.md
+        ├── instructions/
+        │   └── workspace.instructions.md
+        ├── memory/
+        │   └── lessons-learned.md
+        └── skills/
+            └── {project-skills}/
+```
+
+## Workflow Manual
+
+### 1. Verificar pré-requisitos
+
+- Verificar se `.github/.copilot-core/` já existe
+- Verificar se git está inicializado
+
+**Se já existe:**
+→ Informar que estrutura já existe
+→ Sugerir usar `project-update` para atualizar
+
+### 2. Adicionar .copilot-core como submodule
+
+```bash
+git submodule add -b core https://github.com/pdmartins/.copilot-core.git .github/.copilot-core
+```
+
+### 3. Configurar repositório project
+
+**Detectar nome do projeto** (pasta do workspace)
+
+**Perguntar ao usuário:**
+```
+Branch do .copilot-project para este projeto?
+Sugestão: `{nome-do-projeto}`
+[Enter para confirmar ou digite outro nome]
+```
+
+**Se branch existe:**
+```bash
+git submodule add -b {branch} https://github.com/pdmartins/.copilot-project.git .github/.copilot-project
+```
+
+**Se branch não existe (novo projeto):**
+```bash
+git submodule add https://github.com/pdmartins/.copilot-project.git .github/.copilot-project
+cd .github/.copilot-project
+git checkout -b {branch}
+```
+
+### 4. Criar symlinks de instructions
+
+**Windows (PowerShell):**
+```powershell
+mkdir .github\instructions -Force
+cmd /c mklink ".github\instructions\default.instructions.md" "..\.copilot-core\instructions\default.instructions.md"
+cmd /c mklink ".github\instructions\workspace.instructions.md" "..\.copilot-project\instructions\workspace.instructions.md"
+cmd /c mklink ".github\copilot-commit-message-instructions.md" ".copilot-core\.source-control\commit-prompt.md"
+```
+
+**Linux/Mac (Bash):**
+```bash
+mkdir -p .github/instructions
+ln -s ../.copilot-core/instructions/default.instructions.md .github/instructions/default.instructions.md
+ln -s ../.copilot-project/instructions/workspace.instructions.md .github/instructions/workspace.instructions.md
+ln -s .copilot-core/.source-control/commit-prompt.md .github/copilot-commit-message-instructions.md
+```
+
+> **Importante:** Sempre usar symlinks, nunca copiar. Isso garante que alterações nos repos de origem refletem automaticamente.
+
+### 5. Criar estrutura de dados
+
+- Criar `memory/lessons-learned.md` (via `agent-memory-init`)
+- Criar `context/project.md` (via `project-context-init`)
+
+### 5. Confirmar inicialização
+
+**Output**:
+```
+✅ **Projeto inicializado**
+- Core: `.github/.copilot-core/`
+- Project: `.github/.copilot-project/` (branch: {branch})
+- Symlinks: `default.instructions.md`, `workspace.instructions.md`
+- Memória: inicializada
+- Contexto: inicializado
+```
+
+## Clonando em Nova Máquina
+
+Ao clonar um projeto que usa submodules:
+
+```bash
+# Opção 1: Clone recursivo
+git clone --recursive https://github.com/seu/projeto.git
+
+# Opção 2: Clone normal + inicializar submodules
+git clone https://github.com/seu/projeto.git
+cd projeto
+git submodule update --init --recursive
+```
+
+## Referência
+
+- **Criação (skill)**: `project-create`
+- **Configuração (skill)**: `project-bootstrap`
+- **Documentação**: `.github/docs/QUICK-START.md`

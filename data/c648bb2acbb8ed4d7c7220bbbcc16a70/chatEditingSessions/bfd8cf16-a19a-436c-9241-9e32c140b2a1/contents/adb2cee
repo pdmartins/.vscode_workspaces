@@ -1,0 +1,72 @@
+# infra-pipeline-deploy — STT Project Configuration
+# Consumed by core skill: .copilot-core/skills/infra-pipeline-deploy/SKILL.md
+
+ci_cd_platform: azure-pipelines
+manifest_file: azure-pipelines.yaml
+manifest_location: "{project}/src/"
+
+triggers:
+  branches:
+    - develop
+    - "hotfix/*"
+    - "release/*"
+  paths:
+    include: "src/*"
+  excluded_branches:
+    - main   # release branch strategy, main is NOT in trigger
+
+templates:
+  repository: Hapvida.Core.DevOps.Templates
+  type: git
+  ref: refs/heads/develop
+  steps:
+    - name: build-gcp
+      path: azure-pipelines/build-gcp.yaml
+      purpose: Docker build + dual registry push
+    - name: sonar-dotnet
+      path: azure-pipelines/v2/sonar-dotnet.yaml
+      purpose: Static analysis
+    - name: techdocs
+      path: azure-pipelines/v2/techdocs.yaml
+      purpose: Backstage documentation
+
+registries:
+  - name: hapvidacorp
+    type: acr
+    purpose: Azure Container Registry
+  - name: hapvidacorp-gcp
+    type: gcr
+    purpose: Google Container Registry
+
+variable_groups:
+  - name: Nuget
+    provides:
+      - NUGET_USER
+      - NUGET_KEY
+
+checkout:
+  clean: true
+  persist_credentials: true
+  fetch_depth: 0   # Required for SonarQube diff coverage
+
+pool: "Azure Pipelines"   # Microsoft-hosted
+
+projects:
+  api:
+    backstage_entity: "default/Component/hapvida-ti-voicetranscription-ai"
+    blob_account_key: "$(blobAccountKey)"
+  consumer:
+    backstage_entity: "default/Component/hapvida-ti-voicetranscription-ai-consumer"
+    blob_account_key: "$(blobAccountKey)"
+
+related_files:
+  - file: azure-pipelines.yaml
+    location: "{project}/src/"
+  - file: Dockerfile
+    location: "{project}/src/"
+  - file: nuget-production.config
+    location: "{project}/src/"
+  - file: catalog-info.yaml
+    location: "{project}/"
+  - file: mkdocs.yaml
+    location: "{project}/"

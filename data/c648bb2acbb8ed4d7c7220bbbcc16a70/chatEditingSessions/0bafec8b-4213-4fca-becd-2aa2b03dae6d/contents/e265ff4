@@ -1,0 +1,7 @@
+# Impact Validate Creation
+
+- **date**: 2026-02-16
+- **status**: active
+- **context**: action-review validava side-effects mas não verificava impacto em cascata de edições multi-arquivo (referências quebradas, contagens desatualizadas, nomes inconsistentes)
+- **decision**: Criar `agent-impact-validate` complementar ao action-review. Foco: grafo de impacto, validação de paths pós-rename, consistência de contagens, integridade de symlinks. Cadeia: task-manage → action-review → impact-validate (se 3+ arquivos) → chat-save
+- **outcome**: Validação em 2 camadas: completude (action-review) + consistência (impact-validate). Impact-validate delegable: full, ativado condicionalmente

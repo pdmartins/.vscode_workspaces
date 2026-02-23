@@ -1,0 +1,230 @@
+---
+name: api-webhook
+description: Padrões para Webhook Controllers que recebem callbacks de provedores externos. Use ao criar endpoints que recebem eventos do Twilio, Stripe, ou outros webhooks. Triggers: webhook, callback, Twilio, evento externo, arquivos *WebhookController.cs.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: api
+---
+
+# Webhook Controller Skill
+
+Padrões para controllers que recebem callbacks de provedores externos.
+
+## Quando Usar
+
+- Receber eventos do Twilio (WhatsApp)
+- Receber callbacks de pagamento
+- Processar webhooks de integrações externas
+
+## Estrutura
+
+```
+src/BeWiser.Assistant.Api/
+└── Webhooks/
+    ├── TwilioWebhookController.cs
+    └── [Provedor]WebhookController.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Controller | `[Provedor]WebhookController` | `TwilioWebhookController` |
+| Rota | `/webhooks/[provedor]` | `/webhooks/twilio` |
+
+## Template de Webhook Controller
+
+```csharp
+using MediatR;
+using Microsoft.AspNetCore.Mvc;
+
+namespace BeWiser.Assistant.Api.Webhooks;
+
+/// <summary>
+/// Handles incoming webhooks from Twilio.
+/// </summary>
+[ApiController]
+[Route("webhooks/twilio")]
+public class TwilioWebhookController : ControllerBase
+{
+    private readonly IMediator _mediator;
+    private readonly ILogger<TwilioWebhookController> _logger;
+
+    public TwilioWebhookController(
+        IMediator mediator,
+        ILogger<TwilioWebhookController> logger)
+    {
+        _mediator = mediator;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Receives incoming WhatsApp messages from Twilio.
+    /// </summary>
+    [HttpPost("message")]
+    [Consumes("application/x-www-form-urlencoded")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ReceiveMessage(
+        [FromForm] TwilioMessageWebhookRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "Received message from {From} to {To}",
+            request.From, request.To);
+
+        var command = new ProcessMessageCommand
+        {
+            From = request.From,
+            To = request.To,
+            Body = request.Body,
+            MessageSid = request.MessageSid
+        };
+
+        await _mediator.Send(command, cancellationToken);
+
+        // Twilio expects 200 OK (empty or TwiML)
+        return Ok();
+    }
+
+    /// <summary>
+    /// Receives message status updates from Twilio.
+    /// </summary>
+    [HttpPost("status")]
+    [Consumes("application/x-www-form-urlencoded")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ReceiveStatus(
+        [FromForm] TwilioStatusWebhookRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "Message {MessageSid} status: {Status}",
+            request.MessageSid, request.MessageStatus);
+
+        var command = new UpdateMessageStatusCommand
+        {
+            MessageSid = request.MessageSid,
+            Status = request.MessageStatus
+        };
+
+        await _mediator.Send(command, cancellationToken);
+
+        return Ok();
+    }
+}
+```
+
+## Twilio Webhook Request Models
+
+```csharp
+namespace BeWiser.Assistant.Api.Webhooks;
+
+/// <summary>
+/// Twilio incoming message webhook payload.
+/// </summary>
+public record TwilioMessageWebhookRequest
+{
+    public string MessageSid { get; init; } = string.Empty;
+    public string AccountSid { get; init; } = string.Empty;
+    public string From { get; init; } = string.Empty;
+    public string To { get; init; } = string.Empty;
+    public string Body { get; init; } = string.Empty;
+    public int NumMedia { get; init; }
+    public string? MediaUrl0 { get; init; }
+    public string? MediaContentType0 { get; init; }
+}
+
+/// <summary>
+/// Twilio message status webhook payload.
+/// </summary>
+public record TwilioStatusWebhookRequest
+{
+    public string MessageSid { get; init; } = string.Empty;
+    public string MessageStatus { get; init; } = string.Empty;
+    public string? ErrorCode { get; init; }
+    public string? ErrorMessage { get; init; }
+}
+```
+
+## Validação de Assinatura Twilio
+
+```csharp
+using Microsoft.Extensions.Options;
+using Twilio.Security;
+
+namespace BeWiser.Assistant.Api.Filters;
+
+public class TwilioSignatureValidationFilter : IAsyncActionFilter
+{
+    private readonly TwilioOptions _options;
+    private readonly ILogger<TwilioSignatureValidationFilter> _logger;
+
+    public TwilioSignatureValidationFilter(
+        IOptions<TwilioOptions> options,
+        ILogger<TwilioSignatureValidationFilter> logger)
+    {
+        _options = options.Value;
+        _logger = logger;
+    }
+
+    public async Task OnActionExecutionAsync(
+        ActionExecutingContext context,
+        ActionExecutionDelegate next)
+    {
+        var request = context.HttpContext.Request;
+        
+        if (!request.Headers.TryGetValue(
+            "X-Twilio-Signature", out var signature))
+        {
+            _logger.LogWarning("Missing Twilio signature");
+            context.Result = new UnauthorizedResult();
+            return;
+        }
+
+        var validator = new RequestValidator(_options.AuthToken);
+        var url = $"{request.Scheme}://{request.Host}{request.Path}";
+        
+        // Read form data
+        var form = await request.ReadFormAsync();
+        var parameters = form.ToDictionary(
+            x => x.Key, 
+            x => x.Value.ToString());
+
+        if (!validator.Validate(url, parameters, signature!))
+        {
+            _logger.LogWarning("Invalid Twilio signature");
+            context.Result = new UnauthorizedResult();
+            return;
+        }
+
+        await next();
+    }
+}
+```
+
+## Uso do Filter
+
+```csharp
+[HttpPost("message")]
+[ServiceFilter(typeof(TwilioSignatureValidationFilter))]
+public async Task<IActionResult> ReceiveMessage(...)
+```
+
+## Boas Práticas
+
+1. **Responder rápido**: Webhooks têm timeout curto (< 15s)
+2. **Processar assíncrono**: Enviar para fila e responder imediatamente
+3. **Validar assinatura**: Sempre verificar autenticidade
+4. **Idempotência**: Tratar duplicatas (MessageSid único)
+5. **Logs detalhados**: Registrar payload para debug
+6. **Retry handling**: Provedores reenviam em caso de erro
+
+## Checklist
+
+- [ ] Rota em `/webhooks/[provedor]`
+- [ ] Validação de assinatura implementada
+- [ ] Processamento via Command (MediatR)
+- [ ] Resposta rápida (200 OK)
+- [ ] Logs com correlation ID
+- [ ] Tratamento de idempotência

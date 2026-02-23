@@ -1,0 +1,150 @@
+---
+name: agent-memory-query
+description: Consulta lições aprendidas e decisões históricas do projeto. Prioriza busca semântica via MCP memory-service (se disponível), com fallback para leitura direta do .md. Use no início de tarefas complexas, quando o usuário perguntar sobre decisões passadas, ou quando precisar evitar erros já documentados. Triggers: "lições aprendidas", "decisões anteriores", "histórico do projeto", início de implementação complexa.
+metadata:
+  author: copilot-core
+  version: "2.0"
+  category: agent
+  delegable: full
+---
+
+# Agent Memory Query
+
+Consulta a memória persistente do projeto para recuperar lições aprendidas e decisões históricas. Prioriza busca semântica via MCP quando disponível.
+
+## Quando Usar
+
+- Início de tarefa complexa (consultar antes de implementar)
+- Usuário pergunta sobre decisões passadas
+- Antes de tomar decisão arquitetural (verificar se já foi decidido)
+- Quando padrão ou erro parece familiar
+
+## Estratégia de Busca
+
+```
+1. MCP memory-service disponível?
+   ├── SIM → Busca semântica híbrida (BM25 + vector) via mcp_memory_search_nodes
+   │         Retorna resultados rankeados por relevância
+   └── NÃO → Fallback: leitura direta do .md + grep por keywords
+```
+
+> O MCP é um índice derivado dos .md. Se os resultados parecerem desatualizados, chamar `agent-memory-sync` para reindexar.
+
+## Workflow
+
+### 1. Tentar busca via MCP (preferencial)
+
+Se MCP memory-service estiver configurado (`.vscode/mcp.json`):
+
+```
+mcp_memory_search_nodes({
+  query: "{termos de busca derivados da tarefa atual}"
+})
+```
+
+Filtrar resultados por `entityType: "lesson"` e apresentar rankeados.
+
+**Se MCP retornar vazio mas .md tem conteúdo** (auto-detect de índice desatualizado):
+→ Informar: "⚠️ MCP memory (Cloudflare) está vazio mas existem lições no .md. Executando sync..."
+→ Chamar `agent-memory-sync` (full rebuild)
+→ Repetir busca MCP após sync
+
+**Se MCP não disponível** → passar para passo 2.
+
+### 2. Fallback — Leitura direta do .md
+
+Ler: `{workspace}/.copilot-project/memory/lessons-learned.md`
+
+**Se arquivo não existe:**
+→ Criar automaticamente a estrutura de memória (ver seção "Auto-Init" abaixo)
+→ Informar usuário que memória foi inicializada
+→ Retornar que nenhuma lição existe ainda
+
+### 3. Identificar lições relevantes
+
+- Filtrar por categoria relacionada à tarefa atual
+- Priorizar lições mais recentes
+- Identificar padrões aplicáveis
+
+### 4. Apresentar ao usuário
+
+**Output**:
+```
+📚 **Lições relevantes encontradas**:
+- [categoria] descrição da lição
+- [categoria] descrição da lição
+```
+
+**Se nenhuma lição relevante:**
+```
+📚 Nenhuma lição relevante encontrada para esta tarefa.
+```
+
+### 5. Aplicar conhecimento
+
+- Usar informações para guiar implementação
+- Evitar repetir erros documentados
+- Seguir padrões já estabelecidos
+
+## Categorias de Lições
+
+| Categoria | Descrição |
+|-----------|-----------|
+| arquitetura | Estrutura do projeto, organização |
+| padrões | Convenções de código, nomenclatura |
+| tooling | Ferramentas, dependências, configs |
+| workflow | Processos, automações |
+| debug | Problemas resolvidos, armadilhas |
+| performance | Otimizações, melhorias |
+| segurança | Práticas de segurança |
+| regras | Definições e regras do sistema |
+| estrutura | Organização e estrutura de diretórios |
+
+## Auto-Init
+
+Quando `memory/` ou `lessons-learned.md` não existir, criar automaticamente:
+
+1. Criar diretório: `{workspace}/.copilot-project/memory/`
+2. Criar `lessons-learned.md` com template:
+
+```markdown
+# Lessons Learned
+
+Registro de aprendizados e decisões importantes do projeto.
+
+---
+
+## Estrutura
+
+Cada lição segue o formato:
+
+```xml
+<lesson date="YYYY-MM-DD" category="categoria">
+  <context>Contexto do problema</context>
+  <decision>Decisão tomada</decision>
+  <outcome>Resultado/impacto</outcome>
+</lesson>
+```
+
+### Categorias
+
+| Categoria | Descrição |
+|-----------|----------|
+| arquitetura | Estrutura do projeto |
+| padrões | Convenções de código |
+| tooling | Ferramentas e configs |
+| workflow | Processos |
+| debug | Problemas resolvidos |
+| performance | Otimizações |
+| segurança | Práticas de segurança |
+| regras | Definições e regras do sistema |
+| estrutura | Organização e estrutura de diretórios |
+
+---
+
+## Registro
+
+<!-- Adicionar lições aqui, mais recente primeiro -->
+```
+
+3. Informar: `✅ Memória inicializada automaticamente`

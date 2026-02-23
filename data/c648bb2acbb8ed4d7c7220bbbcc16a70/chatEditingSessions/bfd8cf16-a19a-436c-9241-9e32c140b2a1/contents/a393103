@@ -1,0 +1,24 @@
+# code-pattern-enforce — STT Project Extension
+# Complementa o core skill com padrões específicos do projeto STT
+
+## Padrões de Error Handling por Camada
+
+| Contexto | API | Consumer |
+|----------|-----|----------|
+| BigQuery Reader | `LogCritical` → rethrow | `throw DataException` |
+| BigQuery Writer | return `false` | `throw DataException` |
+| Cache Read | swallow → `string.Empty` | swallow → `string.Empty` |
+| Cache Write | swallow → log only | **rethrow** |
+| Vertex AI 429 | N/A | retry via Pub/Sub Nack |
+| Vertex AI other | N/A | Ack + fail |
+
+## Regras Absolutas
+
+1. **SQL sempre parametrizado** — nunca string interpolation para valores BigQuery
+2. **Temperature sempre 0.0** — transcrição médica
+3. **Golden images da Hapvida** — nunca MCR Microsoft
+4. **Credenciais via Base64** — nunca arquivo solto
+5. **CancellationToken propagado** — em todos os métodos async
+6. **Wrapper para SDKs externos** — para testabilidade
+7. **Config validação fail-fast** — no Bootstrapper
+8. **fetchDepth: 0** — obrigatório para SonarQube

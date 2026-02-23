@@ -1,0 +1,60 @@
+# Project Skills — SHY HubAI
+
+Skills específicos deste projeto seguindo o padrão [Agent Skills](https://agentskills.io).
+
+## Catálogo
+
+| Skill | Tipo | Descrição |
+|-------|------|-----------|
+| `coding-conventions` | code | Convenções de código .NET, naming, estilo Clean Arch |
+| `clean-arch-pattern` | code | Estrutura de camadas, regras de dependência, padrões |
+
+## Estrutura
+
+O project contém **configuração e extensões** para skills do core, e skills exclusivos deste projeto:
+
+```
+skills/
+└── {tipo}-{feature}-{ação}/
+    ├── config.yml          # Dados estruturados do projeto (para skills do core)
+    ├── SKILL.md            # Instruções do skill (ou extensão complementar)
+    └── ...
+```
+
+### Nomenclatura
+
+Formato obrigatório: **`{tipo}-{feature}-{ação}`** — sempre 3 segmentos, kebab-case.
+
+| Tipo | Propósito |
+|------|-----------|
+| `agent` | Comportamento e memória do agente |
+| `code` | Análise, manipulação de código e geração específica de linguagem/framework |
+| `project` | Gestão de projeto, contexto, codemap |
+| `skill` | Criação e gestão de skills |
+| `editor` | Formatação e linting no editor |
+| `infra` | Infraestrutura, cloud, devops, pipelines |
+
+## Como Criar
+
+Use a skill `skill-template-create` do core para criar novos skills:
+
+1. Defina o tipo, feature e ação: `{tipo}-{feature}-{ação}` (sempre 3 segmentos)
+2. Para skills do core: crie a lógica em `.copilot-core/skills/` e o `config.yml` aqui
+3. Para skills exclusivos: crie o `SKILL.md` diretamente aqui
+
+## Exemplo de SKILL.md
+
+```markdown
+---
+name: {tipo}-{feature}-{ação}
+description: {descrição completa incluindo triggers}
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: {tipo}
+---
+
+# {Nome do Skill}
+
+{Instruções em Markdown}
+```

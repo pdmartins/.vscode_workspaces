@@ -1,0 +1,7 @@
+# Action Review + Output Validate Creation
+
+- **date**: 2026-02-15
+- **status**: active
+- **context**: Sistema não tinha mecanismos proativos de qualidade — sem verificação de side-effects obrigatórios, sem validação de estrutura de artefatos, sem quality gate entre task-manage completar e sessão ser salva
+- **decision**: Duas skills complementares: (1) `agent-action-review` — valida completude e consistência cross-artefato (tipo agent), (2) `skill-output-validate` — valida estrutura e qualidade de artefatos de metadata (tipo skill). Separação por responsabilidade única: comportamento vs estrutura
+- **outcome**: Cadeia: agent-task-manage → agent-action-review → agent-chat-save. Padrão: quando validação cobre escopos diferentes (comportamento vs estrutura), separar em skills distintas em tipos distintos

@@ -1,0 +1,32 @@
+scenario: "Generate CQRS command handler"
+evaluation_type: quality
+difficulty: medium
+
+user_message: "cria o handler para o comando CreateOrderCommand"
+
+context:
+  project_stack: ["dotnet", "8.0", "MediatR", "CQRS", "DDD"]
+  existing_files:
+    - "src/Application/Commands/CreateOrderCommand.cs"
+    - "src/Domain/Entities/Order.cs"
+    - "src/Application/Interfaces/IOrderRepository.cs"
+
+target_skill: code-command-generate
+
+rubric:
+  - criterion: "Implements IRequestHandler<CreateOrderCommand, TResult>"
+    weight: 5
+  - criterion: "Constructor injection of dependencies (repository, UoW)"
+    weight: 5
+  - criterion: "Calls domain entity factory/constructor (not new Order())"
+    weight: 4
+  - criterion: "Uses repository pattern, not DbContext directly"
+    weight: 4
+  - criterion: "Returns Result<T> or similar, not raw entity"
+    weight: 3
+  - criterion: "Has cancellationToken in Handle method"
+    weight: 3
+  - criterion: "Single responsibility — only orchestration, no business logic"
+    weight: 4
+  - criterion: "Proper async/await without .Result or .Wait()"
+    weight: 5

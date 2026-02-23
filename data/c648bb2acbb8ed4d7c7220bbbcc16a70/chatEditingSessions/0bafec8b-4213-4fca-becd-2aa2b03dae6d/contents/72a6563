@@ -1,0 +1,24 @@
+scenario: "Ambiguous request — configure project"
+evaluation_type: routing
+difficulty: hard
+
+user_message: "configura o projeto"
+
+context:
+  project_stack: ["dotnet", "8.0"]
+  has_copilot_project: false
+  existing_files: ["src/Api/Api.csproj"]
+
+expected_skills:
+  - name: project-setup-bootstrap
+    must_activate: true
+    reason: "No .copilot-project configured — bootstrap is the right action"
+  - name: code-program-configure
+    must_activate: false
+    reason: "Without more context, project setup takes priority over Program.cs configuration"
+
+notes: |
+  This is intentionally ambiguous. The agent should either:
+  1. Ask for clarification (acceptable)
+  2. Choose project-setup-bootstrap based on missing .copilot-project (preferred)
+  The key test is that it does NOT jump to code-program-configure without asking.

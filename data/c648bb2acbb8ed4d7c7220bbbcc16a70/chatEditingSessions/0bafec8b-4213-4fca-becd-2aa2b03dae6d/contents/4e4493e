@@ -1,0 +1,8 @@
+# Virtual environment
+.venv/
+
+# Test artifacts
+.pytest_cache/
+reports/
+__pycache__/
+*.pyc

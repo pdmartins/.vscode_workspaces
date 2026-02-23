@@ -1,0 +1,7 @@
+# Backlog Manage Creation
+
+- **date**: 2026-02-17
+- **status**: active
+- **context**: Não havia mecanismo para registrar atividades futuras, features planejadas ou TODOs persistentes. agent-task-manage é efêmero, agent-chat-save salva sessão, agent-memory-update é orientado ao passado
+- **decision**: Criada skill `project-backlog-manage` no core. Persiste itens em `.copilot-project/backlog/backlog.md` com formato estruturado (IDs sequenciais BKL-NNN, prioridades, categorias). Auto-init, integra com agent-turn-reflect
+- **outcome**: 4 orientações temporais cobertas: passado (memory-update), presente/sessão (task-manage, chat-save), futuro (backlog-manage). Total: 63 skills

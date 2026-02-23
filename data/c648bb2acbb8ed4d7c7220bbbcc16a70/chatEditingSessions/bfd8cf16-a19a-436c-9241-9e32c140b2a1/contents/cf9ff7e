@@ -1,0 +1,72 @@
+---
+name: project-context-query
+description: Consulta o contexto atual do projeto - stack tecnológico, restrições, integrações e estado. Use antes de implementar funcionalidades, quando precisar confirmar tecnologias permitidas, ou verificar restrições. Triggers: "qual é o contexto", "que tecnologias usamos", antes de codificar, verificar restrições.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: project
+---
+
+# Project Context Query
+
+Consulta o contexto atual do projeto para guiar implementações.
+
+## Quando Usar
+
+- Início de sessão ou tarefa complexa
+- Verificar stack/tecnologias antes de implementar
+- Confirmar restrições antes de codificar
+- Usuário pergunta "qual é o contexto do projeto?"
+
+## Workflow
+
+### 1. Carregar contexto
+
+Ler: `{workspace}/.github/.copilot-project/context/project.md`
+
+**Se arquivo não existe:**
+→ Informar que contexto não foi inicializado
+→ Sugerir usar skill `project-context-init`
+
+### 2. Extrair informações relevantes
+
+Identificar seções:
+- **Objetivo**: O que o projeto faz
+- **Stack**: Tecnologias em uso
+- **Restrições**: O que NÃO pode fazer
+- **Integrações**: Sistemas conectados
+- **Estado**: Fase atual do projeto
+
+### 3. Aplicar restrições
+
+- Identificar restrições aplicáveis à tarefa
+- Validar que ações planejadas não violam restrições
+
+**Se ação viola restrição:**
+→ **PARAR** e informar usuário
+→ Sugerir alternativa dentro das restrições
+
+### 4. Confirmar stack
+
+- Usar APENAS tecnologias listadas no contexto
+- Se precisar de tecnologia não listada, perguntar ao usuário
+
+### 5. Apresentar resumo
+
+**Output**:
+```
+📋 **Contexto carregado**
+- Stack: {tecnologias principais}
+- Restrições ativas: {número}
+- Estado: {fase do projeto}
+```
+
+## Seções do Contexto
+
+| Seção | Conteúdo |
+|-------|----------|
+| Objetivo | Descrição do projeto |
+| Stack | Linguagens, frameworks, ferramentas |
+| Restrições | Limitações técnicas ou de negócio |
+| Integrações | APIs, serviços externos |
+| Estado | Fase atual (MVP, produção, etc) |

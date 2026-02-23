@@ -1,0 +1,42 @@
+# Project Context — Everyday Queries
+
+Estado atual do projeto para referência do Copilot.
+
+---
+
+## Objetivo
+
+Projeto pessoal para discutir, registrar e organizar conceitos, ideias e soluções em geral. Funciona como um repositório de conhecimento e decisões do dia a dia — sem stack definida, focado em documentação e raciocínio.
+
+## Repos
+
+| Repo | URL | Propósito |
+|------|-----|-----------|
+| `.copilot-core` | `https://github.com/pdmartins/.copilot-core.git` | Skills genéricos, instruções globais, templates |
+| `.copilot-project` | `https://github.com/pdmartins/.copilot-project.git` | Contexto, memória e skills específicos (branch `_pm/everyday_queries`) |
+
+## Natureza do Projeto
+
+| Aspecto | Detalhe |
+|---------|---------|
+| Tipo | Repositório de conhecimento pessoal |
+| Fase | Inicial |
+| Stack | Nenhuma — baseado em documentação (Markdown) |
+| Foco | Conceitos, ideias, decisões e soluções |
+
+## Padrões e Convenções
+
+- **Idioma do conteúdo**: Português brasileiro (preferencialmente)
+- **Formato**: Markdown
+- **Organização**: Por tópicos e categorias conforme necessidade
+
+## Próximos Passos
+
+- [ ] Plugar no projeto-alvo (script abaixo)
+- [ ] Começar a registrar conceitos e ideias
+enta |
+
+## Última Atualização
+
+**Data**: 2026-02-14
+**Motivo**: Migração de self-dogfooding para .copilot-project (branch _pm/copilot-core), eliminação do padrão excepcional de junction

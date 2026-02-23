@@ -1,0 +1,106 @@
+<#
+.SYNOPSIS
+    Adiciona os submodules do Copilot Agent Skills a um projeto.
+
+.DESCRIPTION
+    Script mínimo que apenas "pluga" os submodules .copilot-core e .copilot-project
+    na pasta .github/ do projeto. Não configura nada — use o Copilot Chat para isso.
+
+.PARAMETER ProjectName
+    Nome do projeto (usado como branch name para .copilot-project).
+    Default: nome da pasta atual.
+
+.PARAMETER CoreUrl
+    URL do repositório .copilot-core.
+
+.PARAMETER ProjectUrl
+    URL do repositório .copilot-project.
+
+.EXAMPLE
+    # One-liner (execução remota)
+    irm https://raw.githubusercontent.com/pdmartins/.copilot-core/main/.github/scripts/plug.ps1 -OutFile plug.ps1; .\plug.ps1; Remove-Item plug.ps1
+
+.EXAMPLE
+    # Com nome customizado
+    .\plug.ps1 -ProjectName "meu-projeto"
+#>
+
+[CmdletBinding()]
+param(
+    [Parameter(Position = 0)]
+    [string]$ProjectName,
+
+    [string]$CoreUrl = "https://github.com/pdmartins/.copilot-core.git",
+    [string]$ProjectUrl = "https://github.com/pdmartins/.copilot-project.git"
+)
+
+$ErrorActionPreference = "Stop"
+
+Write-Host ""
+Write-Host "  Copilot Agent Skills - Plug" -ForegroundColor Cyan
+Write-Host ""
+
+# --- Pré-requisitos ---
+
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    Write-Host "  [X] Git nao encontrado." -ForegroundColor Red
+    exit 1
+}
+
+if (-not (Test-Path ".git")) {
+    Write-Host "  [!] Nao e um repositorio Git. Inicializando..." -ForegroundColor Yellow
+    git init | Out-Null
+}
+
+if (Test-Path ".github/.copilot-core") {
+    Write-Host "  [!] Submodules ja existem. Use 'git submodule update --remote' para atualizar." -ForegroundColor Yellow
+    exit 0
+}
+
+# --- Nome do projeto ---
+
+if ([string]::IsNullOrEmpty($ProjectName)) {
+    $ProjectName = Split-Path -Leaf (Get-Location)
+}
+
+Write-Host "  Projeto: $ProjectName" -ForegroundColor White
+
+# --- Plug submodules ---
+
+Write-Host "  [1/3] Adicionando .copilot-core..." -ForegroundColor Cyan
+New-Item -ItemType Directory -Path ".github" -Force | Out-Null
+git submodule add $CoreUrl ".github/.copilot-core" 2>&1 | Out-Null
+Write-Host "  [+] .copilot-core ok" -ForegroundColor Green
+
+Write-Host "  [2/3] Adicionando .copilot-project..." -ForegroundColor Cyan
+$branchCheck = git ls-remote --heads $ProjectUrl $ProjectName 2>$null
+if ($branchCheck) {
+    git submodule add -b $ProjectName $ProjectUrl ".github/.copilot-project" 2>&1 | Out-Null
+    Write-Host "  [+] .copilot-project ok (branch existente: $ProjectName)" -ForegroundColor Green
+} else {
+    git submodule add $ProjectUrl ".github/.copilot-project" 2>&1 | Out-Null
+    Push-Location ".github/.copilot-project"
+    git checkout -b $ProjectName 2>&1 | Out-Null
+    Pop-Location
+    Write-Host "  [+] .copilot-project ok (branch nova: $ProjectName)" -ForegroundColor Green
+}
+
+Write-Host "  [3/3] Copiando instructions..." -ForegroundColor Cyan
+$src = ".github/.copilot-core/.github/instructions/workspace.instructions.md"
+if (Test-Path $src) {
+    New-Item -ItemType Directory -Path ".github/instructions" -Force | Out-Null
+    Copy-Item $src ".github/instructions/workspace.instructions.md" -Force
+    Write-Host "  [+] workspace.instructions.md copiado" -ForegroundColor Green
+}
+
+# --- Resultado ---
+
+Write-Host ""
+Write-Host "  Pronto!" -ForegroundColor Green
+Write-Host ""
+Write-Host "  Proximo passo:" -ForegroundColor White
+Write-Host "    git add . && git commit -m 'feat: add copilot agent'" -ForegroundColor Yellow
+Write-Host ""
+Write-Host "  Para configurar o projeto, abra o Copilot Chat e diga:" -ForegroundColor White
+Write-Host '    "configure este projeto"' -ForegroundColor Yellow
+Write-Host ""

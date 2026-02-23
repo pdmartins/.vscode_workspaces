@@ -1,0 +1,96 @@
+# .copilot-project
+
+Template de configurações específicas de projeto para o Copilot Agent.
+
+Segue o padrão [Agent Skills](https://agentskills.io).
+
+## Estrutura
+
+```
+.copilot-project/
+├── context/
+│   ├── project.md          # Estado atual do projeto (stack, restrições)
+│   └── code-map/           # Mapa de código estruturado
+│       └── index.md        # Índice mestre
+├── instructions/
+│   └── workspace.instructions.md  # Específico do projeto
+├── memory/
+│   └── lessons-learned.md  # Lições aprendidas e decisões
+├── chat-memory/            # Sessões de chat persistidas
+│   └── YYYY-MM-DD_{topic}.md
+├── skills/                 # Skills específicos do projeto
+│   └── {skill-name}/
+│       ├── config.yml      # Dados estruturados (opcional)
+│       └── SKILL.md        # Instruções complementares (opcional)
+└── README.md
+```
+
+## Uso
+
+Cada projeto tem sua própria **branch** com configurações específicas. Branches de projetos pessoais usam prefixo `_pm/`, organizações usam `_{org}/`.
+
+### Branches Disponíveis
+
+| Branch | Projeto | Descrição |
+|--------|---------|-----------|
+| `main` | - | Template base (agnóstico) |
+| `_pm/copilot-core` | Copilot Core | Workspace de desenvolvimento do core |
+| `_bw/bewiser.assistant.api` | BeWiser Assistant API | API de assistente BeWiser |
+| `_hv/STT` | VoiceTranscription.AI | Transcrição de voz (Hapvida) |
+| `_pm/docker-framework` | Docker Framework | Framework Docker multi-plataforma |
+| `_pm/everyday_queries` | Everyday Queries | Consultas SQL do dia-a-dia |
+| `_pm/scripts` | Scripts | Scripts de automação multi-plataforma |
+
+### Worktrees
+
+O `.copilot-project` usa **git worktrees** para acesso simultâneo a múltiplas branches:
+
+```
+.copilot-project/                              ← principal (branch ativa do workspace)
+.copilot-project-worktrees/
+├── main/                                      ← branch: main (template)
+├── _bw/bewiser.assistant.api/                 ← branch: _bw/bewiser.assistant.api
+├── _hv/STT/                                   ← branch: _hv/STT
+├── _pm/docker-framework/                      ← branch: _pm/docker-framework
+├── _pm/everyday_queries/                      ← branch: _pm/everyday_queries
+└── _pm/scripts/                               ← branch: _pm/scripts
+```
+
+## Como Adicionar um Novo Projeto
+
+1. Criar branch a partir da main:
+   ```bash
+   git checkout main
+   git checkout -b _pm/nome-do-projeto
+   ```
+
+2. Preencher `context/project.md` com informações do projeto
+
+3. Criar skills específicos em `skills/` (opcional):
+   ```
+   skills/
+   └── editor-english-sync/
+       └── SKILL.md
+   ```
+
+4. Push:
+   ```bash
+   git push -u origin _pm/nome-do-projeto
+   ```
+
+## Arquivos
+
+| Arquivo | Propósito | Quando Editar |
+|---------|-----------|---------------|
+| `context/project.md` | Stack, restrições, estado | Início do projeto, mudanças significativas |
+| `context/code-map/index.md` | Mapa de artefatos de código | Após criar/alterar código (automático via skill) |
+| `instructions/workspace.instructions.md` | Instruções específicas do workspace | Setup inicial, mudanças arquiteturais |
+| `memory/lessons-learned.md` | Lições e decisões | Após decisões importantes ou bugs |
+| `chat-memory/*.md` | Sessões de chat persistidas | Automático via `agent-chat-save` |
+| `skills/*/SKILL.md` | Skills específicos do projeto | Novos padrões ou integrações do projeto |
+| `skills/*/config.yml` | Config para skills core | Quando skill core precisa de dados do projeto |
+
+## Relacionado
+
+- [.copilot-core](https://github.com/pdmartins/.copilot-core) — Core do agente (56 skills genéricos)
+- [Agent Skills](https://agentskills.io) — Padrão utilizado

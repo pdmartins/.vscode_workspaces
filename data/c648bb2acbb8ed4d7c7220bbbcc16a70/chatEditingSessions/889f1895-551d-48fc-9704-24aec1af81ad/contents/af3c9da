@@ -1,0 +1,267 @@
+---
+name: code-controller-generate
+description: Padrões para controllers ASP.NET Core com rotas RESTful. Lê config.yml do project para convenções específicas. Use ao criar ou editar Controllers, definir rotas, implementar endpoints. Triggers: criar controller, novo endpoint, arquivos *Controller.cs, "API REST", rota.
+metadata:
+  author: copilot-core
+  version: "2.0"
+  category: code
+---
+
+# ASP.NET Controller Skill
+
+Padrões para criação de Controllers ASP.NET Core com rotas RESTful.
+
+## Quando Usar
+
+- Criar novo controller
+- Adicionar endpoints a controller existente
+- Implementar padrões REST
+- Revisar estrutura de API
+
+## Config Loading
+
+Antes de gerar código, carregar configurações do projeto:
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/code-controller-generate/config.yml`
+2. Se existe, carregar e usar as configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/code-controller-generate/SKILL.md`
+4. Se existe, carregar como instruções complementares (extensões específicas do projeto)
+5. Se nenhum existe, usar apenas os padrões genéricos abaixo
+
+## Padrão RESTful
+
+### Estrutura de Rotas
+
+```
+/api/{recursos}                    → Coleção
+/api/{recursos}/{id}               → Recurso específico
+/api/{recursos}/{id}/{subrecursos} → Sub-recursos
+```
+
+### Verbos HTTP e Semântica
+
+| Verbo | Rota | Ação | Request | Response | Status |
+|-------|------|------|---------|----------|--------|
+| GET | `/api/orders` | Listar | `ListOrdersRequest` (query) | `ListOrdersResponse` | 200 |
+| GET | `/api/orders/{id}` | Obter | - | `GetOrderResponse` | 200/404 |
+| POST | `/api/orders` | Criar | `CreateOrderRequest` | `CreateOrderResponse` | 201 |
+| PUT | `/api/orders/{id}` | Atualizar | `UpdateOrderRequest` | `UpdateOrderResponse` | 200/404 |
+| DELETE | `/api/orders/{id}` | Remover | - | - | 204/404 |
+
+### Regras RESTful
+
+1. **Substantivos no plural** para recursos: `/api/orders`, não `/api/order`
+2. **Kebab-case** para rotas compostas: `/api/phone-numbers`, não `/api/phoneNumbers`
+3. **IDs na rota** para recursos específicos: `/api/orders/{id}`
+4. **Query params** para filtros: `/api/orders?name=test&page=1`
+5. **Sem verbos na rota**: `/api/orders`, não `/api/getOrders`
+6. **Sub-recursos** para relacionamentos: `/api/orders/{id}/items`
+
+## Template de Controller
+
+```csharp
+using {RootNamespace}.Api.Contracts.Requests;
+using {RootNamespace}.Api.Contracts.Responses;
+using Microsoft.AspNetCore.Mvc;
+
+namespace {RootNamespace}.Api.Controllers;
+
+/// <summary>
+/// Manages {recurso} resources.
+/// </summary>
+[ApiController]
+[Route("api/[controller]")]
+[Produces("application/json")]
+public class {Recursos}Controller : ControllerBase
+{
+    private readonly I{Recurso}Service _{recurso}Service;
+    private readonly ILogger<{Recursos}Controller> _logger;
+
+    public {Recursos}Controller(
+        I{Recurso}Service {recurso}Service,
+        ILogger<{Recursos}Controller> logger)
+    {
+        _{recurso}Service = {recurso}Service;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Lists all {recursos} with pagination.
+    /// </summary>
+    [HttpGet]
+    [ProducesResponseType(typeof(List{Recursos}Response), StatusCodes.Status200OK)]
+    public async Task<ActionResult<List{Recursos}Response>> List(
+        [FromQuery] List{Recursos}Request request,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _{recurso}Service.ListAsync(request, cancellationToken);
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Gets a {recurso} by ID.
+    /// </summary>
+    [HttpGet("{id:guid}")]
+    [ProducesResponseType(typeof(Get{Recurso}Response), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<Get{Recurso}Response>> GetById(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _{recurso}Service.GetByIdAsync(id, cancellationToken);
+        
+        if (response is null)
+            return NotFound();
+            
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Creates a new {recurso}.
+    /// </summary>
+    [HttpPost]
+    [ProducesResponseType(typeof(Create{Recurso}Response), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<Create{Recurso}Response>> Create(
+        [FromBody] Create{Recurso}Request request,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _{recurso}Service.CreateAsync(request, cancellationToken);
+        return CreatedAtAction(nameof(GetById), new { id = response.Id }, response);
+    }
+
+    /// <summary>
+    /// Updates a {recurso}.
+    /// </summary>
+    [HttpPut("{id:guid}")]
+    [ProducesResponseType(typeof(Update{Recurso}Response), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<Update{Recurso}Response>> Update(
+        Guid id,
+        [FromBody] Update{Recurso}Request request,
+        CancellationToken cancellationToken = default)
+    {
+        var response = await _{recurso}Service.UpdateAsync(id, request, cancellationToken);
+        
+        if (response is null)
+            return NotFound();
+            
+        return Ok(response);
+    }
+
+    /// <summary>
+    /// Deletes a {recurso}.
+    /// </summary>
+    [HttpDelete("{id:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> Delete(
+        Guid id,
+        CancellationToken cancellationToken = default)
+    {
+        var deleted = await _{recurso}Service.DeleteAsync(id, cancellationToken);
+        
+        if (!deleted)
+            return NotFound();
+            
+        return NoContent();
+    }
+}
+```
+
+## Sub-recursos
+
+Para relacionamentos, criar endpoints aninhados:
+
+```csharp
+/// <summary>
+/// Lists {subRecursos} for a {recurso}.
+/// </summary>
+[HttpGet("{recursoId:guid}/{subRecursos}")]
+[ProducesResponseType(typeof(List{SubRecursos}Response), StatusCodes.Status200OK)]
+[ProducesResponseType(StatusCodes.Status404NotFound)]
+public async Task<ActionResult<List{SubRecursos}Response>> List{SubRecursos}(
+    Guid recursoId,
+    [FromQuery] List{SubRecursos}Request request,
+    CancellationToken cancellationToken = default)
+{
+    var response = await _{subRecurso}Service.ListBy{Recurso}Async(
+        recursoId, request, cancellationToken);
+    return Ok(response);
+}
+```
+
+**Exemplo concreto** — items de um order:
+
+```csharp
+[HttpGet("{orderId:guid}/items")]
+public async Task<ActionResult<ListOrderItemsResponse>> ListItems(
+    Guid orderId,
+    [FromQuery] ListOrderItemsRequest request,
+    CancellationToken cancellationToken = default)
+```
+
+## Status Codes
+
+| Código | Significado | Quando Usar |
+|--------|-------------|-------------|
+| 200 OK | Sucesso | GET, PUT com body de resposta |
+| 201 Created | Criado | POST (com Location header) |
+| 204 No Content | Sucesso sem body | DELETE |
+| 400 Bad Request | Validação falhou | Dados inválidos |
+| 401 Unauthorized | Não autenticado | Token ausente/inválido |
+| 403 Forbidden | Sem permissão | Autenticado mas não autorizado |
+| 404 Not Found | Não existe | Recurso não encontrado |
+| 409 Conflict | Conflito | Duplicidade, estado inválido |
+| 422 Unprocessable | Regra de negócio | Validação de domínio |
+
+## Convenções
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Classe | `{Recursos}Controller` | `OrdersController` |
+| Rota base | `api/[controller]` | `/api/orders` |
+| IDs | GUID com constraint | `{id:guid}` |
+| Plural | Sempre | `orders`, `products` |
+
+## Checklist de Aderência
+
+- [ ] Nome do controller no plural
+- [ ] Rota base: `api/[controller]`
+- [ ] Verbos HTTP corretos (GET, POST, PUT, DELETE)
+- [ ] Status codes apropriados
+- [ ] Requests em `Contracts/Requests/`
+- [ ] Responses em `Contracts/Responses/`
+- [ ] Nomenclatura: `[Verbo][Domínio]Request/Response`
+- [ ] Documentação XML para Swagger
+- [ ] `ProducesResponseType` em cada action
+- [ ] `CancellationToken` em métodos async
+
+## Config Schema
+
+```yaml
+# Config: .copilot-project/skills/code-controller-generate/config.yml
+
+language: csharp                           # Programming language
+framework: dotnet-8                        # Framework version
+solution: MyProject                        # Solution name
+
+project:
+  root_namespace: MyCompany.MyProject      # Root namespace for the solution
+  api_namespace: MyCompany.MyProject.Api   # API project namespace
+
+controllers:
+  namespace: "{root_namespace}.Api.Controllers"
+  contracts_requests: "{root_namespace}.Api.Contracts.Requests"
+  contracts_responses: "{root_namespace}.Api.Contracts.Responses"
+  route_prefix: "api/[controller]"         # Default route prefix
+  id_type: guid                            # ID type constraint (guid, int, etc.)
+
+domains:                                   # Domain entities in the project
+  - name: Order
+    plural: Orders
+    route: orders
+  - name: Product
+    plural: Products
+    route: products
+```

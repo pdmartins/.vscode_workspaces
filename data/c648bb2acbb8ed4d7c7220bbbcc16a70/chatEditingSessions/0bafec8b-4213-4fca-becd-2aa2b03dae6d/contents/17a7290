@@ -1,0 +1,31 @@
+scenario: "Generate DDD entity with proper patterns"
+evaluation_type: quality
+difficulty: medium
+
+user_message: "cria a entidade Order com Id, CustomerId, Items (lista de OrderItem) e Total (Money)"
+
+context:
+  project_stack: ["dotnet", "8.0", "DDD", "Entity Framework"]
+  existing_files:
+    - "src/Domain/ValueObjects/Money.cs"
+    - "src/Domain/Entities/Customer.cs"
+
+target_skill: code-entity-generate
+
+rubric:
+  - criterion: "Entity inherits from base Entity<T> or implements IEntity"
+    weight: 4
+  - criterion: "Private setters on properties (encapsulation)"
+    weight: 5
+  - criterion: "Factory method or validated constructor (no public default ctor)"
+    weight: 5
+  - criterion: "Items collection uses IReadOnlyCollection<T> for public API"
+    weight: 4
+  - criterion: "Total uses Money value object, not decimal"
+    weight: 4
+  - criterion: "Domain events raised for state changes"
+    weight: 3
+  - criterion: "Follows namespace convention from config (if available)"
+    weight: 3
+  - criterion: "Includes XML documentation on public members"
+    weight: 2

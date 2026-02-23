@@ -1,0 +1,183 @@
+# Project Context — Copilot Core
+
+Estado atual do projeto para referência do Copilot.
+
+---
+
+## Objetivo
+
+Sistema de instruções e skills reutilizáveis para o Copilot Agent, seguindo o padrão [Agent Skills](https://agentskills.io). Fornece um core genérico (`.copilot-core`) que é plugado via git submodule em qualquer projeto, junto com um repositório de dados por projeto (`.copilot-project`) com branch por projeto.
+
+## Repos
+
+| Repo | URL | Propósito |
+|------|-----|-----------|
+| `.copilot-core` | `https://github.com/pdmartins/.copilot-core.git` | Skills genéricos, instruções globais, templates |
+| `.copilot-project` | `https://github.com/pdmartins/.copilot-project.git` | Contexto, memória e skills específicos por projeto (branch por projeto) |
+
+## Stack
+
+| Componente | Tecnologia |
+|------------|------------|
+| Formato | Markdown (Agent Skills pattern) |
+| Versionamento | Git (submodules para distribuição) |
+| CI/CD | GitHub Actions (`sync-core.yml`) |
+| Padrão | [Agent Skills](https://agentskills.io) |
+| Commit | Conventional Commits |
+| Linting | markdownlint (via extensão VS Code) |
+
+## Arquitetura
+
+**Workspace de desenvolvimento** com dois repos lado a lado, gerenciados pelo `.copilot-core.code-workspace`:
+
+```
+copilot/                          # Pasta raiz do workspace
+├── .copilot-core/                # Repo principal (branch main)
+│   ├── .github/                  # Infraestrutura do próprio core (NÃO distribuído)
+│   │   ├── context/              # ← Contexto deste projeto (self-dogfooding)
+│   │   │   └── project.md
+│   │   ├── memory/               # ← Memória deste projeto (self-dogfooding)
+│   │   │   └── lessons-learned.md
+│   │   ├── docs/
+│   │   │   └── QUICK-START.md
+│   │   ├── instructions/
+│   │   │   └── workspace.instructions.md
+│   │   └── workflows/
+│   │       └── sync-core.yml
+│   ├── .source-control/
+│   │   └── commit-prompt.md
+│   ├── instructions/             # ← Distribuído via branch core
+│   │   └── default.instructions.md
+│   ├── skills/                   # ← Distribuído via branch core (26 skills)
+│   │   └── {skill-name}/SKILL.md
+│   └── templates/                # ← Distribuído via branch core
+│       └── workspace.instructions.md
+│
+├── .copilot-project/             # Repo auxiliar (branch por projeto)
+│   ├── context/
+│   │   └── project.md
+│   ├── memory/
+│   │   └── lessons-learned.md
+│   └── skills/
+│
+└── .github → .copilot-core/.github  # Junction link para self-dogfooding
+```
+
+### Estratégia de Branches
+
+#### `.copilot-core`
+
+| Branch | Propósito | Conteúdo |
+|--------|-----------|----------|
+| `main` | Desenvolvimento do core | Tudo (`.github/`, `.source-control/`, workspace file) |
+| `core` | Distribuição para projetos | Apenas `instructions/`, `skills/`, `templates/` |
+
+O workflow `sync-core.yml` sincroniza `main` → `core` automaticamente ao push, excluindo `.github/`.
+
+#### `.copilot-project`
+
+| Branch | Propósito |
+|--------|-----------|
+| `main` | Template base agnóstico |
+| `{nome-projeto}` | Dados específicos de cada projeto |
+
+### Projetos Consumidores
+
+Nos projetos-alvo, a estrutura final é:
+
+```
+{projeto}/
+└── .github/
+    ├── instructions/
+    │   ├── default.instructions.md      → symlink → .copilot-core/instructions/default.instructions.md
+    │   └── workspace.instructions.md    → symlink → .copilot-project/instructions/workspace.instructions.md
+    ├── .copilot-core/                  # Submodule (branch core)
+    └── .copilot-project/               # Submodule (branch do projeto)
+        └── instructions/
+            └── workspace.instructions.md   # Arquivo real específico do projeto
+```
+
+Os arquivos em `.github/instructions/` são **symlinks**, nunca cópias. Isso garante sincronização automática com os repos de origem.
+
+## Skills Core (26)
+
+| Tipo | Skill | Versão | Propósito |
+|------|-------|--------|-----------|
+| agent | `agent-memory-query` | 2.0 | Consultar lições aprendidas (com auto-init) |
+| agent | `agent-memory-register` | 2.0 | Registrar novas lições (com auto-init) |
+| agent | `agent-task-manage` | 1.0 | Gerenciar tarefas complexas |
+| code | `code-review-analyze` | 1.0 | Análise de qualidade, segurança e performance |
+| code | `code-refactor-extract` | 1.0 | Extração de métodos/classes, SRP |
+| code | `code-pattern-enforce` | 1.0 | Verificação e enforcement de padrões |
+| project | `project-context-query` | 2.0 | Consultar contexto do projeto (com auto-init) |
+| project | `project-context-update` | 2.0 | Atualizar contexto (com auto-init) |
+| project | `project-codemap-query` | 2.0 | Consultar mapa de código (com auto-init) |
+| project | `project-codemap-update` | 2.0 | Registrar/atualizar artefatos (com auto-init) |
+| project | `project-structure-analyze` | 1.0 | Analisar projeto e sugerir skills |
+| project | `project-workspace-create` | 3.0 | Criar projeto completo (Plan mode) |
+| project | `project-setup-bootstrap` | 5.0 | Configurar projeto (automático + manual) |
+| project | `project-repo-update` | 1.0 | Atualizar repos core e project |
+| project | `project-branch-switch` | 1.0 | Trocar branch do .copilot-project |
+| skill | `skill-template-create` | 2.0 | Criar novos skills |
+| editor | `editor-markdown-lint` | 1.0 | Regras de formatação Markdown |
+| lang | `lang-dotnet-service` | 1.0 | Geração de serviços/handlers .NET |
+| lang | `lang-dotnet-test` | 1.0 | Geração de testes unitários .NET |
+| infra | `infra-docker-build` | 1.0 | Geração de Dockerfile multi-stage |
+| infra | `infra-redis-cache` | 1.0 | Padrão cache-aside com Redis |
+| infra | `infra-bigquery-query` | 1.0 | Queries BigQuery parametrizadas |
+| infra | `infra-gcp-integrate` | 1.0 | Integração com serviços GCP |
+| infra | `infra-k8s-deploy` | 1.0 | Manifests Kubernetes |
+| infra | `infra-pipeline-deploy` | 1.0 | Pipelines CI/CD |
+| infra | `infra-vertexai-prompt` | 1.0 | Gestão de prompts Vertex AI |
+
+### Padrões dos Skills
+
+- **Naming**: `{tipo}-{feature}-{ação}` — sempre 3 segmentos, kebab-case
+- **Tipos**: `agent`, `code`, `project`, `skill`, `editor`, `lang`, `infra`
+- **category = tipo**: Primeiro segmento do nome no frontmatter
+- **Estrutura**: `skills/{name}/SKILL.md` (arquivo único por skill)
+- **Config pattern**: Skills `lang`, `infra` e `code` carregam `config.yml` do project
+- **Frontmatter**: YAML com `name`, `description`, `metadata` (`author`, `version`, `category`)
+- **Seções**: `## Quando Usar` → `## Workflow` com steps numerados
+- **Output**: Confirmações com emojis (`✅`, `📝`, `📚`, `🔄`, `🗺️`, `📋`)
+- **Auto-Init**: Skills de query/update inicializam estrutura automaticamente se não existe
+- **Core = lógica**: Regras genéricas ficam no core
+- **Project = config**: Dados específicos ficam em `config.yml` no project
+
+## Convenções
+
+1. **Self-dogfooding**: O `.copilot-core` usa seu próprio sistema de memória e contexto para governar seu desenvolvimento, excepcionalmente dentro de `.copilot-core/.github/`
+2. **Junction link**: No workspace de desenvolvimento, `.github` na raiz aponta para `.copilot-core/.github/` via junction
+3. **Português para chat, inglês para código**: Variáveis, nomes de arquivo, paths em inglês
+4. **Core é genérico**: Nunca referenciar projetos específicos nos skills core
+5. **Responsabilidade única**: Cada skill faz UMA coisa
+6. **Conventional Commits**: `<type>(<scope>): <description>` (single-line, ≤250 chars)
+7. **Instructions via symlink**: Arquivos em `.github/instructions/` são sempre symlinks, nunca cópias. `default.instructions.md` aponta para `.copilot-core/instructions/`, `workspace.instructions.md` aponta para `.copilot-project/instructions/`
+
+## Estado Atual
+
+**Fase**: Ativo
+**Status**: Core estável com 26 skills (nomenclatura `{tipo}-{feature}-{ação}`), sistema em uso em projetos reais (STT/VoiceTranscription)
+
+## Projetos Plugados
+
+| Branch (.copilot-project) | Projeto | Status |
+|---------------------------|---------|--------|
+| `main` | Template base | — |
+| `_hv/STT` | VoiceTranscription.AI (Hapvida) | Ativo |
+| `scripts` | Scripts de automação | Ativo |
+| `docker-framework` | Docker Framework | — |
+
+## Inconsistências Conhecidas
+
+| # | Issue | Local | Detalhe |
+|---|-------|-------|---------|
+| 1 | `project-repo-update` nota final incorreta | `skills/project-repo-update/SKILL.md` | Diz "Core usa branch `main`" — deveria ser `core` |
+| 2 | URLs hardcoded | `project-workspace-create` | `github.com/pdmartins/` não parametrizado |
+| 3 | `references/`, `scripts/`, `assets/` não usados | `workspace.instructions.md` loading flow | Documentado mas nenhum skill implementa |
+| 4 | `project-repo-update` nota sobre `.gitignore` | `skills/project-repo-update/SKILL.md` | Submodules são tracked por `.gitmodules`, não por `.gitignore` |
+
+## Última Atualização
+
+**Data**: 2026-02-10
+**Motivo**: Mudança para symlinks de instructions (default + workspace) em vez de cópias

@@ -1,0 +1,141 @@
+# Quick Start Guide
+
+Configure o sistema de skills do Copilot Agent em seu projeto em **menos de 2 minutos**.
+
+## TL;DR
+
+No workspace `.copilot-core` + `.copilot-project`, abra o Copilot Chat **em Plan mode** e diga:
+
+> "criar projeto meu-projeto"
+
+O agente:
+1. Entrevista sobre o projeto (escopo, stack, arquitetura, padrões)
+2. Propõe skills específicos para o projeto
+3. Cria branch com contexto, skills e memória preenchidos
+4. Fornece um **script** para colar no terminal do projeto-alvo
+
+> **💡 Por que Plan mode?** — Permite revisar contexto, skills propostos e estrutura antes de executar. Use Agent mode para tarefas diretas no dia a dia.
+
+---
+
+## Estrutura Criada
+
+```
+seu-projeto/
+├── .github/
+│   └── instructions/
+│       ├── agent-skills-core.instructions.md      → symlink → ../../.copilot-core/instructions/
+│       └── agent-skills-project.instructions.md   → symlink → ../../.copilot-project/instructions/
+│
+├── .copilot-core/                     # Submodule ou clone - Skills genéricos
+│   ├── .internal/                     # Ferramentas internas
+│   │   ├── config/
+│   │   ├── source-control/
+│   │   ├── templates/
+│   │   └── tests/
+│   ├── instructions/
+│   └── skills/                        # Organizados por tipo
+│       ├── agent/
+│       ├── code/
+│       ├── editor/
+│       ├── infra/
+│       ├── project/
+│       └── skill/
+│
+└── .copilot-project/                  # Submodule ou clone - Seu projeto
+    ├── context/
+    │   └── project.md
+    ├── instructions/
+    │   └── workspace.instructions.md
+    ├── memory/
+    │   └── lessons-learned.md
+    └── skills/
+```
+
+### Modos de Instalação
+
+| Modo | Quando usar | Visibilidade |
+|------|-------------|-------------|
+| **Aberto** | Submodules podem estar visíveis no repo | `git submodule add` → `git clone --recursive` |
+| **Stealth** | Submodules NÃO podem ser expostos | `git clone` + `.gitignore` → script por dev |
+
+---
+
+## Uso no VS Code
+
+### Via Copilot Chat
+
+Após plugar os submodules/clones, abra o Copilot Chat no projeto e diga:
+
+| Comando | O que faz |
+|---------|-----------|
+| "Configure este projeto" | Analisa stack e ajusta contexto |
+| "Analise este projeto" | Usa `project-structure-analyze` |
+| "Registre uma lição" | Usa `agent-memory-register` |
+| "Crie um skill para X" | Usa `skill-template-create` |
+| "Qual o contexto do projeto?" | Usa `project-context-query` |
+
+---
+
+## Clonando em Nova Máquina
+
+### Modo Aberto (submodule)
+
+Se você clonar um projeto que já tem os submodules:
+
+```bash
+git clone --recursive https://github.com/seu/projeto.git
+# ou
+git clone https://github.com/seu/projeto.git
+cd projeto
+git submodule update --init --recursive
+```
+
+### Modo Stealth (clone)
+
+Se o projeto usa modo stealth, rodar o script de setup:
+
+```bash
+# Exemplo:
+git clone -b main https://github.com/pdmartins/.copilot-core.git .copilot-core
+git clone -b {branch} https://github.com/pdmartins/.copilot-project.git .copilot-project
+mkdir -p .github/instructions
+ln -s ../../.copilot-core/instructions/agent-skills-core.instructions.md .github/instructions/agent-skills-core.instructions.md
+ln -s ../../.copilot-project/instructions/agent-skills-project.instructions.md .github/instructions/agent-skills-project.instructions.md
+```
+
+---
+
+## Troubleshooting
+
+### "fatal: repository not found"
+Verifique se tem acesso aos repositórios via `git clone`.
+
+### "submodule already exists"
+Remova e refaça:
+```bash
+git rm --cached .copilot-core .copilot-project
+rm -rf .copilot-core .copilot-project
+```
+
+### Submodules não aparecem após clone
+```bash
+git submodule update --init --recursive
+```
+
+---
+
+## Próximos Passos
+
+1. **Diga "configure este projeto"** no Copilot Chat para análise de stack e contexto
+2. **Edite `context/project.md`** com detalhes do seu projeto
+3. **Crie skills específicos** em `.copilot-project/skills/`
+4. **Registre lições** após resolver problemas
+
+---
+
+## Links
+
+- [Agent Skills Pattern](https://agentskills.io)
+- [.copilot-core](https://github.com/pdmartins/.copilot-core)
+- [.copilot-project](https://github.com/pdmartins/.copilot-project)

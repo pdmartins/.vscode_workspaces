@@ -1,0 +1,111 @@
+---
+name: agent-todo
+description: Gerencia tarefas complexas com visibilidade usando manage_todo_list. Use quando tarefa tem 4+ steps distintos, usuário pede múltiplas coisas, envolve criar/modificar múltiplos arquivos, ou requer planejamento. Triggers: tarefa complexa, lista de pedidos, múltiplos arquivos, "fazer X, Y e Z".
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: agent
+---
+
+# Agent Todo
+
+Gerencia tarefas complexas com visibilidade para o usuário.
+
+## Quando Usar
+
+Uma tarefa é COMPLEXA quando:
+- Envolve 4+ steps distintos
+- Usuário pede múltiplas coisas (lista numerada, vírgulas)
+- Envolve criar/modificar múltiplos arquivos
+- Requer múltiplas validações
+- Envolve criar nova estrutura
+
+## Quando NÃO Usar
+
+- Tarefa simples (1-3 steps)
+- Pergunta direta
+- Consulta de informação
+- Edição de arquivo único
+
+## Ferramenta
+
+Usar: `manage_todo_list`
+
+## Estados
+
+| Estado | Significado | Limite |
+|--------|-------------|--------|
+| not-started | Ainda não iniciado | - |
+| in-progress | Em execução | Máximo 1 |
+| completed | Concluído | - |
+
+## Workflow
+
+### 1. Avaliar complexidade
+
+**Se tarefa é COMPLEXA:**
+→ Criar TODO list
+→ Listar TODOS os steps identificados
+→ Marcar primeiro step como `in-progress`
+
+**Se tarefa é SIMPLES:**
+→ NÃO criar TODO list
+→ Executar diretamente
+
+### 2. Criar lista de tarefas
+
+```
+📋 **Lista de tarefas criada**
+```
+
+Exemplo de chamada:
+```json
+{
+  "todoList": [
+    {"id": 1, "title": "Analisar requisitos", "status": "in-progress"},
+    {"id": 2, "title": "Criar estrutura", "status": "not-started"},
+    {"id": 3, "title": "Implementar lógica", "status": "not-started"},
+    {"id": 4, "title": "Testar", "status": "not-started"}
+  ]
+}
+```
+
+### 3. Executar e atualizar
+
+Para cada step:
+
+1. Marcar como `in-progress`
+2. Executar o trabalho
+3. Marcar como `completed` **IMEDIATAMENTE**
+4. Marcar próximo como `in-progress`
+
+**Importante**: Marcar completed assim que terminar, não acumular.
+
+### 4. Ajustar durante execução
+
+**Se descobrir novo step:**
+→ Adicionar à lista
+→ Reordenar se necessário
+
+**Se step não for mais necessário:**
+→ Remover da lista
+
+**Se step revelar sub-tarefas:**
+→ Dividir em steps menores
+
+### 5. Finalizar
+
+Quando todos os steps estiverem `completed`:
+
+```
+✅ **Todas as tarefas concluídas**
+```
+
+## Boas Práticas
+
+| Prática | Descrição |
+|---------|-----------|
+| Títulos curtos | 3-7 palavras por título |
+| Ação clara | Títulos devem ser ações (verbos) |
+| Granularidade | Nem muito grande nem muito pequeno |
+| Atualização imediata | Marcar completed assim que terminar |

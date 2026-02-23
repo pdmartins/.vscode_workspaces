@@ -1,0 +1,67 @@
+"""Verify delegability classification consistency."""
+
+import re
+import pytest
+from conftest import VALID_DELEGABLE
+
+
+@pytest.mark.behavioral
+class TestDelegability:
+    def test_all_have_delegable(self, all_skills):
+        """Every skill must declare delegable status."""
+        missing = [s.name for s in all_skills if not s.delegable]
+        assert not missing, f"Skills missing 'delegable': {missing}"
+
+    def test_delegable_values_valid(self, all_skills):
+        """All delegable values must be in {{full, orchestrated, none}}."""
+        invalid = [
+            (s.name, s.delegable)
+            for s in all_skills
+            if s.delegable and s.delegable not in VALID_DELEGABLE
+        ]
+        assert not invalid, f"Invalid delegable values: {invalid}"
+
+    def test_task_manage_not_delegable(self, all_skills):
+        """agent-task-manage must be delegable: none."""
+        skill = next(
+            (s for s in all_skills if s.name == "agent-task-manage"), None
+        )
+        if skill:
+            assert skill.delegable == "none"
+
+    def test_turn_reflect_not_delegable(self, all_skills):
+        """agent-turn-reflect must be delegable: none."""
+        skill = next(
+            (s for s in all_skills if s.name == "agent-turn-reflect"), None
+        )
+        if skill:
+            assert skill.delegable == "none"
+
+    def test_git_guard_not_delegable(self, all_skills):
+        """agent-git-guard must be delegable: none."""
+        skill = next(
+            (s for s in all_skills if s.name == "agent-git-guard"), None
+        )
+        if skill:
+            assert skill.delegable == "none"
+
+    def test_catalog_matches_frontmatter(self, all_skills, catalogs):
+        """Delegable value in catalog must match frontmatter."""
+        for skill in all_skills:
+            if skill.name.endswith("-catalog-query"):
+                continue
+            catalog_content = catalogs.get(skill.type_folder, "")
+            if not catalog_content:
+                continue
+
+            pattern = (
+                rf"\|\s*`{re.escape(skill.name)}`\s*\|"
+                rf".*?\|\s*(\w+)\s*\|\s*$"
+            )
+            match = re.search(pattern, catalog_content, re.MULTILINE)
+            if match:
+                catalog_val = match.group(1).strip()
+                assert catalog_val == skill.delegable, (
+                    f"'{skill.name}': catalog='{catalog_val}', "
+                    f"frontmatter='{skill.delegable}'"
+                )

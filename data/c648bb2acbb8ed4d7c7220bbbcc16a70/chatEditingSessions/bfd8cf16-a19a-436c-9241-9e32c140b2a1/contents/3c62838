@@ -1,0 +1,131 @@
+---
+name: infra-k8s-deploy
+description: Gera manifests Kubernetes. Padrões genéricos de deployment, lê config.yml do project para labels, sidecars, resources, health probes. Triggers: "k8s", "kubernetes", "deploy", "manifest", "replicas", "health check", "sidecar", ao trabalhar com infraestrutura.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: infra
+---
+
+# Infra K8s Deploy
+
+Gera manifests Kubernetes seguindo padrões configuráveis por projeto.
+
+## Quando Usar
+
+- Criar novo deployment K8s
+- Modificar resources, env vars, health checks
+- Adicionar sidecars ou configmaps
+- Configurar probes e estratégia de deploy
+
+## Config Loading
+
+1. Verificar se existe `{workspace}/.github/.copilot-project/skills/infra-k8s-deploy/config.yml`
+2. Se existe, carregar configurações do projeto
+3. Verificar se existe `{workspace}/.github/.copilot-project/skills/infra-k8s-deploy/SKILL.md`
+4. Se existe, carregar instruções complementares
+5. Se nenhum existe, usar padrões genéricos
+
+## Padrões Genéricos
+
+### Deployment Strategy
+
+- `RollingUpdate` com `maxSurge: 25%` e `maxUnavailable: 25%`
+
+### Placeholders para CI/CD
+
+Usar placeholders para valores que variam por ambiente:
+
+| Placeholder | Descrição |
+|-------------|-----------|
+| `___NAMESPACE___` | Namespace Kubernetes |
+| `___REPLICAS___` | Número de réplicas |
+| `___IMAGE_NAME___` | Nome da imagem |
+| `___BUILD_NUMBER___` | Tag da imagem |
+
+### Health Checks (APIs)
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 80
+  initialDelaySeconds: 15
+  periodSeconds: 20
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 80
+  initialDelaySeconds: 5
+  periodSeconds: 10
+```
+
+Workers/Consumers geralmente não expõem health checks HTTP.
+
+### Environment Variables
+
+- Usar `__` (double underscore) como separador para .NET config binding
+- Categorizar: Application, APM, Resilience, Cloud, Cache
+
+### Service (APIs)
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: {service-name}
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 80
+```
+
+Workers não expõem Service.
+
+## Checklist
+
+- [ ] Placeholders para todos os valores variáveis por ambiente
+- [ ] Rolling update strategy
+- [ ] Health checks (somente para APIs HTTP)
+- [ ] Env vars com separador correto para a stack
+- [ ] Resources requests e limits parametrizados
+- [ ] Sidecars conforme config
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/infra-k8s-deploy/config.yml
+strategy:
+  type: RollingUpdate
+  maxSurge: "25%"
+  maxUnavailable: "25%"
+apm:
+  enabled: true
+  provider: Datadog
+  labels:
+    tags.datadoghq.com/env: "___NAMESPACE___"
+    tags.datadoghq.com/service: "{service-name}"
+    tags.datadoghq.com/version: "___BUILD_NUMBER___"
+health:
+  api:
+    liveness: { path: /health, port: 80, delay: 15, period: 20 }
+    readiness: { path: /ready, port: 80, delay: 5, period: 10 }
+  worker: none
+sidecars:
+  - name: redis
+    image: "redis:7.0.0-bullseye"
+    port: 6379
+    config: redis.conf
+    applies-to: [api]
+env-categories:
+  - Datadog
+  - Telemetry
+  - Resilience
+  - GCP
+  - Cache
+image:
+  registry-placeholder: "___GCR___"
+  name-placeholder: "___IMAGE_NAME___"
+  tag-placeholder: "___BUILD_NUMBER___"
+```

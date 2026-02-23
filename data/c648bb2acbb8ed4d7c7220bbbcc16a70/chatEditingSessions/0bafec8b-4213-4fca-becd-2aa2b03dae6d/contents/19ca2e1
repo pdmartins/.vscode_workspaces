@@ -1,0 +1,124 @@
+---
+name: project-scope-validate
+description: Valida se funcionalidade solicitada está dentro do escopo do projeto. Use SEMPRE antes de implementar nova funcionalidade, endpoint, ou feature significativa. Triggers: "criar", "implementar", "adicionar", nova feature, novo endpoint, nova integração.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: project
+---
+
+# Scope Validation Skill
+
+Valida se funcionalidades solicitadas estão dentro do escopo do projeto BeWiser Assistant.
+
+## Quando Usar
+
+**SEMPRE** antes de implementar:
+- Nova funcionalidade/feature
+- Novo endpoint de API
+- Nova integração externa
+- Mudança arquitetural significativa
+
+## Workflow
+
+### 1. Identificar funcionalidade
+
+Extrair da solicitação do desenvolvedor:
+- O que será implementado
+- Qual problema resolve
+- Quais integrações requer
+
+### 2. Consultar escopo
+
+Verificar em `context/project.md`:
+- Está listado em "Dentro do Escopo"?
+- Está listado em "Fora do Escopo"?
+- É extensão natural de algo existente?
+
+### 3. Classificar
+
+| Classificação | Ação |
+|---------------|------|
+| **Dentro do escopo** | Prosseguir normalmente |
+| **Extensão natural** | Prosseguir, considerar atualizar contexto |
+| **Ambíguo** | Questionar desenvolvedor |
+| **Fora do escopo** | Questionar e aguardar confirmação |
+
+### 4. Questionar se necessário
+
+**Se fora do escopo ou ambíguo:**
+
+```
+⚠️ **Validação de Escopo**
+
+A funcionalidade solicitada [{descrição}] parece estar fora do escopo atual do projeto.
+
+**Escopo atual:** {resumo do escopo}
+
+**Solicitação:** {o que foi pedido}
+
+**Questões:**
+1. Esta funcionalidade deve realmente ser implementada?
+2. Isso representa uma mudança de direção do projeto?
+
+**Se confirmar:** Atualizarei o contexto do projeto antes de implementar.
+```
+
+### 5. Atualizar contexto se confirmado
+
+**Se desenvolvedor confirmar funcionalidade fora do escopo:**
+
+1. Abrir `context/project.md`
+2. Adicionar funcionalidade em "Dentro do Escopo"
+3. Remover de "Fora do Escopo" se estava lá
+4. Atualizar seção relevante (Exemplos, Regras, etc)
+5. Registrar em `memory/lessons-learned.md` a mudança de escopo
+
+## Escopo Atual (Referência Rápida)
+
+### ✅ Dentro do Escopo
+
+- API para gerenciar assistentes
+- Integração com WhatsApp (Twilio/Meta API)
+- Configuração de capacidades por assistente
+- Gerenciamento de conversas
+- Agendamentos e lembretes
+- Processamento de linguagem natural
+- Multi-tenancy (múltiplos assistentes)
+
+### ❌ Fora do Escopo
+
+- Interface web para usuários finais (apenas API)
+- Outros canais além de WhatsApp (Telegram, SMS, etc)
+- Pagamentos diretos pelo assistente
+- Integrações com ERPs específicos (sem generalização)
+
+## Exemplos de Validação
+
+### Exemplo 1: Dentro do escopo
+**Solicitação:** "Criar endpoint para listar conversas de um assistente"
+**Classificação:** ✅ Dentro do escopo (gerenciamento de conversas)
+**Ação:** Prosseguir normalmente
+
+### Exemplo 2: Fora do escopo
+**Solicitação:** "Criar integração com Telegram"
+**Classificação:** ❌ Fora do escopo (outros canais)
+**Ação:** Questionar desenvolvedor
+
+### Exemplo 3: Ambíguo
+**Solicitação:** "Criar dashboard de métricas"
+**Classificação:** ⚠️ Ambíguo (não mencionado explicitamente)
+**Ação:** Questionar - é API interna ou interface web?
+
+## Template de Atualização de Contexto
+
+Quando escopo mudar, adicionar em `memory/lessons-learned.md`:
+
+```markdown
+### [YYYY-MM-DD] Mudança de Escopo: {título}
+
+**Contexto**: Desenvolvedor solicitou {funcionalidade}
+**Decisão**: Funcionalidade aprovada e adicionada ao escopo
+**Impacto**: {descrição do impacto no projeto}
+**Atualização**: context/project.md atualizado
+```

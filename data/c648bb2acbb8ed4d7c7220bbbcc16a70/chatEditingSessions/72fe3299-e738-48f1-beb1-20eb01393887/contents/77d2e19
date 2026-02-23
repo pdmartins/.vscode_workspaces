@@ -1,0 +1,29 @@
+---
+project: copilot-core
+updated: 2026-02-17
+---
+
+# Backlog
+
+## Alta Prioridade
+
+- [ ] `BKL-001` **Onboarding de projetos em andamento** — Criar solução/skill para que o agente consiga entender e mapear um projeto já em andamento quando o .copilot-core é plugado pela primeira vez (deep scan de estrutura, stack, dependências, padrões existentes, estado atual). Deve preencher automaticamente project.md, code-map e contexto relevante a partir da análise do repositório existente. `[research]` _2026-02-17_
+
+## Média Prioridade
+
+- [ ] `BKL-002` **Avaliar renaming do projeto .copilot-core** — Avaliar a necessidade de renomear o projeto .copilot-core (e possivelmente .copilot-project) para evitar confusão com o termo "Copilot" do GitHub Copilot. Considerar impacto em repos existentes, symlinks, instruções, documentação e branding do Agent Skills. `[research]` _2026-02-17_
+- [ ] `BKL-004` **Avaliar idioma das skills (PT vs EN)** — Testar se o agente interpreta e executa melhor as skills quando escritas em inglês vs português. Comparar qualidade de resposta, aderência às instruções e edge cases. Se confirmado, planejar migração gradual. `[research]` _2026-02-17_
+
+
+## Baixa Prioridade
+
+
+## Ideias / Explorar
+
+- [ ] `BKL-005` **Incorporar BMAD no .copilot-core** — Avaliar e integrar o framework BMAD (Breakthrough Method of Agile AI-driven Development) no sistema de skills do .copilot-core. Analisar quais conceitos, workflows e artefatos do BMAD complementam ou substituem skills existentes. `[research]` _2026-02-17_
+
+
+## Concluídos (recentes)
+
+- [x] `BKL-003` **Implementar archive no backlog** — Separar itens concluídos em archive.md para manter backlog.md enxuto. Máximo 5 recentes no backlog, restante agrupado por mês no archive. `[skill]` _2026-02-17_ ✅ _2026-02-17_
+

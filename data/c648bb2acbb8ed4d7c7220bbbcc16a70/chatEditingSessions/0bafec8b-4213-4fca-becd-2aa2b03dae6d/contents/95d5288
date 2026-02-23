@@ -1,0 +1,157 @@
+````skill
+---
+name: agent-impact-validate
+description: Valida impacto em cascata de edições multi-arquivo. Verifica referências cruzadas, consistência de nomes/paths/contagens, e integridade de links internos. Complementa agent-action-review focando em efeitos colaterais não-óbvios. Triggers - "valida impacto", "verifica cascata", "checka referências", "consistência cross-file", auto após edições em 3+ arquivos.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: agent
+  delegable: full
+---
+
+# Agent Impact Validate
+
+Valida impacto em cascata após edições multi-arquivo. Foca em efeitos colaterais não-óbvios que `agent-action-review` não cobre (referências quebradas, contagens desatualizadas, nomes renomeados inconsistentemente).
+
+## Quando Usar
+
+- **Automaticamente** quando `agent-action-review` detecta edições em 3+ arquivos
+- Após renomear arquivos, skills, ou paths referenciados em múltiplos locais
+- Após alterar templates que são fonte de verdade para outros arquivos
+- Após modificar instruction files (symlinks, manifests, contagens)
+- Sob demanda: "valida impacto", "checka referências"
+
+## Quando NÃO Usar
+
+- Edições em arquivo único sem referências externas
+- Alterações read-only (consultas, queries)
+- Validação de qualidade de código (usar `code-review-analyze`)
+- Validação de completude de side-effects (usar `agent-action-review`)
+
+## Diferença de agent-action-review
+
+| Aspecto | agent-action-review | agent-impact-validate |
+|---------|--------------------|-----------------------|
+| **Foco** | Side-effects obrigatórios foram executados? | Edições criaram inconsistências? |
+| **Quando** | Após task-manage completar | Após edições multi-arquivo |
+| **Escopo** | Codemap, memória, contexto, contagens | Referências, paths, nomes, links |
+| **Natureza** | Checklist de completude | Análise de cascata |
+
+## Workflow
+
+### 1. Coletar grafo de impacto
+
+Para cada arquivo modificado, identificar:
+
+```
+arquivo_modificado
+  ├── referenciado_por: [lista de arquivos que apontam para ele]
+  ├── referencia: [lista de arquivos que ele aponta]
+  └── tipo_mudança: rename | content | delete | create
+```
+
+### 2. Analisar por tipo de mudança
+
+#### Rename de arquivo/path
+
+| Verificação | Como |
+|-------------|------|
+| Referências ao path antigo ainda existem? | `grep_search` pelo path antigo no workspace |
+| Symlinks apontam para path correto? | Verificar targets dos symlinks |
+| Templates usam o nome correto? | Verificar `.copilot-core/.internal/templates/` |
+| Skills referenciam o path correto? | Verificar SKILL.md que mencionam o arquivo |
+| Instruction files atualizados? | Verificar ambos instruction files |
+
+#### Rename de skill
+
+| Verificação | Como |
+|-------------|------|
+| Catálogo do tipo inclui novo nome? | `{tipo}-catalog-query/SKILL.md` |
+| `agent-subagent-delegate` referencia novo nome? | Verificar classificação delegable |
+| Instruction files listam novo nome? | Capability Manifest + Always-Known |
+| Outros skills que referenciam por nome atualizados? | grep pelo nome antigo |
+
+#### Alteração de contagens/números
+
+| Verificação | Como |
+|-------------|------|
+| Contagem de skills consistente? | Comparar Capability Manifest em todos os instructions |
+| Contagem no project.md consistente? | Cross-check com instructions |
+| Versões de SKILL.md consistentes? | Comparar metadata |
+
+#### Alteração de template (fonte de verdade)
+
+| Verificação | Como |
+|-------------|------|
+| Instâncias derivadas do template estão atualizadas? | Comparar templates vs instâncias |
+| Novos campos no template estão nos derivados? | Cross-check estruturas |
+| Campos removidos do template foram limpos nos derivados? | Verificar campos obsoletos |
+
+### 3. Executar validações
+
+Para cada par (arquivo_modificado, referenciador):
+
+```
+1. Ler o arquivo referenciador
+2. Verificar se todas as referências ao item modificado estão corretas
+3. Reportar inconsistências encontradas
+```
+
+### 4. Gerar relatório de impacto
+
+```
+🔍 **Validação de Impacto em Cascata**
+
+📊 Grafo: {N} arquivos modificados → {M} referências verificadas
+
+✅ `.github/instructions/` — symlinks corretos
+✅ `.copilot-core/.internal/templates/workspace.instructions.md` — contagens corretas
+⚠️ `.copilot-core/skills/project/project-setup-bootstrap/SKILL.md` — referencia path antigo `default.instructions.md` na linha 42
+🔴 `.copilot-project/context/project.md` — contagem diz 56 skills, deveria ser 58
+
+**Impacto total**: {N} inconsistências ({X} ⚠️, {Y} 🔴)
+```
+
+### 5. Aplicar correções
+
+**Modo automático** (integrado na cadeia de finalização):
+→ Corrigir automaticamente: referências de path, contagens, nomes
+→ Reportar ao usuário: mudanças estruturais que precisam de decisão
+
+**Modo sob demanda**:
+→ Apresentar relatório completo + correções sugeridas
+→ Perguntar: "Quer que eu aplique as correções?"
+
+## Cadeia de Finalização (atualizada)
+
+```
+agent-task-manage (todas completed)
+  → agent-action-review (valida side-effects)
+    → agent-impact-validate (valida cascata, se 3+ arquivos)
+      → agent-chat-save (salva sessão se complexa)
+```
+
+## Checklist Rápida de Cascata
+
+- [ ] Paths renomeados: grep pelo nome antigo encontra 0 resultados?
+- [ ] Symlinks: todos resolvem para arquivos reais?
+- [ ] Contagens: Capability Manifest consistente em todos os instructions?
+- [ ] Catálogos: skills novos listados, skills removidos excluídos?
+- [ ] Templates: instâncias derivadas refletem mudanças do template?
+- [ ] Cross-references: skills que referenciam outros skills usam nomes corretos?
+- [ ] project.md: informações refletem estado atual pós-edições?
+
+## Subagent Pattern
+
+**Tipo**: `full` — pode ser delegado integralmente a subagent.
+
+### Prompt Exemplo
+
+```
+runSubagent({
+  description: "Validate cascade impact",
+  prompt: "Leia .copilot-core/skills/agent/agent-impact-validate/SKILL.md. Arquivos modificados nesta sessão: {lista}. Para cada arquivo, identifique todos os referenciadores. Verifique consistência de paths, nomes, contagens. Retorne: relatório de impacto com findings categorizados (✅/⚠️/🔴)."
+})
+```
+
+````

@@ -1,0 +1,91 @@
+```skill
+---
+name: agent-git-guard
+description: Controla permissões de operações git (add, commit, push) por projeto. Carrega config.yml do projeto para determinar o que é permitido. Toda operação git DEVE passar por esta skill antes de executar. Default = nenhuma operação permitida. Triggers - git add, git commit, git push, antes de qualquer comando git.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: agent
+  delegable: none
+---
+
+# Agent Git Guard
+
+Intercepta toda operação git para verificar permissões do projeto.
+
+## Quando Usar
+
+- **Sempre** — antes de executar `git add`, `git commit` ou `git push`
+- O agente NÃO deve rodar nenhum comando git sem consultar esta skill
+
+## Config Loading
+
+1. Verificar `{workspace}/.copilot-project/skills/agent-git-guard/config.yml`
+2. Se existe → carregar permissões
+3. Se não existe → **default: tudo bloqueado**
+
+## Workflow
+
+### 1. Identificar operação e repo-alvo
+
+| Info | Como obter |
+|------|-----------|
+| Operação | `add`, `commit`, `push` |
+| Repo | Path do diretório (ex: `.copilot-core`, `.copilot-project`, repo principal) |
+
+### 2. Consultar config
+
+Mapear o repo ao alias no config. Se repo não está listado → **bloqueado**.
+
+### 3. Verificar permissão
+
+| Resultado | Ação |
+|-----------|------|
+| ✅ Permitido | Executar a operação git |
+| ❌ Bloqueado | **Não executar**. Informar o usuário |
+
+### 4. Output quando bloqueado
+
+```
+🚫 Git {operação} bloqueado para {repo}.
+   Permissões em: .copilot-project/skills/agent-git-guard/config.yml
+   O usuário pode revisar as alterações no Source Control do VS Code.
+```
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/agent-git-guard/config.yml
+repos:
+  copilot-core:                    # alias livre
+    path: .copilot-core            # path relativo ao workspace
+    add: true
+    commit: true
+    push: true
+    commit_message_prefix: ""      # opcional: prefixo para commits
+
+  copilot-project:
+    path: .copilot-project
+    add: true
+    commit: true
+    push: true
+
+  main:                            # repo principal do projeto
+    path: .
+    add: false
+    commit: false
+    push: false
+
+# Default para repos não listados
+default:
+  add: false
+  commit: false
+  push: false
+```
+
+## Notas
+
+- `delegable: none` — permissões de git são decisão do main agent, não de subagents
+- Default seguro: sem config = sem git. Projetos opt-in explicitamente
+- Commit message pode ser controlada via `commit_message_prefix` no config
+```

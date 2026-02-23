@@ -1,0 +1,71 @@
+# lang-dotnet-service — STT Project Configuration
+# Consumed by core skill: .copilot-core/skills/lang-dotnet-service/SKILL.md
+
+language: csharp
+framework: dotnet-8
+solution: Hapvida.TI.VoiceTranscription
+
+projects:
+  api:
+    name: VoiceTranscription
+    root_namespace: Hapvida.TI.VoiceTranscription
+    type: webapi
+    di_lifetime: Scoped        # services → Scoped, wrappers → Singleton
+    layers:
+      presentation: Api
+      domain: Domain
+      infrastructure:
+        - Infra.Data.Queries
+        - Infra.Cache
+      tests: UnitTests
+    artifacts:
+      interface_service: Domain/Contracts/v1/Services/
+      interface_wrapper: Domain/Contracts/v1/Wrappers/
+      service_impl: Domain/Services/v1/
+      wrapper_impl: Domain/Wrappers/v1/
+      query_handler: Infra.Data.Queries/Queries/v1/{Name}/
+      command_handler: Infra.Data.Queries/Commands/v1/{Name}/
+      models: Domain/Models/v1/
+      dtos: Domain/Dtos/
+      controllers: Api/Controllers/v1/
+      bootstrapper: Api/Bootstrapper.cs
+    logging_template: LogsTemplate
+    infra_namespace_quirk: "Hapvvida"  # RootNamespace has doubled 'v'
+
+  consumer:
+    name: VoiceTranscription.AI
+    root_namespace: Hapvida.TI.VoiceTranscription.Ai
+    type: worker
+    di_lifetime: Singleton     # consumer → tudo Singleton
+    layers:
+      presentation: Consumer
+      domain: Domain
+      infrastructure:
+        - Infra.Cache
+      tests: UnitTests
+    artifacts:
+      interface: Domain/Contracts/v1/
+      service_impl: Domain/Services/v1/
+      wrapper_impl: Domain/Wrappers/v1/
+      command_handler: Domain/Commands/v1/{Name}/
+      models: Domain/Models/v1/
+      dtos: Domain/Dtos/
+      bootstrapper: Consumer/Bootstrapper.cs
+    logging_template: LogTemplate
+
+patterns:
+  architecture: layered
+  cqrs: mediatr-lite           # Query/Command via MediatR
+  config: options-pattern       # IOptions<T>
+  testability: wrapper-pattern  # Thin wrappers for external SDKs
+  null_guard: throw-if-null     # ArgumentNullException.ThrowIfNull()
+  versioning: folder-v1         # Pasta v1/ em todas as camadas
+  async_suffix: true
+  code_language: english
+  log_language: portuguese
+
+conventions:
+  namespace: "{RootNamespace}.{Layer}.{Feature}.v1"
+  cancellation_token: always
+  structured_logging: true
+  fail_fast_config: true        # Validate settings in constructor

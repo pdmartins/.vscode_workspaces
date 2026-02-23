@@ -1,0 +1,29 @@
+"""Verify workflow chain definitions are consistent across artifacts."""
+
+import re
+import pytest
+
+
+@pytest.mark.behavioral
+class TestWorkflowChains:
+    def test_finalization_chain_in_instructions(self, core_instructions):
+        """task-manage -> action-review -> impact-validate -> chat-save chain."""
+        chain_skills = [
+            "agent-task-manage",
+            "agent-action-review",
+            "agent-impact-validate",
+            "agent-chat-save",
+        ]
+        for skill_name in chain_skills:
+            assert skill_name in core_instructions, (
+                f"Finalization chain: '{skill_name}' missing from instructions"
+            )
+
+    def test_turn_reflect_in_instructions(self, core_instructions):
+        """agent-turn-reflect must be referenced in core instructions."""
+        assert "agent-turn-reflect" in core_instructions
+
+    def test_turn_reflect_in_always_known(self, core_instructions):
+        """agent-turn-reflect must be in Always-Known list."""
+        section = re.search(
+            r"Always-Known.*?(?=###|\Z)", core_instructions, re.DOTALL

@@ -1,0 +1,49 @@
+---
+name: agent-catalog-query
+description: Catálogo de skills do tipo agent — memória, tarefas, sessões, validação, sincronização e comportamento do agente. Consulte este catálogo quando a tarefa envolver lições aprendidas, memória, registro de decisões, gestão de tarefas complexas, persistência/retomada de sessões de chat, validação pós-ação, validação de impacto em cascata, ou sincronização de memória. Triggers: qual skill de agent usar, listar skills agent, memória, lições, tarefas, sessão, chat, retomar, salvar sessão, revisar, validar, verificar, impacto, cascata, sincronizar.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: agent
+  delegable: full
+---
+
+# Agent Skills Catalog
+
+Catálogo de skills do tipo `agent` para descoberta rápida.
+
+## Skills Disponíveis
+
+| Skill | Ação | Quando Usar | Keywords | Delegable |
+|-------|------|-------------|----------|-----------|
+| `agent-memory-query` | Consultar | Início de tarefas complexas, verificar decisões passadas, evitar erros documentados | lições, decisões, histórico, padrões aprendidos | full |
+| `agent-memory-update` | Atualizar | Após decisões importantes, correção de código gerado, descoberta de padrões, preferências do usuário | guardar, salvar, anotar, lembrar, memorizar, "não é assim" | full |
+| `agent-task-manage` | Gerenciar | Tarefa com 4+ steps, múltiplos pedidos, múltiplos arquivos | todo, tarefas, planejar, steps, "fazer X, Y e Z" | none |
+| `agent-subagent-delegate` | Delegar | Antes de usar runSubagent, consultar viabilidade de delegação | subagent, delegar, paralelizar, runSubagent | full |
+| `agent-chat-save` | Salvar sessão | Preservar contexto antes de trocar de máquina/encerrar chat, auto após task-manage completar | salva sessão, guarda sessão, finaliza sessão, trocar de máquina | full |
+| `agent-chat-resume` | Retomar sessão | Continuar trabalho de sessão anterior, retomar de onde parou | retoma sessão, continua sessão, última sessão, "o que eu estava fazendo" | full |
+| `agent-action-review` | Validar ações | Auto após task-manage completar, ou sob demanda para verificar completude e consistência | revisa, verifica, "tá tudo certo?", validar ações, review | full |
+| `agent-impact-validate` | Validar cascata | Auto após edições em 3+ arquivos, renames, alterações em templates/instructions | impacto, cascata, referências, consistência cross-file | full |
+| `agent-memory-sync` | Sincronizar memória | Sincronizar arquivos .md com MCP memory-service para busca semântica | sincronizar, sync, indexar, reindexar, mcp memory | full |
+| `agent-git-guard` | Verificar permissões git | Antes de qualquer git add, commit ou push — carrega config do projeto | git add, git commit, git push, permissões git | none |
+| `agent-turn-reflect` | Analisar turno | Auto ao final de cada turno — analisa conversa e atualiza contexto, memórias, chat-memory | reflexão, per-turn, análise, incremental, contexto, sessão | none |
+| `agent-guide-stepbystep` | Guiar | Usuário pede passo a passo, tutorial, guia interativo, walkthrough | passo a passo, me guia, como fazer, me ensina, walkthrough, tutorial | none |
+
+## Roteamento Rápido
+
+| Situação | Skill |
+|----------|-------|
+| Usuário pede para guardar/lembrar algo (lições, padrões) | `agent-memory-update` |
+| Antes de tarefa complexa (verificar experiência prévia) | `agent-memory-query` |
+| Tarefa com múltiplos steps independentes | `agent-task-manage` |
+| Usuário corrige código gerado pelo agente | `agent-memory-update` (automático) |
+| Antes de delegar skill a subagent | `agent-subagent-delegate` |
+| Usuário quer salvar contexto da sessão / trocar de máquina | `agent-chat-save` |
+| Usuário quer retomar sessão anterior / continuar de onde parou | `agent-chat-resume` |
+| Após `agent-task-manage` completar todas as tarefas (auto) | `agent-action-review` → `agent-impact-validate` (se 3+ arquivos) → `agent-chat-save` |
+| Validar completude e consistência das ações do agente | `agent-action-review` |
+| Validar impacto em cascata de edições multi-arquivo | `agent-impact-validate` |
+| Sincronizar memória .md com MCP para busca semântica | `agent-memory-sync` |
+| Antes de qualquer operação git (add, commit, push) | `agent-git-guard` |
+| Final de cada turno do agente (automático) | `agent-turn-reflect` |
+| Usuário pede passo a passo / guia interativo | `agent-guide-stepbystep` |

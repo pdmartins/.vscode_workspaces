@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Run Agent Skills test suite
+# Usage: ./run-tests.sh [--structural|--behavioral|--fixtures] [--filter PATTERN] [--install]
+
+set -euo pipefail
+
+CORE_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+FILTER=""
+MARKER=""
+INSTALL=false
+
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --structural) MARKER="structural"; shift ;;
+        --behavioral) MARKER="behavioral"; shift ;;
+        --fixtures)   MARKER="fixtures"; shift ;;
+        --filter)     FILTER="$2"; shift 2 ;;
+        --install)    INSTALL=true; shift ;;
+        --help)
+            echo "Usage: ./run-tests.sh [--structural|--behavioral|--fixtures] [--filter PATTERN] [--install]"
+            exit 0 ;;
+        *) echo "Unknown option: $1"; exit 1 ;;
+    esac
+done
+
+# Detect Python
+PYTHON=$(command -v python3 2>/dev/null || command -v python 2>/dev/null || true)
+if [[ -z "$PYTHON" ]]; then
+    echo "❌ Python not found. Install Python 3.12+"
+    exit 1
+fi
+
+# Install dependencies
+if $INSTALL; then
+    echo "📦 Installing test dependencies..."
+    "$PYTHON" -m pip install -r "$CORE_DIR/requirements-test.txt" --quiet
+    echo "✅ Dependencies installed"
+fi
+
+# Build pytest args
+PYTEST_ARGS=()
+[[ -n "$MARKER" ]] && PYTEST_ARGS+=("-m" "$MARKER")
+[[ -n "$FILTER" ]] && PYTEST_ARGS+=("-k" "$FILTER")
+
+# Run tests
+echo ""
+echo "🧪 Agent Skills Test Suite"
+echo "   Root: $CORE_DIR"
+echo ""
+
+cd "$CORE_DIR"
+"$PYTHON" -m pytest "${PYTEST_ARGS[@]}"

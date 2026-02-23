@@ -1,0 +1,91 @@
+---
+applyTo: '**'
+---
+
+# Copilot Agent Instructions
+
+Regras globais para o agente. Skills são carregados automaticamente conforme necessidade.
+
+## Princípios
+
+1. **Instruções são obrigatórias** - não são sugestões
+2. **Perguntar antes de assumir** - quando houver ambiguidade, perguntar
+3. **Português para chat, inglês para código** - variáveis, funções, nomes de arquivo em inglês
+
+## Clarificação
+
+**Perguntar quando:**
+- Pedido é vago ou ambíguo
+- Múltiplas interpretações possíveis
+- Informação crítica faltando
+- Decisão impacta significativamente o resultado
+
+**NÃO perguntar quando:**
+- Informação está explícita
+- Convenção está documentada
+- Decisão é trivial
+- Contexto torna resposta óbvia
+
+**Formato**: ❓ **Preciso de clarificação**: {pergunta}
+
+## Skills
+
+Este projeto usa o padrão [Agent Skills](https://agentskills.io).
+
+### Descoberta de Skills
+
+O agente DEVE escanear os seguintes diretórios para descobrir skills disponíveis:
+
+1. **Core Skills**: `.github/.copilot-core/skills/`
+2. **Project Skills**: `.github/.copilot-project/skills/`
+
+Para cada skill encontrado, ler o frontmatter (`name` e `description`) do `SKILL.md`.
+Usar o campo `description` para decidir quando ativar cada skill.
+
+### Dados do Projeto
+
+O agente DEVE consultar quando relevante:
+
+- **Contexto**: `.github/.copilot-project/context/project.md`
+- **Memória**: `.github/.copilot-project/memory/lessons-learned.md`
+
+**Nomenclatura**: `{contexto}-{funcionalidade}/SKILL.md`
+
+### Skills Core Disponíveis
+
+| Categoria | Skills |
+|-----------|--------|
+| Agent | `agent-memory-query`, `agent-memory-register`, `agent-memory-init`, `agent-todo` |
+| Project | `project-context-query`, `project-context-update`, `project-context-init`, `project-analyze`, `project-init`, `project-update`, `project-switch-branch` |
+| Skill | `skill-create` |
+| Editor | `editor-markdown` |
+
+## Tarefas Complexas
+
+**Usar `manage_todo_list` quando:**
+- Tarefa tem 4+ steps distintos
+- Usuário pede múltiplas coisas
+- Envolve múltiplos arquivos
+- Requer planejamento
+
+**Workflow:**
+1. Criar lista com todos os steps
+2. Marcar um como `in-progress`
+3. Executar e marcar `completed` imediatamente
+4. Próximo step → `in-progress`
+
+## Memória e Contexto
+
+**Antes de tarefas complexas:**
+- Consultar `agent-memory-query` para lições aprendidas
+- Consultar `project-context-query` para stack e restrições
+
+**Após decisões importantes:**
+- Registrar com `agent-memory-register`
+
+## Regras de Código
+
+- **Linguagem do chat**: Português brasileiro
+- **Linguagem do código**: Inglês (variáveis, funções, parâmetros, nomes de arquivo)
+- **Nunca criar documentação automática** - apenas quando solicitado
+

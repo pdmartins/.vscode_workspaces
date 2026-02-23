@@ -1,0 +1,89 @@
+---
+name: agent-memory-update
+description: Cria ou atualiza entradas na memória do agente (preferences, patterns, decisions, concepts). Grava em arquivos .md dentro das subpastas de memory/, atualizando o index.md. Use após decisões importantes, descoberta de padrões, correções de código gerado, quando o usuário pedir para guardar/salvar/anotar/lembrar informação do agente. Triggers: "registrar", "lembrar isso", "guarda isso", "salva isso", "anota isso", "memoriza", "decisão importante", "aprendi que", "descobri que", "não é assim", "muda isso", "corrige isso", "prefiro assim", "faz diferente".
+metadata:
+  author: copilot-core
+  version: "4.0"
+  category: agent
+  delegable: full
+---
+
+# Agent Memory Update
+
+Cria ou atualiza entradas na memória persistente do agente. Grava em `.copilot-project/memory/` usando subpastas por categoria.
+
+## Quando Usar
+
+- Após decisão arquitetural ou técnica importante
+- Padrão descoberto ou corrigido
+- Usuário indica preferência de estilo ou abordagem
+- **Automaticamente** quando o usuário corrige código gerado pelo agente
+- **Automaticamente** quando o usuário define regras, estrutura ou processos
+- Usuário pede para "lembrar", "registrar", "guardar"
+
+## Quando NÃO Usar
+
+- Mudança trivial (typo, variável errada) sem padrão recorrente
+- Correção por mudança de requisito (não corrigiu padrão)
+- Informação sobre o PROJETO (usar `project-context-update`)
+- Informação já documentada em skills ou instructions
+
+## Workflow
+
+### 1. Determinar categoria
+
+| Categoria | Pasta | Quando Usar |
+|-----------|-------|-------------|
+| Preferences | `preferences/` | Preferências de estilo, abordagem, nomenclatura do usuário |
+| Patterns | `patterns/` | Padrão de código aprendido, erro corrigido, convenção descoberta |
+| Decisions | `decisions/` | Decisão arquitetural/técnica/processo com rationale |
+| Concepts | `concepts/` | Conhecimento, conceito, definição relevante ao projeto |
+
+### 2. Determinar operação
+
+| Situação | Ação |
+|----------|------|
+| Novo item sobre tema inédito | Criar novo arquivo `.md` na subpasta |
+| Atualização de item existente | Editar arquivo existente, adicionando bullet |
+| Tema já tem arquivo | Append ao arquivo existente |
+
+### 3. Formatar entrada
+
+Formato bullet-list por arquivo:
+
+```markdown
+# {Título descritivo}
+
+- **{YYYY-MM-DD}**: {descrição concisa da entrada}
+- **{YYYY-MM-DD}**: {outra entrada sobre o mesmo tema}
+```
+
+**Naming do arquivo**: `{slug-descritivo}.md` (kebab-case, max 40 chars)
+**Exemplos**: `code-style.md`, `naming-conventions.md`, `cqrs-architecture.md`
+
+### 4. Gravar no arquivo
+
+- Criar/editar em `{workspace}/.copilot-project/memory/{categoria}/{arquivo}.md`
+- Se a subpasta não existe → criar automaticamente
+
+### 5. Atualizar index.md
+
+Atualizar `{workspace}/.copilot-project/memory/index.md`:
+- Incrementar contador de entradas da categoria
+- Se nova entrada de alta prioridade → adicionar em "Consulta Rápida"
+
+### 6. Confirmar
+
+```
+📝 **Memorizado**: {descrição curta}
+- Categoria: {categoria}
+- Arquivo: memory/{categoria}/{arquivo}.md
+```
+
+## Auto-Init
+
+Se `memory/index.md` não existe:
+
+1. Criar `memory/index.md` com template padrão (ver template em `.copilot-project-worktrees/main/`)
+2. Criar subpastas com `.gitkeep`: `preferences/`, `patterns/`, `decisions/`, `concepts/`
+3. Prosseguir com a operação

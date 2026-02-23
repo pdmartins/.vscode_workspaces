@@ -1,0 +1,66 @@
+# .copilot-project
+
+Template de configurações específicas de projeto para o Copilot Agent.
+
+Segue o padrão [Agent Skills](https://agentskills.io).
+
+## Estrutura
+
+```
+.copilot-project/
+├── context/
+│   ├── index.md            # Catálogo de contexto
+│   └── {subpastas}/        # architecture, infrastructure, etc.
+├── memory/
+│   ├── index.md            # Catálogo de memória
+│   └── {categorias}/       # preferences, patterns, decisions, concepts
+├── skills/                 # Skills específicos do projeto
+│   └── {skill-name}/
+│       └── SKILL.md
+└── README.md
+```
+
+## Uso
+
+Cada projeto tem sua própria **branch** com configurações específicas.
+
+### Branches Disponíveis
+
+| Branch | Projeto | Descrição |
+|--------|---------|-----------|
+| `main` | - | Template base (agnóstico) |
+| `scripts` | [scripts](https://github.com/pdmartins/scripts) | Scripts de automação multi-plataforma |
+
+## Como Adicionar um Novo Projeto
+
+1. Criar branch a partir da main:
+   ```bash
+   git checkout main
+   git checkout -b nome-do-projeto
+   ```
+
+2. Preencher `context/index.md` e subpastas com informações do projeto
+
+3. Criar skills específicos em `skills/`:
+   ```
+   skills/
+   └── code-python/
+       └── SKILL.md
+   ```
+
+4. Push:
+   ```bash
+   git push -u origin nome-do-projeto
+   ```
+
+## Arquivos
+
+| Arquivo | Propósito | Quando Editar |
+|---------|-----------|---------------|
+| `context/index.md` | Catálogo de contexto (stack, restrições) | Início do projeto, mudanças significativas |
+| `memory/index.md` | Catálogo de memória (decisões, padrões) | Após decisões importantes ou bugs |
+| `skills/*/SKILL.md` | Regras específicas | Novos padrões ou integrações |
+
+## Relacionado
+
+- [.copilot-core](https://github.com/pdmartins/.copilot-core) - Core do agente (skills genéricos)

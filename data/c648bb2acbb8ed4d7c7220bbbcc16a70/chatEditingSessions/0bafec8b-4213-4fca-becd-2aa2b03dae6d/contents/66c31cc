@@ -1,0 +1,126 @@
+---
+name: code-catalog-query
+description: Catálogo de 22 skills do tipo code — análise, refatoração, enforcement de padrões, geração de código .NET, CQRS/DDD, API, testes, scripts e avaliação. Consulte este catálogo quando a tarefa envolver review de código, refatoração, extração de métodos/classes, verificação de padrões, geração de serviços, handlers, controllers, entities, commands, queries, testes, webhooks, scripts Bash/PowerShell, avaliação de skills. Triggers: qual skill de code usar, listar skills code, review, refatorar, padrões, gerar serviço, criar teste, .NET, dotnet, CQRS, DDD, controller, entity, command, query, script, bash, powershell, avaliar, evaluate, judge.
+metadata:
+  author: copilot-core
+  version: "3.0"
+  category: code
+  delegable: full
+---
+
+# Code Skills Catalog
+
+Catálogo de skills do tipo `code` para descoberta rápida. **22 skills** organizados em 7 grupos.
+
+## Skills Disponíveis
+
+### Análise & Qualidade (3)
+
+| Skill | Ação | Quando Usar | Keywords | Delegable |
+|-------|------|-------------|----------|-----------|
+| `code-review-analyze` | Analisar | Code review, revisar PR, verificar qualidade/segurança/performance | review, qualidade, segurança, performance, "está bom?" | full |
+| `code-refactor-extract` | Extrair | Separar responsabilidades, extrair métodos/classes, simplificar | refatorar, extrair, separar, mover, dividir, "muito grande" | orchestrated |
+| `code-pattern-enforce` | Verificar | Após gerar código, verificar aderência a padrões do projeto | padrões, convenções, padronizar, naming, estrutura | orchestrated |
+
+### Geração de Código .NET (2)
+
+| Skill | Ação | Quando Usar | Keywords | Delegable |
+|-------|------|-------------|----------|-----------|
+| `code-dotnet-service` | Gerar | Serviços, handlers, commands, queries, interfaces .NET | serviço, handler, command, query, wrapper, endpoint, .NET | full |
+| `code-dotnet-test` | Gerar | Testes unitários .NET (xUnit/NUnit, NSubstitute/Moq) | teste, unit test, coverage, mock, xUnit, NSubstitute | full |
+
+### CQRS / DDD (7)
+
+| Skill | Ação | Quando Usar | Keywords | Delegable |
+|-------|------|-------------|----------|-----------|
+| `code-command-generate` | Gerar | Commands Mediator, handlers de escrita | command, Mediator, write, CQRS | full |
+| `code-query-generate` | Gerar | Queries Mediator, handlers de leitura | query, Mediator, read, CQRS | full |
+| `code-entity-generate` | Gerar | Entities e aggregates DDD | entity, aggregate, domain, DDD | full |
+| `code-valueobject-generate` | Gerar | Value objects imutáveis DDD | value object, VO, imutável, DDD | full |
+| `code-event-generate` | Gerar | Domain events | domain event, evento, notificação | full |
+| `code-mapping-generate` | Gerar | DTOs e mapping extensions | mapping, DTO, extensão, conversão | full |
+| `code-program-configure` | Configurar | Program.cs limpo, DI, middleware | Program.cs, startup, DI, middleware, configuração | full |
+
+### API (4)
+
+| Skill | Ação | Quando Usar | Keywords | Delegable |
+|-------|------|-------------|----------|-----------|
+| `code-controller-generate` | Gerar | Controllers RESTful ASP.NET Core | controller, endpoint, REST, API | full |
+| `code-contracts-generate` | Gerar | Requests/Responses, contratos de API | contract, request, response, DTO | full |
+| `code-api-validate` | Validar | Verificar aderência a padrões de API após implementar | validar API, padrões REST, convenções endpoint | full |
+| `code-webhook-generate` | Gerar | Webhooks e integrações de callback | webhook, callback, integração | full |
+
+### Testes (2)
+
+| Skill | Ação | Quando Usar | Keywords | Delegable |
+|-------|------|-------------|----------|-----------|
+| `code-unittest-generate` | Gerar | Testes unitários (xUnit, NSubstitute, builders) | unit test, xUnit, NSubstitute, builder | full |
+| `code-integrationtest-generate` | Gerar | Testes de integração (WebApplicationFactory, TestContainers) | integration test, WebApplicationFactory, TestContainers | full |
+
+### Scripts (3)
+
+| Skill | Ação | Quando Usar | Keywords | Delegable |
+|-------|------|-------------|----------|-----------|
+| `code-bash-write` | Gerar | Scripts Bash seguindo padrões | bash, shell, script, .sh | full |
+| `code-powershell-write` | Gerar | Scripts PowerShell seguindo padrões | powershell, ps1, script, .ps1 | full |
+| `code-crossplatform-sync` | Sincronizar | Manter paridade Bash ↔ PowerShell | sync, crossplatform, paridade, bash, powershell | full |
+
+### Avaliação (1)
+
+| Skill | Ação | Quando Usar | Keywords | Delegable |
+|-------|------|-------------|----------|----------|
+| `code-skill-evaluate` | Avaliar | Avaliar qualidade de skills via LLM-as-Judge com cenários YAML | avaliar, evaluate, judge, LLM, cenário, qualidade skill | orchestrated |
+
+## Roteamento Rápido
+
+| Situação | Skill |
+|----------|-------|
+| Revisar código existente ou PR | `code-review-analyze` |
+| Código complexo precisa ser simplificado | `code-refactor-extract` |
+| Verificar se código segue convenções | `code-pattern-enforce` |
+| Após gerar código (verificação automática) | `code-pattern-enforce` |
+| Criar serviço, handler genérico .NET | `code-dotnet-service` |
+| Criar testes unitários .NET genéricos | `code-dotnet-test` |
+| Criar command Mediator / CQRS | `code-command-generate` |
+| Criar query Mediator / CQRS | `code-query-generate` |
+| Criar entity / aggregate DDD | `code-entity-generate` |
+| Criar value object DDD | `code-valueobject-generate` |
+| Criar domain event | `code-event-generate` |
+| Criar DTOs e mappings | `code-mapping-generate` |
+| Configurar Program.cs / DI | `code-program-configure` |
+| Criar controller REST | `code-controller-generate` |
+| Criar contratos de API | `code-contracts-generate` |
+| Validar implementação de API | `code-api-validate` |
+| Criar webhook | `code-webhook-generate` |
+| Criar testes unitários (xUnit + builders) | `code-unittest-generate` |
+| Criar testes de integração | `code-integrationtest-generate` |
+| Escrever script Bash | `code-bash-write` |
+| Escrever script PowerShell | `code-powershell-write` |
+| Sincronizar scripts Bash ↔ PowerShell | `code-crossplatform-sync` |
+| Avaliar skill com LLM-as-Judge | `code-skill-evaluate` |
+
+## Project Config
+
+Todas as 22 skills carregam `config.yml` do project para regras específicas:
+- `code-review-analyze` → checklist customizado, severidades
+- `code-refactor-extract` → limites de complexidade, padrões de extração
+- `code-pattern-enforce` → naming conventions, estrutura de pastas
+- `code-dotnet-service` → arquitetura, namespaces, DI, patterns
+- `code-dotnet-test` → framework de teste, mock lib, convenções
+- `code-command-generate` → padrão Mediator, validators, namespaces
+- `code-query-generate` → padrão Mediator, paginação, namespaces
+- `code-entity-generate` → base classes, conventions, audit fields
+- `code-valueobject-generate` → padrão imutável, validações
+- `code-event-generate` → naming, handlers, integração
+- `code-mapping-generate` → padrão de extensão, namespaces
+- `code-program-configure` → estrutura DI, middleware order
+- `code-controller-generate` → routing, validation, response patterns
+- `code-contracts-generate` → naming, validation attributes
+- `code-api-validate` → regras REST, padrões de response
+- `code-webhook-generate` → provider, authentication, retry
+- `code-unittest-generate` → framework, mocking, builders, naming
+- `code-integrationtest-generate` → fixtures, containers, setup
+- `code-bash-write` → padrões, error handling, portabilidade
+- `code-powershell-write` → padrões, cmdlets, error handling
+- `code-crossplatform-sync` → regras de paridade, exclusões
+- `code-skill-evaluate` → thresholds de avaliação, pesos, dimensões

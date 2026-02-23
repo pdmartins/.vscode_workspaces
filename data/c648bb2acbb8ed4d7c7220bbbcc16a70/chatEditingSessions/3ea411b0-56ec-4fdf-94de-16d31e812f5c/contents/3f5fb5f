@@ -1,0 +1,260 @@
+---
+name: code-webhook-generate
+description: Padrões para Webhook Controllers que recebem callbacks de provedores externos. Lê config.yml do project para convenções específicas. Use ao criar endpoints que recebem eventos de provedores externos (Twilio, Stripe, etc.). Triggers: webhook, callback, evento externo, arquivos *WebhookController.cs.
+metadata:
+  author: copilot-core
+  version: "1.0"
+  category: code
+  delegable: full
+---
+
+# Webhook Controller Skill
+
+Padrões para controllers que recebem callbacks de provedores externos.
+
+## Config Loading
+
+Antes de gerar código, carregar configurações do projeto:
+
+1. Verificar se existe `{workspace}/.copilot-project/skills/code-webhook-generate/config.yml`
+2. Se existe, carregar e usar as configurações do projeto
+3. Verificar se existe `{workspace}/.copilot-project/skills/code-webhook-generate/SKILL.md`
+4. Se existe, carregar como instruções complementares (extensões específicas do projeto)
+5. Se nenhum existe, usar apenas os padrões genéricos abaixo
+
+## Quando Usar
+
+- Receber eventos de provedores externos
+- Receber callbacks de pagamento
+- Processar webhooks de integrações externas
+
+## Estrutura
+
+```
+src/{RootNamespace}.Api/
+└── Webhooks/
+    └── [Provedor]WebhookController.cs
+```
+
+## Nomenclatura
+
+| Tipo | Padrão | Exemplo |
+|------|--------|---------|
+| Controller | `[Provedor]WebhookController` | `StripeWebhookController` |
+| Rota | `/webhooks/[provedor]` | `/webhooks/stripe` |
+| Request Model | `[Provedor][Evento]WebhookRequest` | `StripePaymentWebhookRequest` |
+| Signature Filter | `[Provedor]SignatureValidationFilter` | `StripeSignatureValidationFilter` |
+
+## Template de Webhook Controller
+
+```csharp
+using MediatR;
+using Microsoft.AspNetCore.Mvc;
+
+namespace {RootNamespace}.Api.Webhooks;
+
+/// <summary>
+/// Handles incoming webhooks from {Provider}.
+/// </summary>
+[ApiController]
+[Route("webhooks/{provider}")]
+public class {Provider}WebhookController : ControllerBase
+{
+    private readonly IMediator _mediator;
+    private readonly ILogger<{Provider}WebhookController> _logger;
+
+    public {Provider}WebhookController(
+        IMediator mediator,
+        ILogger<{Provider}WebhookController> logger)
+    {
+        _mediator = mediator;
+        _logger = logger;
+    }
+
+    /// <summary>
+    /// Receives incoming events from {Provider}.
+    /// </summary>
+    [HttpPost("{event-endpoint}")]
+    [Consumes("application/x-www-form-urlencoded")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    public async Task<IActionResult> ReceiveEvent(
+        [FromForm] {Provider}{Event}WebhookRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "Received {EventType} event from {Provider}",
+            "{EventType}", "{Provider}");
+
+        var command = new Process{Event}Command
+        {
+            // Map request fields to command
+        };
+
+        await _mediator.Send(command, cancellationToken);
+
+        // Provider expects 200 OK
+        return Ok();
+    }
+
+    /// <summary>
+    /// Receives status updates from {Provider}.
+    /// </summary>
+    [HttpPost("status")]
+    [Consumes("application/x-www-form-urlencoded")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ReceiveStatus(
+        [FromForm] {Provider}StatusWebhookRequest request,
+        CancellationToken cancellationToken = default)
+    {
+        _logger.LogInformation(
+            "Resource {ResourceId} status: {Status}",
+            request.ResourceId, request.Status);
+
+        var command = new UpdateStatusCommand
+        {
+            ResourceId = request.ResourceId,
+            Status = request.Status
+        };
+
+        await _mediator.Send(command, cancellationToken);
+
+        return Ok();
+    }
+}
+```
+
+## Webhook Request Models
+
+```csharp
+namespace {RootNamespace}.Api.Webhooks;
+
+/// <summary>
+/// {Provider} incoming event webhook payload.
+/// </summary>
+public record {Provider}{Event}WebhookRequest
+{
+    public string EventId { get; init; } = string.Empty;
+    public string AccountId { get; init; } = string.Empty;
+    // Provider-specific fields
+}
+
+/// <summary>
+/// {Provider} status webhook payload.
+/// </summary>
+public record {Provider}StatusWebhookRequest
+{
+    public string ResourceId { get; init; } = string.Empty;
+    public string Status { get; init; } = string.Empty;
+    public string? ErrorCode { get; init; }
+    public string? ErrorMessage { get; init; }
+}
+```
+
+## Validação de Assinatura (Signature Validation Filter)
+
+```csharp
+using Microsoft.Extensions.Options;
+
+namespace {RootNamespace}.Api.Filters;
+
+public class {Provider}SignatureValidationFilter : IAsyncActionFilter
+{
+    private readonly {Provider}Options _options;
+    private readonly ILogger<{Provider}SignatureValidationFilter> _logger;
+
+    public {Provider}SignatureValidationFilter(
+        IOptions<{Provider}Options> options,
+        ILogger<{Provider}SignatureValidationFilter> logger)
+    {
+        _options = options.Value;
+        _logger = logger;
+    }
+
+    public async Task OnActionExecutionAsync(
+        ActionExecutingContext context,
+        ActionExecutionDelegate next)
+    {
+        var request = context.HttpContext.Request;
+        
+        // 1. Extract signature header (provider-specific)
+        if (!request.Headers.TryGetValue(
+            "X-{Provider}-Signature", out var signature))
+        {
+            _logger.LogWarning("Missing {Provider} signature");
+            context.Result = new UnauthorizedResult();
+            return;
+        }
+
+        // 2. Validate signature using provider SDK/algorithm
+        var url = $"{request.Scheme}://{request.Host}{request.Path}";
+        
+        // Read request body/form data
+        var form = await request.ReadFormAsync();
+        var parameters = form.ToDictionary(
+            x => x.Key, 
+            x => x.Value.ToString());
+
+        var isValid = ValidateSignature(url, parameters, signature!);
+
+        if (!isValid)
+        {
+            _logger.LogWarning("Invalid {Provider} signature");
+            context.Result = new UnauthorizedResult();
+            return;
+        }
+
+        await next();
+    }
+
+    private bool ValidateSignature(string url, Dictionary<string, string> parameters, string signature)
+    {
+        // Provider-specific validation logic
+        throw new NotImplementedException("Implement provider-specific signature validation");
+    }
+}
+```
+
+## Uso do Filter
+
+```csharp
+[HttpPost("{event-endpoint}")]
+[ServiceFilter(typeof({Provider}SignatureValidationFilter))]
+public async Task<IActionResult> ReceiveEvent(...)
+```
+
+## Boas Práticas
+
+1. **Responder rápido**: Webhooks têm timeout curto (< 15s)
+2. **Processar assíncrono**: Enviar para fila e responder imediatamente
+3. **Validar assinatura**: Sempre verificar autenticidade
+4. **Idempotência**: Tratar duplicatas (usar ID único do evento)
+5. **Logs detalhados**: Registrar payload para debug
+6. **Retry handling**: Provedores reenviam em caso de erro
+
+## Checklist
+
+- [ ] Rota em `/webhooks/[provedor]`
+- [ ] Validação de assinatura implementada
+- [ ] Processamento via Command (MediatR)
+- [ ] Resposta rápida (200 OK)
+- [ ] Logs com correlation ID
+- [ ] Tratamento de idempotência
+
+## Config Schema
+
+```yaml
+# .copilot-project/skills/code-webhook-generate/config.yml
+root_namespace: "{RootNamespace}"
+
+providers:
+  - name: "{ProviderName}"
+    route: "/webhooks/{provider-slug}"
+    signature_header: "X-{Provider}-Signature"
+    content_type: "application/x-www-form-urlencoded"
+    events:
+      - name: "{EventName}"
+        endpoint: "{event-endpoint}"
+        request_model: "{Provider}{Event}WebhookRequest"
+        command: "Process{Event}Command"
+```

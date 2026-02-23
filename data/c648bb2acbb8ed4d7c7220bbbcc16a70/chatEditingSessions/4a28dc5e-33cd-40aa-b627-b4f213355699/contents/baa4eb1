@@ -1,0 +1,3 @@
+# MCP Memory-Service Removal
+
+- **2026-02-17**: MCP memory-service (Cloudflare Vectorize + D1) adicionava busca semântica sobre corpus de ~4,500 tokens (26 entradas). Overhead: +50% linhas nos skills (200 linhas MCP em 6 skills + 102 linhas do agent-memory-sync dedicado), 6 dependências de infra (Python venv, pip package, Cloudflare account, API token, mcp.json, credentials.yml), MCP efetivamente quebrado no workspace (venv inexistente, mcp.json apontando para Python errado). Decisão: remover MCP. File-based (index-first + deep-load) como sistema único de memória/contexto. 62 skills (-1). 35 arquivos limpos. Zero dependências externas para memória. Reavaliar busca semântica quando corpus > 200 entradas.
