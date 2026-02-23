@@ -1,0 +1,44 @@
+using Hapvida.TI.VoiceTranscription.Domain.Contracts.v1.Services;
+using Hapvida.TI.VoiceTranscription.Domain.Contracts.v1.Wrappers;
+using Hapvida.TI.VoiceTranscription.Domain.Models.v1;
+using Hapvida.TI.VoiceTranscription.Domain.Services.v1;
+using Hapvida.TI.VoiceTranscription.Domain.Wrappers;
+using Hapvida.TI.VoiceTranscription.Infra.Cache.Models.v1;
+using Hapvida.TI.VoiceTranscription.Infra.Cache.Services.v1;
+using System.Diagnostics.CodeAnalysis;
+
+namespace Hapvida.TI.VoiceTranscription.Api;
+
+[ExcludeFromCodeCoverage]
+public static class Bootstrapper
+{
+    public static IServiceCollection AddApplicationBootstrapper(
+        this IServiceCollection services, IConfiguration configuration)
+    {
+        services.Configure<GoogleCloudStorageSettings>(configuration.GetSection(GoogleCloudStorageSettings.SessionName));
+
+        services.AddScoped<IGenerateUrlSignedService, GenerateUrlSignedService>();
+        services.AddScoped<IBigQueryServiceReader, BigQueryCheckStatusService>();
+        services.AddScoped<IBigQueryServiceWriter, BigQueryWriterService>();
+        services.AddScoped<IBigQueryClientWrapper, BigQueryClientWrapper>();
+        services.AddSingleton<IGoogleCloudStorageService, GoogleCloudStorageService>();
+
+        return services;
+    }
+
+    public static IServiceCollection AddDistributedCache(this IServiceCollection services, IConfiguration configuration)
+    {
+        var cacheSettings = configuration.GetSection(CacheSettings.SessionName).Get<CacheSettings>();
+
+        ArgumentNullException.ThrowIfNull(cacheSettings);
+        
+        services.Configure<CacheSettings>(configuration.GetSection(CacheSettings.SessionName));
+        services.AddSingleton<ICacheService, CacheService>();
+
+        return services.AddStackExchangeRedisCache(op =>
+        {
+            op.Configuration = cacheSettings.ConnectionString;
+            op.InstanceName = cacheSettings.InstanceName;
+        });
+    }
+}

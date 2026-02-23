@@ -1,0 +1,64 @@
+using Hapvida.TI.VoiceTranscription.Api.Swagger.Filters;
+using Google.Apis.Util;
+using Hapvida.TI.VoiceTranscription.Domain.Contracts.v1.Services;
+using Hapvida.TI.VoiceTranscription.Domain.Contracts.v1.Wrappers;
+using Hapvida.TI.VoiceTranscription.Domain.Models.v1;
+using Hapvida.TI.VoiceTranscription.Domain.Services.v1;
+using Hapvida.TI.VoiceTranscription.Domain.Wrappers;
+using Hapvida.TI.VoiceTranscription.Infra.Cache.Models.v1;
+using Hapvida.TI.VoiceTranscription.Infra.Cache.Services.v1;
+using Swashbuckle.AspNetCore.SwaggerGen;
+using System.Diagnostics.CodeAnalysis;
+
+namespace Hapvida.TI.VoiceTranscription.Api;
+
+[ExcludeFromCodeCoverage]
+public static class Bootstrapper
+{
+    public static IServiceCollection AddApplicationBootstrapper(
+        this IServiceCollection services, IConfiguration configuration)
+    {
+        var cloudStorageSettings = configuration.GetSection(GoogleCloudStorageSettings.SessionName).Get<GoogleCloudStorageSettings>();
+
+        ArgumentNullException.ThrowIfNull(cloudStorageSettings);
+        ArgumentNullException.ThrowIfNull(cloudStorageSettings.BucketName);
+        ArgumentNullException.ThrowIfNull(cloudStorageSettings.ProjectId);
+        ArgumentNullException.ThrowIfNull(cloudStorageSettings.CredentialsBase64);
+        ArgumentNullException.ThrowIfNull(cloudStorageSettings.GoogleBigQuery);
+        ArgumentNullException.ThrowIfNull(cloudStorageSettings.GoogleBigQuery.DataSet);
+        ArgumentNullException.ThrowIfNull(cloudStorageSettings.GoogleBigQuery.Table);
+
+        services.Configure<GoogleCloudStorageSettings>(configuration.GetSection(GoogleCloudStorageSettings.SessionName));
+
+        services.AddScoped<IGenerateUrlSignedService, GenerateUrlSignedService>();
+        services.AddScoped<IBigQueryServiceReader, BigQueryCheckStatusService>();
+        services.AddScoped<IBigQueryServiceWriter, BigQueryWriterService>();
+        services.AddScoped<IBigQueryClientWrapper, BigQueryClientWrapper>();
+        services.AddSingleton<IGoogleCloudStorageService, GoogleCloudStorageService>();
+
+        services.Configure<SwaggerGenOptions>(options =>
+        {
+            options.DocumentFilter<ServerUrlDocumentFilter>();
+        });
+
+        return services;
+    }
+
+    public static IServiceCollection AddDistributedCache(this IServiceCollection services, IConfiguration configuration)
+    {
+        var cacheSettings = configuration.GetSection(CacheSettings.SessionName).Get<CacheSettings>();
+
+        ArgumentNullException.ThrowIfNull(cacheSettings);
+        ArgumentNullException.ThrowIfNull(cacheSettings.InstanceName);
+        ArgumentNullException.ThrowIfNull(cacheSettings.ConnectionString);
+
+        services.Configure<CacheSettings>(configuration.GetSection(CacheSettings.SessionName));
+        services.AddSingleton<ICacheService, CacheService>();
+
+        return services.AddStackExchangeRedisCache(op =>
+        {
+            op.Configuration = cacheSettings.ConnectionString;
+            op.InstanceName = cacheSettings.InstanceName;
+        });
+    }
+}

@@ -1,0 +1,28 @@
+using Microsoft.OpenApi.Models;
+using Swashbuckle.AspNetCore.SwaggerGen;
+using System.Diagnostics.CodeAnalysis;
+
+namespace Hapvida.TI.VoiceTranscription.Api.Swagger.Filters;
+
+[ExcludeFromCodeCoverage]
+public class ServerUrlDocumentFilter : IDocumentFilter
+{
+    private const string DefaultServerUrl = "___CORE_APPLICATION_WEB_SERVICE_URL___";
+    private readonly string _serverUrl;
+
+    public ServerUrlDocumentFilter(IConfiguration configuration)
+    {
+        _serverUrl = configuration.GetValue<string>("Core:Application:WebServiceUrl") ?? DefaultServerUrl;
+
+        if (string.IsNullOrWhiteSpace(_serverUrl))
+            _serverUrl = DefaultServerUrl;
+    }
+
+    public void Apply(OpenApiDocument swaggerDoc, DocumentFilterContext context)
+    {
+        swaggerDoc.Servers = new List<OpenApiServer>
+        {
+            new() { Url = _serverUrl }
+        };
+    }
+}
