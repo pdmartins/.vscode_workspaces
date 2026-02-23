@@ -1,0 +1,6 @@
+vars {
+  baseUrl: sk-sky-hubai-fkebg6egbebrexd0.brazilsouth-01.azurewebsites.net
+}
+vars:secret [
+  ClientToken
+]
