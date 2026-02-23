@@ -3,33 +3,19 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Load .env
-if [ -f "$SCRIPT_DIR/.env" ]; then
-    export $(grep -v '^#' "$SCRIPT_DIR/.env" | grep -v '^\s*$' | xargs)
-fi
+source "$SCRIPT_DIR/lib.sh"
+load_env "$SCRIPT_DIR"
 
 SYNC_INTERVAL="${SYNC_INTERVAL:-30}"
 PULL_INTERVAL="${PULL_INTERVAL:-5}"
 PULL_INTERVAL_SEC=$((PULL_INTERVAL * 60))
-VSCODE_EDITIONS="${VSCODE_EDITIONS:-stable,insiders}"
+
+collect_storage_paths_linux
 
 # Collect watch paths
 WATCH_PATHS=()
-
-IFS=',' read -ra EDITIONS <<< "$VSCODE_EDITIONS"
-for edition in "${EDITIONS[@]}"; do
-    edition=$(echo "$edition" | tr -d ' ')
-    case "$edition" in
-        stable)
-            p="${VSCODE_STORAGE_PATH_STABLE:-$HOME/.config/Code/User/workspaceStorage}"
-            ;;
-        insiders)
-            p="${VSCODE_STORAGE_PATH_INSIDERS:-$HOME/.config/Code - Insiders/User/workspaceStorage}"
-            ;;
-    esac
-    if [ -d "$p" ]; then
-        WATCH_PATHS+=("$p")
-    fi
+for edition in "${!STORAGE_PATHS[@]}"; do
+    WATCH_PATHS+=("${STORAGE_PATHS[$edition]}")
 done
 
 if [ ${#WATCH_PATHS[@]} -eq 0 ]; then
@@ -54,13 +40,12 @@ echo "Press Ctrl+C to stop"
 LAST_PUSH=0
 LAST_PULL=0
 
-# Initial pull on startup
+# Initial pull
 echo "[$(date '+%H:%M:%S')] Startup pull..."
 bash "$SCRIPT_DIR/sync.sh" pull 2>&1 | tail -1
 LAST_PULL=$(date +%s)
 
 while true; do
-    # Watch all paths simultaneously
     inotifywait -r -q -t "$SYNC_INTERVAL" \
         --include '(GitHub\.copilot-chat|workspace\.json)' \
         -e modify,create,delete,move \
@@ -68,7 +53,6 @@ while true; do
 
     NOW=$(date +%s)
 
-    # Push on local changes (with debounce)
     if [ "$FILE_CHANGED" = true ]; then
         ELAPSED_PUSH=$((NOW - LAST_PUSH))
         if [ "$ELAPSED_PUSH" -ge "$SYNC_INTERVAL" ]; then
@@ -78,7 +62,6 @@ while true; do
         fi
     fi
 
-    # Periodic pull
     ELAPSED_PULL=$((NOW - LAST_PULL))
     if [ "$ELAPSED_PULL" -ge "$PULL_INTERVAL_SEC" ]; then
         echo "[$(date '+%H:%M:%S')] Periodic pull..."
