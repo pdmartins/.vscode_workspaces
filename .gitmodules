@@ -1,0 +1,4 @@
+[submodule ".copilot-core"]
+	path = .copilot-core
+	url = https://github.com/pdmartins/.copilot-core.git
+	branch = main
