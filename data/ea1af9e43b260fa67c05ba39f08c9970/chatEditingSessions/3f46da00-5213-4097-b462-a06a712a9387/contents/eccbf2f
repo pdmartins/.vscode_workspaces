@@ -1,0 +1,373 @@
+#!/usr/bin/env pwsh
+<#
+.SYNOPSIS
+    Starts the AutoCid Docker environment using WSL (without Docker Desktop).
+
+.DESCRIPTION
+    This script:
+    1. Checks prerequisites (WSL, Docker Engine in WSL)
+    2. Creates symlinks to map folder names expected by docker-compose
+    3. Starts Docker Engine in WSL if not running
+    4. Runs docker-compose up from within WSL
+    5. Shows service URLs and status
+
+.PARAMETER Down
+    Stops all services instead of starting.
+
+.PARAMETER Build
+    Forces rebuild of all images before starting.
+
+.PARAMETER Logs
+    Follows logs after starting (Ctrl+C to stop following).
+
+.PARAMETER Service
+    Start only a specific service (e.g., "csharp-api", "java-api", "python-api", "angular-web").
+
+.PARAMETER Status
+    Shows current status of containers.
+
+.EXAMPLE
+    .\docker-start-wsl.ps1                          # Start all services
+    .\docker-start-wsl.ps1 -Build                   # Rebuild and start
+    .\docker-start-wsl.ps1 -Logs                    # Start and follow logs
+    .\docker-start-wsl.ps1 -Down                    # Stop all services
+    .\docker-start-wsl.ps1 -Service java-api -Build # Rebuild only java-api
+    .\docker-start-wsl.ps1 -Status                  # Check container status
+#>
+
+[CmdletBinding()]
+param(
+    [switch]$Down,
+    [switch]$Build,
+    [switch]$Logs,
+    [string]$Service,
+    [switch]$Status
+)
+
+$ErrorActionPreference = "Stop"
+
+# =====================================================
+# Configuration
+# =====================================================
+$WORKSPACE_WIN = $PSScriptRoot
+$COMPOSE_FILE = "docker-compose.yml"
+
+# Folder name mappings: docker-compose expects -> actual folder name
+$SYMLINKS = @{
+    "Assistance.Pep.SamWeb.Api"   = "Pep.SamWeb.Api"
+    "Assistance.Sigah.SamWeb.Api" = "Sigah.SamWeb.Api"
+    "Assistance.Sigah.SamWeb.Web" = "Sigah.SamWeb.Web"
+}
+
+# Service URLs for display
+$SERVICE_URLS = @{
+    "angular-web" = "http://localhost:4200"
+    "python-api"  = "http://localhost:8000"
+    "java-api"    = "http://localhost:8080/api/pepsam"
+    "csharp-api"  = "http://localhost:5000/api/v1"
+    "wildfly-admin" = "http://localhost:9990 (admin/admin)"
+    "java-debug"  = "localhost:8787"
+}
+
+# =====================================================
+# Helper Functions
+# =====================================================
+function Write-Header {
+    param([string]$Text)
+    Write-Host ""
+    Write-Host "======================================" -ForegroundColor Cyan
+    Write-Host "  $Text" -ForegroundColor Cyan
+    Write-Host "======================================" -ForegroundColor Cyan
+    Write-Host ""
+}
+
+function Write-Step {
+    param([string]$Text)
+    Write-Host "[*] $Text" -ForegroundColor Yellow
+}
+
+function Write-Ok {
+    param([string]$Text)
+    Write-Host "[OK] $Text" -ForegroundColor Green
+}
+
+function Write-Err {
+    param([string]$Text)
+    Write-Host "[ERRO] $Text" -ForegroundColor Red
+}
+
+function Write-Info {
+    param([string]$Text)
+    Write-Host "[i] $Text" -ForegroundColor Gray
+}
+
+function Convert-ToWslPath {
+    param([string]$WinPath)
+    # D:\Repos\_hv\STT -> /mnt/d/Repos/_hv/STT
+    $drive = $WinPath.Substring(0, 1).ToLower()
+    $rest = $WinPath.Substring(2) -replace '\\', '/'
+    return "/mnt/$drive$rest"
+}
+
+function Invoke-Wsl {
+    param(
+        [string]$Command,
+        [switch]$PassThru,
+        [switch]$NoCheck
+    )
+    if ($PassThru) {
+        $result = wsl bash -c $Command 2>&1
+        if (-not $NoCheck -and $LASTEXITCODE -ne 0) {
+            Write-Err "Comando WSL falhou: $Command"
+            Write-Host $result -ForegroundColor Red
+            return $null
+        }
+        return $result
+    }
+    else {
+        wsl bash -c $Command
+        if (-not $NoCheck -and $LASTEXITCODE -ne 0) {
+            Write-Err "Comando WSL falhou: $Command"
+            return $false
+        }
+        return $true
+    }
+}
+
+# =====================================================
+# 1. Check Prerequisites
+# =====================================================
+function Test-Prerequisites {
+    Write-Header "Verificando pre-requisitos"
+
+    # Check WSL
+    Write-Step "Verificando WSL..."
+    $wslStatus = wsl --status 2>&1
+    if ($LASTEXITCODE -ne 0) {
+        Write-Err "WSL nao esta instalado ou habilitado."
+        Write-Host "  Instale com: wsl --install" -ForegroundColor Gray
+        exit 1
+    }
+    Write-Ok "WSL disponivel"
+
+    # Check Docker in WSL
+    Write-Step "Verificando Docker Engine no WSL..."
+    $dockerVersion = Invoke-Wsl -Command "docker --version 2>/dev/null" -PassThru -NoCheck
+    if (-not $dockerVersion -or $LASTEXITCODE -ne 0) {
+        Write-Err "Docker Engine nao encontrado no WSL."
+        Write-Host @"
+  Para instalar Docker Engine no WSL (Ubuntu/Debian):
+
+    # Dentro do WSL:
+    sudo apt-get update
+    sudo apt-get install -y ca-certificates curl gnupg
+    sudo install -m 0755 -d /etc/apt/keyrings
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+    sudo chmod a+r /etc/apt/keyrings/docker.gpg
+    echo "deb [arch=`$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu `$(. /etc/os-release && echo `$VERSION_CODENAME) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+    sudo apt-get update
+    sudo apt-get install -y docker-ce docker-ce-cli containerd.io docker-compose-plugin
+    sudo usermod -aG docker `$USER
+"@ -ForegroundColor Gray
+        exit 1
+    }
+    Write-Ok "Docker Engine: $($dockerVersion.Trim())"
+
+    # Check docker compose
+    Write-Step "Verificando docker compose..."
+    $composeVersion = Invoke-Wsl -Command "docker compose version 2>/dev/null" -PassThru -NoCheck
+    if (-not $composeVersion -or $LASTEXITCODE -ne 0) {
+        Write-Err "docker compose plugin nao encontrado."
+        Write-Host "  Instale: sudo apt-get install docker-compose-plugin" -ForegroundColor Gray
+        exit 1
+    }
+    Write-Ok "Docker Compose: $($composeVersion.Trim())"
+
+    # Check docker-compose.yml exists
+    if (-not (Test-Path "$WORKSPACE_WIN\$COMPOSE_FILE")) {
+        Write-Err "docker-compose.yml nao encontrado em $WORKSPACE_WIN"
+        exit 1
+    }
+    Write-Ok "docker-compose.yml encontrado"
+}
+
+# =====================================================
+# 2. Create Symlinks (inside WSL for Linux FS)
+# =====================================================
+function Set-Symlinks {
+    Write-Header "Configurando symlinks"
+
+    $wslPath = Convert-ToWslPath $WORKSPACE_WIN
+
+    foreach ($link in $SYMLINKS.GetEnumerator()) {
+        $linkName = $link.Key
+        $targetName = $link.Value
+
+        Write-Step "Verificando: $linkName -> $targetName"
+
+        # Check if symlink already exists and is correct
+        $exists = Invoke-Wsl -Command "test -L '$wslPath/$linkName' && readlink '$wslPath/$linkName' 2>/dev/null || echo 'NOT_FOUND'" -PassThru -NoCheck
+
+        if ($exists -and $exists.Trim() -eq $targetName) {
+            Write-Ok "Symlink ja existe: $linkName -> $targetName"
+            continue
+        }
+
+        # Check if target folder exists
+        $targetExists = Invoke-Wsl -Command "test -d '$wslPath/$targetName' && echo 'YES' || echo 'NO'" -PassThru -NoCheck
+        if ($targetExists.Trim() -ne "YES") {
+            Write-Err "Pasta alvo nao encontrada: $targetName"
+            continue
+        }
+
+        # Check if a real directory with the link name exists (would block symlink)
+        $realDirExists = Invoke-Wsl -Command "test -d '$wslPath/$linkName' && ! test -L '$wslPath/$linkName' && echo 'YES' || echo 'NO'" -PassThru -NoCheck
+        if ($realDirExists.Trim() -eq "YES") {
+            Write-Info "Pasta real '$linkName' ja existe — assumindo que e o repo correto."
+            continue
+        }
+
+        # Remove existing broken symlink
+        Invoke-Wsl -Command "rm -f '$wslPath/$linkName'" -NoCheck | Out-Null
+
+        # Create symlink
+        $result = Invoke-Wsl -Command "cd '$wslPath' && ln -s '$targetName' '$linkName'" -NoCheck
+        if ($LASTEXITCODE -eq 0) {
+            Write-Ok "Symlink criado: $linkName -> $targetName"
+        }
+        else {
+            Write-Err "Falha ao criar symlink: $linkName"
+        }
+    }
+}
+
+# =====================================================
+# 3. Start Docker Engine
+# =====================================================
+function Start-DockerEngine {
+    Write-Header "Verificando Docker Engine"
+
+    Write-Step "Verificando se Docker daemon esta rodando..."
+    $dockerRunning = Invoke-Wsl -Command "docker info >/dev/null 2>&1 && echo 'YES' || echo 'NO'" -PassThru -NoCheck
+
+    if ($dockerRunning.Trim() -ne "YES") {
+        Write-Step "Iniciando Docker daemon no WSL..."
+        # Start dockerd in background
+        Invoke-Wsl -Command "sudo nohup dockerd > /tmp/dockerd.log 2>&1 &" -NoCheck | Out-Null
+
+        # Wait for it to be ready
+        $maxRetries = 15
+        $retry = 0
+        do {
+            Start-Sleep -Seconds 2
+            $retry++
+            $dockerRunning = Invoke-Wsl -Command "docker info >/dev/null 2>&1 && echo 'YES' || echo 'NO'" -PassThru -NoCheck
+            Write-Host "  Aguardando daemon ($retry/$maxRetries)..." -ForegroundColor Gray
+        } while ($dockerRunning.Trim() -ne "YES" -and $retry -lt $maxRetries)
+
+        if ($dockerRunning.Trim() -ne "YES") {
+            Write-Err "Docker daemon nao iniciou apos $maxRetries tentativas."
+            Write-Host "  Verifique manualmente: wsl sudo dockerd" -ForegroundColor Gray
+            Write-Host "  Ou tente: wsl sudo service docker start" -ForegroundColor Gray
+            exit 1
+        }
+        Write-Ok "Docker daemon iniciado"
+    }
+    else {
+        Write-Ok "Docker daemon ja esta rodando"
+    }
+}
+
+# =====================================================
+# 4. Docker Compose Operations
+# =====================================================
+function Invoke-DockerCompose {
+    $wslPath = Convert-ToWslPath $WORKSPACE_WIN
+
+    if ($Status) {
+        Write-Header "Status dos Containers"
+        Invoke-Wsl -Command "cd '$wslPath' && docker compose ps" -NoCheck
+        return
+    }
+
+    if ($Down) {
+        Write-Header "Parando servicos"
+        Invoke-Wsl -Command "cd '$wslPath' && docker compose down" -NoCheck
+        Write-Ok "Todos os servicos foram parados"
+        return
+    }
+
+    # Build images
+    if ($Build) {
+        Write-Header "Construindo imagens"
+        if ($Service) {
+            Write-Step "Construindo imagem: $Service"
+            Invoke-Wsl -Command "cd '$wslPath' && docker compose build --no-cache $Service"
+        }
+        else {
+            Write-Step "Construindo todas as imagens..."
+            Invoke-Wsl -Command "cd '$wslPath' && docker compose build --no-cache"
+        }
+        Write-Ok "Build concluido"
+    }
+
+    # Start services
+    Write-Header "Iniciando servicos"
+
+    if ($Service) {
+        Write-Step "Iniciando servico: $Service"
+        Invoke-Wsl -Command "cd '$wslPath' && docker compose up -d $Service"
+    }
+    else {
+        Write-Step "Iniciando todos os servicos..."
+        Invoke-Wsl -Command "cd '$wslPath' && docker compose up -d"
+    }
+
+    # Wait a moment for containers to start
+    Start-Sleep -Seconds 3
+
+    # Show status
+    Write-Header "Status dos Containers"
+    Invoke-Wsl -Command "cd '$wslPath' && docker compose ps" -NoCheck
+
+    # Show URLs
+    Write-Header "URLs dos Servicos"
+    foreach ($svc in $SERVICE_URLS.GetEnumerator()) {
+        Write-Host "  $($svc.Key.PadRight(16)) $($svc.Value)" -ForegroundColor White
+    }
+
+    # Show warnings
+    Write-Host ""
+    Write-Host "IMPORTANTE:" -ForegroundColor Yellow
+    Write-Host "  - Oracle DB externo requer VPN corporativa Hapvida" -ForegroundColor Yellow
+    Write-Host "  - Java API (WildFly) leva ~30-60s para inicializar" -ForegroundColor Yellow
+    Write-Host "  - Primeiro build pode levar 10-15 min (download de dependencias)" -ForegroundColor Yellow
+    Write-Host ""
+
+    # Follow logs if requested
+    if ($Logs) {
+        Write-Header "Seguindo logs (Ctrl+C para parar)"
+        if ($Service) {
+            Invoke-Wsl -Command "cd '$wslPath' && docker compose logs -f $Service" -NoCheck
+        }
+        else {
+            Invoke-Wsl -Command "cd '$wslPath' && docker compose logs -f" -NoCheck
+        }
+    }
+}
+
+# =====================================================
+# Main
+# =====================================================
+Write-Host ""
+Write-Host "  AutoCid + STT - Docker Environment (WSL)" -ForegroundColor Magenta
+Write-Host "  Workspace: $WORKSPACE_WIN" -ForegroundColor Gray
+Write-Host ""
+
+Test-Prerequisites
+Set-Symlinks
+Start-DockerEngine
+Invoke-DockerCompose
+
+Write-Host ""
+

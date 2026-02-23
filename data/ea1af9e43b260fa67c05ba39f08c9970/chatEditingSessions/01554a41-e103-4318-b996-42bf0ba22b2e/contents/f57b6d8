@@ -1,0 +1,137 @@
+# Utils — Helpers, Extensions, Wrappers
+
+> Atualizado em: 2026-02-10
+
+---
+
+# API Utils
+
+---
+
+## BigQueryRowExtensions (API)
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Helpers/BigQueryRowExtensions.cs`
+- **Tipo**: static class (extension methods)
+- **Responsabilidade**: Métodos de extensão para BigQueryRow — extração tipada de campos
+- **Depende de**: nenhum
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `TryGetValue` | `(BigQueryRow, string field, out object?)` | `bool` | Tenta extrair valor do campo |
+| `Get<T>` | `(BigQueryRow, string field)` | `T?` | Extrai valor tipado |
+| `GetArray<T>` | `(BigQueryRow, string field)` | `T[]` | Extrai array de campo repeated |
+| `GetJsonArray<TOut>` | `(BigQueryRow, string field)` | `TOut[]` | Extrai array de JSON string ou repeated field |
+| `GetPropString` | `(JsonElement)` | `string` | Extrai string de JsonElement |
+
+---
+
+## BigQueryClientWrapper
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Wrappers/v1/BigQueryClientWrapper.cs`
+- **Tipo**: class
+- **Responsabilidade**: Wrapper sobre BigQueryClient para testabilidade. Mapeia BigQueryRow → RowDto
+- **Depende de**: `IOptions<GoogleCloudStorageSettings>`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `ExecuteQueryAsync` | `(string sql, BigQueryParameter[], QueryOptions?, CancellationToken)` | `IEnumerable<RowDto>` | Executa query e mapeia resultados |
+
+---
+
+## MappingProfiles
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Infra.Data.Queries/AutoMappers/MappingProfiles.cs`
+- **Tipo**: class (AutoMapper Profile)
+- **Responsabilidade**: Mapeamento entre DTOs e response models
+- **Depende de**: nenhum
+
+| Mapeamento | Descrição |
+|------------|-----------|
+| `ConsultaStatusDto` → `GetTranscriptionOnBigQueryResponse` | DTO interno para response completo |
+| `ConsultaStatusDto` → `GetTranscriptionQueryResponse` | DTO interno para response da API |
+
+---
+
+# Consumer Utils
+
+---
+
+## EventFileHelper
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Helpers/EventFileHelper.cs`
+- **Tipo**: static class
+- **Responsabilidade**: Desserializa e valida eventos de notificação do GCS/Pub/Sub
+- **Depende de**: `EventFile`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `Deserialize<T>` | `(string json)` | `T?` | Desserializa JSON em EventFile |
+
+---
+
+## GenerateContentResponseHelper
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Helpers/GenerateContentResponseHelper.cs`
+- **Tipo**: static class
+- **Responsabilidade**: Valida resposta do Gemini — null checks em toda a cadeia
+- **Depende de**: `VertexValidationResult`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `ValidateAndExtract` | `(GenerateContentResponse)` | `VertexValidationResult` | Valida e extrai texto da resposta |
+
+---
+
+## PubSubMessageEventHelper
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Helpers/PubSubMessageEventHelper.cs`
+- **Tipo**: static class
+- **Responsabilidade**: Filtra mensagens Pub/Sub por tipo de evento
+- **Depende de**: nenhum
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `IsValidMessageEventType` | `(PubsubMessage)` | `bool` | Verifica se é `OBJECT_FINALIZE` |
+
+---
+
+## SourcePlatformHelper
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Helpers/SourcePlatformHelper.cs`
+- **Tipo**: static class
+- **Responsabilidade**: Converte SourcePlatform para labels e vice-versa
+- **Depende de**: `SourcePlatform`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `ToLabels` | `(SourcePlatform)` | `Dictionary<string, string>` | Gera labels dict para Vertex AI |
+| `FromString` | `(string)` | `SourcePlatform` | Converte string para enum |
+
+---
+
+## BigQueryRowExtensions (Consumer)
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Extensions/BigQueryRowExtensions.cs`
+- **Tipo**: static class (extension methods)
+- **Responsabilidade**: Extração tipada de campos de BigQueryRow (versão simplificada)
+- **Depende de**: nenhum
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `TryGetValue` | `(BigQueryRow, string field, out object?)` | `bool` | Tenta extrair valor |
+| `Get<T>` | `(BigQueryRow, string field)` | `T?` | Extrai valor tipado |
+
+---
+
+## VertexClientWrapper
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Wrappers/v1/VertexClientWrapper.cs`
+- **Tipo**: class
+- **Responsabilidade**: Thin wrapper sobre Google.GenAI.Client para testabilidade
+- **Depende de**: `IOptions<VertexSettings>`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `GenerateAsync` | `(string model, Content[], GenerateContentConfig, GoogleCredential, RequestOptions?)` | `GenerateContentResponse` | Chama Gemini 2.5 Flash |
+
+---

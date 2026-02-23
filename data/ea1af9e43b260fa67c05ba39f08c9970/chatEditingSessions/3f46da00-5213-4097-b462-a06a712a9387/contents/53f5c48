@@ -1,0 +1,682 @@
+# Project Context — STT (Speech-To-Text) + AutoCid (CID Prediction)
+
+Estado atual do projeto para referência do Copilot. Multi-repo workspace com 7 repositórios e 6+ serviços integrados.
+
+---
+
+## Objetivo
+
+Dois sistemas de IA integrados ao fluxo de atendimento médico Hapvida:
+
+1. **STT (Speech-to-Text)**: Transcrição de voz por IA para Telemedicina (TeleHealth). Upload de áudio (.webm) → GCS → Pub/Sub → Vertex AI (Gemini 2.5 Flash) → transcrição com sintomas e CIDs sugeridos.
+2. **AutoCid (CID Prediction)**: Sugestão de códigos CID-10 via IA (BERT + Gemini) a partir da anamnese do paciente durante atendimento de emergência/internação.
+
+Ambos convergem no frontend Angular (SamWeb) usado por médicos em pronto-socorros e hospitais Hapvida.
+
+## Repos
+
+| Repo | Pasta Workspace | Tipo | Tech | Propósito |
+|------|----------------|------|------|-----------|
+| **Sigah.SamWeb.Web** | `Sigah.SamWeb.Web/` | Frontend | Angular 5, TypeScript 2.6, Node 10 | UI para médicos — anamnese, diagnóstico, prescrição, transcrição de voz |
+| **Sigah.SamWeb.Api** | `Sigah.SamWeb.Api/` | BFF (Backend For Frontend) | Python 3.6, Django 1.11 | Proxy/orquestrador entre Angular e Java API |
+| **Pep.SamWeb.Api** | `Pep.SamWeb.Api/` | Core API | Java 8, WildFly 9, JAX-RS | Lógica de negócio, acesso Oracle, orquestra chamadas para AI APIs |
+| **Insights.CidPrediction.Api** | `Insights.CidPrediction.Api/` | AI API | .NET 6 (SDK 6.0.416), C# | Orquestração de modelos ML (BERT emergência, Gemini 2.5/2.0 internação) |
+| **Insights.CidPrediction.Ai** | `Insights.CidPrediction.Ai/` | ML Pipeline | Python 3.8, PyTorch, HuggingFace, MLflow | Treino e deploy do modelo BERTimbau para classificação de CID-10 |
+| **VoiceTranscription.Api** | `VoiceTranscription.Api/` | REST API | .NET 8, C# 12 | Gera URLs assinadas para upload GCS, consulta transcrições BigQuery/Cache |
+| **VoiceTranscription.Consumer** | `VoiceTranscription.Consumer/` | Worker Service | .NET 8, C# 12 | Consome Pub/Sub, envia áudio para Vertex AI, persiste resultados |
+
+---
+
+## Arquitetura Completa
+
+```
+┌─────────────────────────┐
+│    Angular (SamWeb)     │
+│    :4200                │
+│    Sigah.SamWeb.Web     │
+└──────┬──────────────────┘
+       │  ┌───────────────────────────────────────────┐
+       │  │  Dual backend pattern:                     │
+       │  │  • Django BFF for domain data (CID search) │
+       │  │  • Java API direct for auth + IA + STT     │
+       ▼  ▼                                            │
+┌──────────────┐                              ┌───────┴─────────┐
+│  Django BFF  │ ──── proxies to ──────────►  │   Java (PEPSAM) │
+│  :8000       │                              │   :8080/WildFly │
+│  Sigah.Api   │                              │   Pep.SamWeb.Api│
+└──────────────┘                              └───┬────────┬────┘
+                                                  │        │
+                                    ┌─────────────┘        └────────────┐
+                                    ▼                                    ▼
+                           ┌────────────────┐                  ┌─────────────────┐
+                           │ .NET AI (CID)  │                  │ .NET STT API    │
+                           │ :5000          │                  │ :5007 (dev)     │
+                           │ CidPrediction  │                  │ VoiceTransc.Api │
+                           └────────────────┘                  └────────┬────────┘
+                           │ BERT (Databricks)     │                │
+                           │ Gemini 2.5/2.0 FL     │                │
+                           │ → CID-10 codes        │       ┌───────┴────────┐
+                           └───────────────────────┘       │  GCS Signed URL│
+                                    ▲                      │  Audio Upload  │
+                           ┌────────┴───────────────┐      └───────┬────────┘
+                           │ Insights.CidPrediction  │             │
+                           │ .Ai (Python/ML)         │             │
+                           │ BERTimbau Training      │             │
+                           │ → Azure ML Endpoint     │             │
+                                                               │  Audio Upload  │
+                                                               └───────┬────────┘
+                                                                       │ Pub/Sub event
+                                                               ┌───────▼────────┐
+                                                               │ .NET Consumer  │
+                                                               │ VoiceTransc.   │
+                                                               │ Consumer       │
+                                                               └───────┬────────┘
+                                                                       │
+                                                               ┌───────▼────────┐
+                                                               │ Vertex AI      │
+                                                               │ Gemini 2.5 FL  │
+                                                               │ → Transcrição  │
+                                                               └───────┬────────┘
+                                                                       ▼
+                                                               BigQuery + Redis
+```
+
+### Relações Entre Repos
+
+| De → Para | Protocolo | Propósito |
+|-----------|-----------|-----------|
+| Angular → Django BFF | HTTP REST | Dados de domínio (CIDs, medicamentos, evolução) |
+| Angular → Java PEPSAM | HTTP REST (direto) | Autenticação, sugestão IA CID, transcrição voz, postos |
+| Angular → GCS | HTTP PUT (signed URL) | Upload de áudio .webm |
+| Django BFF → Java PEPSAM | HTTP REST (proxy) | Todas as rotas de domínio, proxied via `@service_method` |
+| Java PEPSAM → .NET CidPrediction | HTTP POST | Sugestão CID-10: `/api/v1` (emergência BERT/Gemini 2.5) ou `/api/v1/int` (internação Gemini 2.0) |
+| .NET CidPrediction → Azure Databricks | HTTP POST (Refit) | BERT serving endpoint para classificação CID emergência |
+| .NET CidPrediction → Google AI API | HTTP POST (Refit) | Gemini 2.5 FL (emergência alt) ou Gemini 2.0 FL (internação) |
+| Insights.CidPrediction.Ai → Azure ML | MLflow deploy | Treina BERTimbau e deploya como managed endpoint |
+| Java PEPSAM → .NET VoiceTranscription.Api | HTTP GET (OAuth2) | Obter signed URL + polling transcrição |
+| Java PEPSAM → Oracle DB | JDBC | Dados de atendimento, procedimentos, configurações de IA |
+| VoiceTranscription.Api → GCS | SDK | Gerar signed URLs para upload |
+| VoiceTranscription.Api → BigQuery | SDK | Registrar upload, consultar transcrições |
+| VoiceTranscription.Api → Redis | StackExchange | Cache de transcrições |
+| GCS → Pub/Sub | Event (OBJECT_FINALIZE) | Trigger automático ao upload de áudio |
+| VoiceTranscription.Consumer → Pub/Sub | gRPC (subscriber) | Consome eventos de upload |
+| VoiceTranscription.Consumer → Vertex AI (Gemini) | SDK (Google.GenAI) | Transcrição de áudio |
+| VoiceTranscription.Consumer → BigQuery | SDK | Persiste transcrição + token usage |
+| VoiceTranscription.Consumer → Redis | StackExchange | Cache de transcrição para consulta rápida |
+
+---
+
+## Detalhes por Repo
+
+### 1. Sigah.SamWeb.Web (Angular Frontend)
+
+| Aspecto | Valor |
+|---------|-------|
+| Angular | 5.2.11 (CLI 1.7.4) |
+| Node | 10.13.0 |
+| TypeScript | 2.6.1 |
+| App Version | 5.44.0 |
+| Módulos | Monolítico (`AppModule` ~802 linhas, ~200+ components) |
+| Path alias | `@/*` → `./app/*` |
+
+**Funcionalidades principais:**
+- Anamnese com transcrição de voz (`TranscricaoAudioComponent`)
+- Diagnóstico com sugestão IA de CID (`DiagnosticoInicialComponent`, `Cid10IaService`)
+- Prescrição (medicamentos, hidratação venosa, dietas, hemoderivados)
+- Gestão de atendimento (fila, chamada, evolução, encerramento)
+- Histórico de paciente, exames, internações
+- Biometria (paciente e profissional)
+- Geração de PDF (atestados, receitas, declarações)
+
+**Dois sistemas de CID-IA paralelos:**
+1. `Cid10IaService` → via Django BFF → Java → .NET CidPrediction
+2. `DiagnosticoInicialService` → direto Java PEPSAM → .NET CidPrediction
+
+**Transcrição de voz (STT):**
+- `TranscricaoAudioService` → Java PEPSAM → VoiceTranscription.Api
+- MediaRecorder (audio/webm) → signed URL → GCS upload → polling resumo
+- Parametrização: `total` (auto) | `semTrava` | `justificativa` | `duplaBiometria`
+- Guard: `CanDeactivateIaTranscriptionGuard` previne navegação durante gravação
+
+**URLs de configuração (env.docker.json):**
+
+| Key | Valor Docker |
+|-----|-------------|
+| `BACKEND_URL` | `http://localhost:8000/` |
+| `PEPSAM_BACKEND_URL` | `https://app-desenv.hapvida.com.br/api/pepsam` |
+| `AI_TRANSCRIPTION_URL` | `http://localhost:5000` |
+
+### 2. Sigah.SamWeb.Api (Django BFF)
+
+| Aspecto | Valor |
+|---------|-------|
+| Python | 3.6.9 (EOL dez/2021) |
+| Django | 1.11 (EOL abr/2020) |
+| DRF | 3.7.0 |
+| Release | 5.43.4 |
+| Database | **Nenhum próprio** — pure proxy |
+
+**Padrão core: `@service_method` decorator**
+- Declarativamente mapeia métodos Python para chamadas HTTP ao PEPSAM
+- Inflexão automática: `snake_case ↔ camelCase` nas request/response
+- `IntegracaoService` encaminha `Authorization` e `Data-Source` headers
+
+**Apps Django (16):**
+
+| App | Propósito |
+|-----|-----------|
+| `intmed_framework` | Framework base (Service, ViewSet, @service_method, archetype system) |
+| `integracao` | Bridge para PEPSAM API (~31 service classes) |
+| `autenticacao` | Login, biometria, logout (proxy para PEPSAM) |
+| `dominio` | Dados de domínio (CID-10, medicamentos, frequências, **sugestão IA CID**) |
+| `atendimentos` | Evoluções, diagnósticos, prescrições, termos |
+| `prescricao` | Catálogo de medicamentos (por princípio ativo, grupo farmacológico, etc.) |
+| `exames` | Resultados, solicitações, pendências |
+| `historicos` | Histórico do paciente (atendimentos, procedimentos, laudos) |
+| `prontuario` | Prontuários (termos, verificação COVID) |
+| `auditoria` | Relatórios (pacientes atendidos/ausentes) |
+| `profissionais` | Gestão de profissionais (recadastro, CRM) |
+| `emergencia` | Criticidade (sinais vitais → score) |
+| `usuario` | Assinatura digital, documentos pendentes |
+| `receitas` | Receituário (rotas via atendimentos) |
+| `compatibilizar` | Constantes de protocolo |
+
+**CID IA endpoint:**
+`POST dominios/diagnosticos/cids/{atendimento}/sugestao/` → proxy para Java PEPSAM → .NET CidPrediction
+
+### 3. Pep.SamWeb.Api (Java PEPSAM)
+
+| Aspecto | Valor |
+|---------|-------|
+| Java | 1.8 (Java 8) |
+| App Server | WildFly 9.0.0.Beta1 |
+| Packaging | WAR |
+| Context Root | `/api/pepsam` |
+| GroupId | `br.com.hapvida.pepsam` |
+
+**Package structure:** `annotation/`, `config/`, `data/` (DAO), `dto/` (~200+), `enuns/` (41), `model/` (~250+), `rest/` (35), `service/` (31), `util/`
+
+**REST endpoints principais (todos prefixados com `/{ds}`):**
+
+| Resource | Endpoints | Propósito |
+|----------|-----------|-----------|
+| `SugestaoCidREST` | POST `dominio/ia/sugestao-cid`, GET `dominio/ia/ativo`, POST `dominios/sugestao/cid` | Sugestão CID via IA |
+| `AtendimentosRESTService` (~5700 linhas) | GET `transcricao-voz/url-assinada`, GET `transcricao-voz/resumo`, POST `transcricao-voz/auditoria` | STT integration + atendimentos |
+| `AutenticacaoRESTService` | Login, logout, médicos por local | Autenticação |
+| `DominiosRESTService` | CID10, macrodiagnósticos, especialidades | Dados de domínio |
+| `PrescricaoRESTService` | Medicamentos, dietas, hemoderivados | Prescrição |
+| +30 outros resources | Exames, prontuários, postos, biometria, GED, receita, termos, etc. | |
+
+**Path parameter `{ds}`:** `HAP` (antonio-prudente) ou `SCHOSP` (santa-clara) — seleciona datasource Oracle.
+
+**Integrações externas chamadas pelo Java:**
+
+| Serviço | Property/Config | URL Pattern |
+|---------|----------------|-------------|
+| .NET CidPrediction | `URL_SERVICO_MAIDA_SUGES_CID_REST` | `http://csharp-api:80/api/v1` |
+| .NET CidPrediction (internação) | `URL_SERVICO_MAIDA_ENVIAR_CID_INTERNACAO` | `http://csharp-api:80/api/v1/int` |
+| VoiceTranscription.Api | Obtido do Oracle DB | `{urlBase}/url/signed/upload`, `{urlBase}/speech-text/transcription` |
+| Telemedicina (TIS) | Hardcoded | `/medical-opinion`, `/access-chat` |
+| Receituário | Hardcoded | `/api/v2/medicines`, `/api/v2/medical-prescriptions` |
+| Home Care, Cuidados Paliativos | Hardcoded | Várias |
+
+**Oracle Database (2 datasources):**
+
+| Persistence Unit | JNDI | Schema |
+|-----------------|------|--------|
+| `antonio-prudente` | `java:jboss/datasources/pepsam-antonio-prudenteDS` | HAP |
+| `santa-clara` | `java:jboss/datasources/pepsam-santa-claraDS` | SCHOSP |
+
+**Procedures Oracle relevantes:**
+- `pr_grava_sugestao_subcap_ia` → grava sugestões IA em `tb_sugestoes_cid_ia`
+- `fn_verifica_cid_ia_modelo` → obtém modelo IA para o atendimento
+- `gravaAuditoriaTranscricaoVoz` → audit trail de transcrição de voz
+- `obterPropriedadesTranscricaoVoz` → config STT (URL, chaves, credenciais OAuth2)
+
+### 4. Insights.CidPrediction.Api (.NET 6)
+
+| Aspecto | Valor |
+|---------|-------|
+| .NET | 6.0 (SDK 6.0.416) |
+| Hapvida.Core | 1.5.2 (Api.Http, Domain, Infra) |
+| Porta Docker | 80 (→ host 5000) |
+| Layered | Api → Domain → Service |
+
+**Endpoints REST:**
+
+| Método | Rota | Propósito | Modelo IA |
+|--------|------|-----------|-----------|
+| `POST` | `/api/v1` | CID emergência | BERT (Databricks) ou Gemini 2.5 Flash Lite |
+| `POST` | `/api/v1/int` | CID internação/evolução | Gemini 2.0 Flash Lite |
+| `GET` | `/health` | Liveness probe | — |
+| `GET` | `/ready` | Readiness probe | — |
+
+**Modelos de IA orquestrados:**
+
+| # | Modelo | Endpoint | Propósito |
+|---|--------|----------|-----------|
+| 0 | BERT `bert-autocid-textclassifier-7` | Azure Databricks serving | Classificação CID emergência (default) |
+| 1 | SpaCy Anonymization | Azure ML (10.129.30.187) | Anonimização PII (**DESABILITADO** — `if (false)`) |
+| 2 | Gemini 2.0 Flash Lite | Google AI API | CID internação (prompt em `appsettings`) |
+| 3 | Gemini 2.5 Flash Lite | Google AI API | CID emergência (alternativo, prompt em `Constants.cs`) |
+
+**Seleção de modelo (emergência):** Caller envia `codigo_modelo_ia` → `AiModelType` enum: Default/Bert=0/1 → Databricks BERT, Gemini_2_5_Flash_Lite=2 → Google API.
+
+**Padrões:** CQRS (MediatR), Strategy (PredictAiEndpointsService), Hexagonal ports/adapters (IGeminiAiPort), Refit HTTP clients, AutoMapper, FluentValidation.
+
+### 5. Insights.CidPrediction.Ai (Python ML Pipeline)
+
+| Aspecto | Valor |
+|---------|-------|
+| Python | 3.8-3.9 |
+| ML Framework | PyTorch + HuggingFace Transformers |
+| Modelo base | `neuralmind/bert-base-portuguese-cased` (BERTimbau) |
+| Tracking | MLflow |
+| Deploy | Azure ML managed endpoint (Brazil South) |
+| Classes | 143 subcapítulos CID-10 |
+| Accuracy | 0.77 (target: 0.80) |
+| Dataset | 25k anamneses classificadas por auditoria médica |
+
+**Relação com .Api:** Este repo treina e faz deploy do modelo BERTimbau como endpoint Azure ML. O `.Api` (.NET) consome esse endpoint via Refit (`IPredictAiEndpoint`).
+
+**Estrutura:** `notebooks/v1/` (POC), `notebooks/v2/` (iterações de treino com `BERTClassification`), `notebooks/v3/` (MLflow + Azure ML deploy).
+
+**Não participa do Docker** — deploy via Azure ML managed endpoints, sem Dockerfile próprio.
+
+### 6. VoiceTranscription.Api (.NET 8)
+
+| Aspecto | Valor |
+|---------|-------|
+| .NET | 8.0, C# 12 |
+| Porta dev | 5007/7007 |
+| Porta K8s | 80 |
+| Layered | Api → Domain → Infra.Data.Queries, Infra.Cache |
+
+**Endpoints:**
+
+| Controller | Método | Rota | Descrição |
+|------------|--------|------|-----------|
+| `SpeechTextController` | `GET` | `api/v1/speech-text/transcription?workId=` | Busca transcrição (cache-first, fallback BigQuery) |
+| `SpeechTextController` | `GET` | `api/v1/speech-text/latency?workId=&dataInicio=&dataFim=` | Calcula latência de processamento |
+| `UrlController` | `GET` | `api/v1/url/signed/upload` | Gera signed URL para upload no GCS |
+| `UrlController` | `POST` | `api/v1/url/signed/upload` | Gera signed URL com prompt/platform e registra no BigQuery |
+
+**Health checks:** `/health` (liveness) e `/ready` (readiness) via Hapvida.Core.Api.Http.
+
+### 7. VoiceTranscription.Consumer (.NET 8)
+
+| Aspecto | Valor |
+|---------|-------|
+| .NET | 8.0, C# 12 |
+| Tipo | Worker Service (BackgroundService) |
+| Porta | Nenhuma (não expõe HTTP) |
+| AI Model | Gemini 2.5 Flash via Vertex AI |
+
+**Fluxo:**
+1. `TransactionConsumerHandler` → listener Pub/Sub
+2. `TranscriptionsCommandHandler` → filtra `OBJECT_FINALIZE`
+3. `TranscriptionMessageProcessor` → extrai workId, monta URI
+4. `VertexAiService` → busca prompt BigQuery, chama Gemini 2.5 Flash
+5. Persiste em paralelo: BigQuery (`File_Transcription` + `Token_Data`) + Redis cache
+
+**Gemini config:** Temperature=0.0, TopP=0.95, ThinkingBudget=0, ResponseMimeType=application/json
+
+## Stack Completa
+
+| Componente | Tecnologia | Versão | Usado em |
+|------------|------------|--------|----------|
+| **Frontend** | Angular | 5.2.11 | Sigah.SamWeb.Web |
+| Frontend runtime | Node.js | 10.13.0 | Sigah.SamWeb.Web |
+| Frontend lang | TypeScript | 2.6.1 | Sigah.SamWeb.Web |
+| **BFF** | Django + DRF | 1.11 + 3.7.0 | Sigah.SamWeb.Api |
+| BFF runtime | Python | 3.6.9 | Sigah.SamWeb.Api |
+| **Core API** | Java (JAX-RS) | 1.8 | Pep.SamWeb.Api |
+| Core App Server | WildFly | 9.0.0.Beta1 | Pep.SamWeb.Api |
+| **STT API** | .NET / C# | 8.0 / 12.0 | VoiceTranscription.Api |
+| **STT Consumer** | .NET / C# | 8.0 / 12.0 | VoiceTranscription.Consumer |
+| **CID AI API** | .NET / C# | 6.0 (SDK 6.0.416) | Insights.CidPrediction.Api |
+| **CID ML Pipeline** | Python (PyTorch, HuggingFace, MLflow) | 3.8-3.9 | Insights.CidPrediction.Ai |
+| AI/ML (CID emerg) | Azure Databricks BERT (BERTimbau) | — | Insights.CidPrediction.Api → Databricks |
+| AI/ML (CID intern) | Google Gemini 2.0 Flash Lite | — | Insights.CidPrediction.Api → Google API |
+| AI/ML (CID emerg alt) | Google Gemini 2.5 Flash Lite | — | Insights.CidPrediction.Api → Google API |
+| AI/ML (STT) | Vertex AI (Gemini 2.5 Flash) | Google.GenAI 0.6.0 | VoiceTranscription.Consumer |
+
+| Database (Oracle) | Oracle Database | 19c | Pep.SamWeb.Api (JDBC), Sigah.SamWeb.Api (cx_Oracle) |
+| Database (BigQuery) | Google BigQuery | 3.11.0 | VoiceTranscription (ambos) |
+| Cache | Redis | 7.0 (K8s sidecar) | VoiceTranscription (ambos) |
+| Message Broker | Google Pub/Sub | 3.30.0 | VoiceTranscription.Consumer |
+| Object Storage | Google Cloud Storage | 4.13.0 | VoiceTranscription.Api |
+| Observability | OpenTelemetry → Datadog | 2.1.0 | VoiceTranscription (ambos), Sigah.SamWeb.Api |
+| Observability (RUM) | Datadog Browser RUM | 5.29.1 | Sigah.SamWeb.Web |
+| HTTP Client | Apache HttpClient | 4.5.13 | Pep.SamWeb.Api |
+| HTTP Client | requests | 2.18.4 | Sigah.SamWeb.Api |
+| HTTP Client | Refit | 8.0.0 | VoiceTranscription.Api |
+| Auth (frontend) | Session Storage + Token pass-through | — | Sigah.SamWeb.Web |
+| Auth (STT) | OAuth2 client_credentials | — | Pep.SamWeb.Api → VoiceTranscription.Api |
+| PDF | jspdf + html2pdf.js | 3.0.0 / 0.10.3 | Sigah.SamWeb.Web |
+| Biometria | Popup-based (AutenticacaoService) | — | Sigah.SamWeb.Web, Pep.SamWeb.Api |
+
+## Arquitetura
+
+### Padrões por Repo
+
+**VoiceTranscription (API + Consumer):**
+- **Layered Architecture** com pastas numeradas (0-Presentation, 1-Domain, 2-Infrastructure, 3-Tests)
+- **Command/Handler** via MediatR (CQRS-lite)
+- **Bootstrapper pattern** — `Bootstrapper.cs` estático com extension methods
+- **Options pattern** — `IOptions<T>` para configs tipadas
+- **Cache-aside** — lê cache primeiro, fallback BigQuery
+- **Multi-stage Dockerfile** — 5-6 stages (build → test → publish → final)
+
+**Pep.SamWeb.Api (Java):**
+- **DAO pattern** — `DominioDAO` → `DominioDAOImpl` com Oracle procedures
+- **Service layer** — `DominioService` → `DominioServiceImpl` (~4000 linhas)
+- **CDI injection** — `@Inject`, `@ApplicationProperty` custom annotation
+- **JPA/Hibernate** — entities mapeadas para views Oracle
+- **Path parameter `{ds}`** — HAP/SCHOSP seleciona datasource Oracle
+- **Properties dual** — arquivo `pepsam.properties` + configs do banco Oracle
+
+**Sigah.SamWeb.Api (Django BFF):**
+- **`@service_method` decorator** — mapeia métodos para chamadas HTTP (core pattern)
+- **`IntegracaoService`** — base class com token forwarding e datasource routing
+- **Archetype system** — serialização OpenEHR-style para formulários médicos
+- **Zero database models** — pure proxy/orquestrador
+- **Inflexão automática** — `snake_case ↔ camelCase` nas transformações
+
+**Sigah.SamWeb.Web (Angular):**
+- **Monolítico `AppModule`** — ~200+ components sem lazy loading
+- **Dual backend** — chama Django BFF E Java PEPSAM diretamente
+- **URL templating** — `{pepsamBackendUrl}`, `{dataSource}` resolvidos pelo interceptor HTTP
+- **SessionStorage auth** — token armazenado em sessionStorage, forwarded em headers
+
+### Data Flow — Transcrição de Voz (STT)
+
+```
+1. Angular: TranscricaoAudioComponent.startRecording()
+   └→ MediaRecorder (audio/webm) + health check 2s
+
+2. Angular: stopRecording() → sendoAudioToTranslate()
+   └→ GET {pepsamBackendUrl}/{ds}/atendimentos/{cod}/evolucao/{ne}/transcricao-voz/url-assinada
+
+3. Java PEPSAM: DominioServiceImpl.obterUrlUploadAudioTranscricaoVoz()
+   └→ OAuth2 token → GET VoiceTranscription.Api/url/signed/upload
+   └→ Returns { signedUrl, workId }
+
+4. Angular: PUT signed URL (GCS) with audio blob
+
+5. GCS → Pub/Sub (OBJECT_FINALIZE event)
+
+6. VoiceTranscription.Consumer:
+   └→ TranscriptionMessageProcessor → VertexAiService
+   └→ Gemini 2.5 Flash → { transcription, symptoms, suggestedCIDs }
+   └→ BigQuery + Redis
+
+7. Angular: polling GET {pepsamBackendUrl}/.../transcricao-voz/resumo?workId=X
+   └→ Every 10s, 5 attempts, waits for non-202
+
+8. Java PEPSAM: DominioServiceImpl.obterResumoTranscricaoVoz()
+   └→ OAuth2 token → GET VoiceTranscription.Api/speech-text/transcription?workId=X
+
+9. Angular: ModalAudioTranscritoComponent
+   └→ "Copiar e aplicar no HDA" → preenche queixa_principal (max 4000 chars)
+```
+
+### Data Flow — Sugestão CID-10 (AutoCid)
+
+```
+1. Angular: DiagnosticoInicialComponent → pesquisarDiagnosticoSugerido()
+   └→ POST {pepsamBackendUrl}/{ds}/dominio/ia/sugestao-cid (body: anamnese/archetype)
+
+   OU
+
+   Angular: Cid10IaService.getCidsIa()
+   └→ POST {BACKEND_URL}dominios/diagnosticos/cids/{atendimento}/sugestao/
+   └→ Django BFF proxy → Java PEPSAM
+
+2. Java PEPSAM: SugestaoCidREST/DominioServiceImpl
+   └→ Monta DadosAtendimentoMaida (view Oracle)
+   └→ POST http://csharp-api:80/api/v1 (emergência) ou /api/v1/int (internação)
+   └→ Grava sugestões: pr_grava_sugestao_subcap_ia → tb_sugestoes_cid_ia
+
+3. .NET CidPrediction: PredictController
+   └→ BERT model (emergência) ou Gemini (internação)
+   └→ Returns subcapítulos/CIDs sugeridos com confiança
+```
+
+### BigQuery Tables
+
+| Tabela | Propósito | Usado por |
+|--------|-----------|-----------|
+| `File_Transcription` | Transcrições, status, CIDs, sintomas | VoiceTranscription.Api (read/write), Consumer (write) |
+| `Token_Data` | Metadata de uso de tokens do Gemini | VoiceTranscription.Consumer (write) |
+| `Prompts` | Prompts customizados por ID | VoiceTranscription.Consumer (read) |
+| `StatusAudioTranscription` | Status de transcrição de áudio | VoiceTranscription.Consumer |
+
+### Oracle Tables/Views (Java PEPSAM)
+
+| Objeto | Tipo | Propósito |
+|--------|------|-----------|
+| `tb_sugestoes_cid_ia` | Table | Sugestões IA (BERT + Gemini/LLM) |
+| `TB_EVOLUCAO_RESULTADO` | Table | CID definitivo do médico |
+| `vw_dados_atendimento_maida` | View | Dados de atendimento para IA (JPA entity) |
+| `humaster.tb_uso_cid_ia` | Table | **DESCONTINUADA** — antigo indicadores IA |
+
+## Infraestrutura
+
+### Docker Compose (Ambiente de Desenvolvimento)
+
+O `docker-compose.yml` raiz orquestra 4 serviços na rede `autocid-network`:
+
+| Serviço | Container | Build | Porta Host |
+|---------|-----------|-------|------------|
+| `csharp-api` | `autocid-csharp-api` | `./Insights.CidPrediction.Api/src/Dockerfile.dev` | **5000** (HTTP), **5001** (HTTPS) |
+| `java-api` | `autocid-java-api` | `./Pep.SamWeb.Api/Dockerfile.dev` | **8080** (HTTP), **9990** (Admin), **8787** (Debug) |
+| `python-api` | `autocid-python-api` | `./Sigah.SamWeb.Api/Dockerfile` | **8000** (HTTP) |
+| `angular-web` | `autocid-angular-web` | `./Sigah.SamWeb.Web/Dockerfile.dev` | **4200** (HTTP) |
+
+**Dependency chain:** `csharp-api` → `java-api` → `python-api` → `angular-web`
+
+**Environment vars chave (docker-compose):**
+
+| Serviço | Variável | Valor |
+|---------|----------|-------|
+| `java-api` | `JAVA_OPTS` | `-Xms512m -Xmx2048m` |
+| `java-api` | `URL_SERVICO_MAIDA_SUGES_CID_REST` | `http://csharp-api:80/api/v1` |
+| `java-api` | `URL_SERVICO_MAIDA_ENVIAR_CID_INTERNACAO` | `http://csharp-api:80/api/v1/int` |
+| `python-api` | `PEPSAM_API_URL` | `http://java-api:8080/api/pepsam` |
+| `python-api` | `DB_HOST` | `10.1.23.75` (Oracle externo!) |
+| `python-api` | `DB_NAME` | `HOSPDES` |
+
+**Named volumes:** `csharp-nuget` (cache NuGet), `maven-cache` (cache Maven)
+
+**Bind mounts:** Todos serviços montam o código fonte para hot-reload.
+
+### Dependências Externas (NÃO containerizadas)
+
+| Dependência | Usado por | Host | Observação |
+|-------------|-----------|------|------------|
+| **Oracle Database** | Java PEPSAM, Django BFF | `dboradsv-scan.hapvida.com.br:1521` / `10.1.23.75:1521` | **Requer VPN corporativa** |
+| **Insights.CidPrediction.Api** | docker-compose (csharp-api) | — | **Repo ausente no workspace** — build falha |
+| **Google Cloud (GCS, Pub/Sub, BigQuery, Vertex AI)** | VoiceTranscription (ambos) | GCP | Credenciais em `appsettings.json` / K8s Secret |
+| **Azure Artifacts (NuGet feed)** | VoiceTranscription (ambos) | Azure DevOps | `NUGET_USER` + `NUGET_KEY` |
+
+### Recursos para Docker Local
+
+| Recurso | Mínimo | Recomendado |
+|---------|--------|-------------|
+| **RAM Docker** | 4 GB | 6-8 GB |
+| `java-api` (WildFly) | 512 MB | 2048 MB + ~500 MB overhead |
+| `csharp-api` | ~256 MB | ~512 MB |
+| `python-api` | ~128 MB | ~256 MB |
+| `angular-web` | ~256 MB | ~512 MB |
+| **Disco (imagens + caches)** | 5 GB | 8 GB |
+| **CPU** | 4 cores | 8 cores |
+| **Build inicial** | — | ~10-15 min |
+
+### Como Executar o Ambiente Docker
+
+```bash
+# Pré-requisitos:
+# 1. VPN corporativa Hapvida ativa (Oracle)
+# 2. Repo Insights.CidPrediction.Api clonado no workspace
+# 3. Docker Desktop com 6+ GB RAM
+# 4. Variáveis NUGET_USER e NUGET_KEY (se usar csharp-api)
+
+cd d:\Repos\_hv\STT
+
+# Iniciar todos os serviços
+docker-compose up -d
+
+# Acompanhar logs
+docker-compose logs -f
+
+# Verificar status
+docker-compose ps
+
+# URLs disponíveis:
+# - Frontend:       http://localhost:4200
+# - Django BFF:     http://localhost:8000
+# - Java PEPSAM:    http://localhost:8080/api/pepsam
+# - WildFly Admin:  http://localhost:9990 (admin/admin)
+# - C# AI API:      http://localhost:5000/api/v1
+```
+
+### VoiceTranscription — Não participa do Docker Compose
+
+VoiceTranscription.Api e Consumer são deployados **exclusivamente via K8s (GKE)** e CI/CD (Azure Pipelines). Possuem Dockerfiles de produção mas não estão no docker-compose de dev.
+
+### Infraestrutura de Produção
+
+| Aspecto | Detalhes |
+|---------|----------|
+| Container Registry | Azure Container Registry (`hapvidacorp.azurecr.io`) + GCP GCR |
+| Base Images (.NET) | Golden images: `dotnet-8-aspnet`, `dotnet-8-sdk` |
+| Base Images (Java) | `maven:3.9-eclipse-temurin-8` → `eclipse-temurin:8-jdk` |
+| Base Images (Python) | `python:3.6.9` |
+| Base Images (Node) | `node:10.13.0` |
+| Orquestração | Kubernetes (GKE) — namespace `hap-ti-voi` |
+| CI/CD | Azure Pipelines → Docker build, SonarQube, TechDocs |
+| Code Quality | SonarQube |
+| Developer Portal | Backstage (catalog-info.yaml, mkdocs.yaml) |
+| Observabilidade | OpenTelemetry → Datadog (APM, traces, runtime metrics) |
+| Redis em K8s | Redis 7.0 sidecar (apenas VoiceTranscription.Api), 4.6 GB maxmemory, LRU eviction |
+| GCP Project | `prj-hap-ti-vtx-voice-trsc-dev` |
+
+## Integrações
+
+| Sistema | Propósito | Status | Usado por |
+|---------|-----------|--------|-----------|
+| Google Vertex AI (Gemini 2.5 Flash) | Transcrição de áudio via IA | Ativo | VoiceTranscription.Consumer |
+| Google Cloud Pub/Sub | Message broker para eventos de upload | Ativo | VoiceTranscription.Consumer |
+| Google BigQuery | Persistência de transcrições, tokens e prompts | Ativo | VoiceTranscription (ambos) |
+| Google Cloud Storage | Upload/leitura de arquivos de áudio (.webm) | Ativo | VoiceTranscription.Api, Angular (signed URL) |
+| Redis | Cache para consulta rápida de transcrições | Ativo | VoiceTranscription (ambos) |
+| Oracle Database (19c) | Dados de atendimento, configurações, auditoria | Ativo | Pep.SamWeb.Api, Sigah.SamWeb.Api |
+| .NET CidPrediction (BERT+Gemini) | Sugestão CID-10 via IA | Ativo | Pep.SamWeb.Api → Insights.CidPrediction |
+| Telemedicina (TIS) | Tele-parecer, chat médico | Ativo | Pep.SamWeb.Api |
+| Receituário | Prescrição digital | Ativo | Pep.SamWeb.Api |
+| Home Care | Verificação de paciente em home care | Ativo | Pep.SamWeb.Api |
+| Cuidados Paliativos | Consulta de elegibilidade | Ativo | Pep.SamWeb.Api |
+| Datadog | Observabilidade (APM, traces, métricas, RUM) | Ativo | Todos |
+| SonarQube | Análise de qualidade de código | Ativo | VoiceTranscription (ambos) |
+| Backstage | Portal do desenvolvedor e TechDocs | Ativo | VoiceTranscription (ambos) |
+| Azure DevOps | CI/CD pipelines | Ativo | Todos |
+
+## Tech Debt Identificado
+
+### VoiceTranscription (.NET)
+
+| Item | Projeto | Impacto |
+|------|---------|---------|
+| Namespace typo `Hapvvida` | API (Infra.Data.Queries) | Confusão de imports |
+| Mixed mocking frameworks | API (UnitTests) | Moq E NSubstitute no mesmo projeto |
+| Pre-release packages | API | `System.Text.Json 10.0.0-rc.1` em target .NET 8 |
+| Packages sem uso visível | API | NAudio, Xabe.FFmpeg, Refit não usados |
+| GCS ListObjects client-side filter | API | Performance em escala |
+| Sem health checks K8s | Consumer | Risco de pods zombie |
+| BaseConsumerHandler dead code | Consumer | Legado do Service Bus |
+| Mixed serialization | Consumer | System.Text.Json + Newtonsoft.Json |
+| Commands excluídos compilação | API (Domain) | `<Compile Remove="Commands\**" />` |
+| WorkStatus enum divergente | API vs Consumer | API: Processing=0,Completed=1,Pending=2 vs Consumer: Completed=0,Pending=1 |
+
+### Legacy Stack (SamWeb + PEPSAM)
+
+| Item | Projeto | Impacto |
+|------|---------|---------|
+| Angular 5 (2017) | Sigah.SamWeb.Web | Sem patches de segurança, framework EOL |
+| Node 10 (EOL abr/2021) | Sigah.SamWeb.Web | Vulnerabilidades conhecidas |
+| Python 3.6.9 (EOL dez/2021) | Sigah.SamWeb.Api | Vulnerabilidades conhecidas |
+| Django 1.11 (EOL abr/2020) | Sigah.SamWeb.Api | Vulnerabilidades conhecidas |
+| WildFly 9.0.0.Beta1 (2015) | Pep.SamWeb.Api | Versão extremamente antiga sem suporte |
+| Java 8 | Pep.SamWeb.Api | Suporte estendido apenas |
+| Monolítico AppModule (~200+ components) | Sigah.SamWeb.Web | Performance de compilação e bundle size |
+| AtendimentosRESTService ~5700 linhas | Pep.SamWeb.Api | God class |
+| DominioServiceImpl ~4000 linhas | Pep.SamWeb.Api | God class |
+| Credenciais Oracle hardcoded | docker-compose, standalone.xml | Segurança |
+| Dual CID-IA systems paralelos | Angular → Django e Angular → Java | Complexidade desnecessária |
+| docker-compose paths com prefixo `Assistance.` | docker-compose.yml, Dockerfile.dev | Referencia `Assistance.Pep.SamWeb.Api/` mas pasta real é `Pep.SamWeb.Api/` — requer symlinks ou renomear |
+| Typo "Gimini" vs "Gemini" | CidPrediction.Api (Domain) | `GiminiEvolutionService`, `IGiminiEvolutionService` |
+| SpaCy anonimização hardcoded desabilitada | CidPrediction.Api | `if (false)` em `CreateExampleCommandHandler` |
+| Dual Gemini call em internação | CidPrediction.Api | Chama `IGeminiAiPort` E `IGiminiEvolutionService`, só usa resultado do segundo |
+| Prompt-in-config anti-pattern | CidPrediction.Api | `UseDefault` field armazena prompt inteiro como string |
+
+## Convenções
+
+### VoiceTranscription (.NET)
+1. **Namespace**: `Hapvida.TI.VoiceTranscription.[Layer]` — PascalCase
+2. **API versioning**: pastas `v1/` em todas as camadas
+3. **Bootstrapper pattern**: `Bootstrapper.cs` estático com extension methods
+4. **Options pattern**: `IOptions<T>` para configs tipadas
+5. **C# 12**: `LangVersion=12.0`, nullable reference types habilitado
+6. **TreatWarningsAsErrors**: sempre habilitado
+7. **Test coverage**: apenas Domain layer
+8. **Serialization**: `System.Text.Json` primário
+
+### Pep.SamWeb.Api (Java)
+1. **Package**: `br.com.hapvida.pepsam`
+2. **Path param `{ds}`**: `HAP` ou `SCHOSP` em todas as rotas
+3. **DAO pattern**: interface → impl, procedures Oracle
+4. **Properties**: `{jboss.server.config.dir}/pepsam/pepsam.properties` + configs Oracle DB
+5. **CDI**: `@Inject`, custom `@ApplicationProperty`
+
+### Sigah.SamWeb.Api (Django)
+1. **`@service_method`**: decorator core para proxy HTTP
+2. **Inflexão**: `snake_case ↔ camelCase` automático
+3. **Token forwarding**: `Authorization` → `token` header para PEPSAM
+4. **Data-Source header**: `HAP`/`SCHOSP` em todas as requests
+
+### Sigah.SamWeb.Web (Angular)
+1. **Prefixos**: `app` ou `sam` para components/directives
+2. **Private members**: prefixo `_`
+3. **Path alias**: `@/*` → `./app/*`
+4. **URL templating**: `{pepsamBackendUrl}`, `{dataSource}` resolvidos pelo interceptor
+
+## Restrições
+
+- Golden images Hapvida para Docker (.NET: `hapvidacorp.azurecr.io`)
+- NuGet feed privado Azure Artifacts
+- Oracle DB requer VPN corporativa
+- Prompts de IA em português (contexto médico — CIDs, SUS)
+- Angular 5 / Node 10 / Python 3.6 — dependências legacy, não atualizar sem planejamento
+
+## Testes
+
+| Projeto | Framework | Quantidade | Padrão |
+|---------|-----------|------------|--------|
+| VoiceTranscription.Api UnitTests | xUnit + Moq + NSubstitute | ~44 tests | AAA, `[Fact]`/`[Theory]`, `BuildSut` |
+| VoiceTranscription.Consumer UnitTests | xUnit + Moq | ~13 tests | AAA, `[Fact]`, Mock + Verify |
+| Pep.SamWeb.Api | JUnit + Arquillian | Minimal | — |
+| Sigah.SamWeb.Web | Jest 24.9.0 | — | jest-preset-angular |
+| Sigah.SamWeb.Api | — | Sem testes | — |
+
+## Estado Atual
+
+**Fase**: Produção
+**Status**: Sistema ativo em produção — AutoCid (sugestão CID-10 IA) e STT (transcrição de voz) são features do SamWeb usado por médicos em pronto-socorros e hospitais Hapvida.
+
+**Workspace**: Contém todos os 7 repos. docker-compose referencia pastas com prefixo `Assistance.` (ex: `Assistance.Pep.SamWeb.Api/`) mas pastas reais não têm esse prefixo — requer symlinks ou ajuste de paths.
+
+## Última Atualização
+
+**Data**: 2026-02-12
+**Motivo**: Análise de todos os 7 repos — incluindo Insights.CidPrediction.Api (.NET 6, BERT+Gemini) e Insights.CidPrediction.Ai (Python ML pipeline BERTimbau). Mapeamento de modelos IA, Docker, relações e dependências.

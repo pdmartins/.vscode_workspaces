@@ -1,0 +1,58 @@
+---
+name: cache-redis
+description: |
+  Generates Redis cache integration code following the STT workspace patterns. Activated when user asks to implement caching, create cache services, configure Redis, or work with distributed cache. Covers cache-aside pattern, CacheSettings Options, TimeToExpireTokenType, error handling, and DI registration differences between API and Consumer.
+metadata:
+  author: copilot
+  version: "1.0"
+  category: infrastructure
+---
+
+# Redis Cache — STT Projects
+
+## Architecture Overview
+
+Both projects use **StackExchange.Redis** via `IDistributedCache` with a cache-aside pattern. The cache layer lives in a dedicated Infrastructure project.
+
+| Aspect | API | Consumer |
+|--------|-----|----------|
+| Project | `Hapvida.TI.VoiceTranscription.Infra.Cache` | `Hapvida.TI.VoiceTranscription.AI.Infra.Cache` |
+| Namespace | `...Infra.Cache.Services.v1` | `...AI.Infra.Cache.Services.v1` |
+| Interface | `ICacheService` (in Domain) | `ICacheService` (in Domain) |
+| DI Lifetime | Singleton | Singleton |
+| Settings injection | `IOptions<CacheSettings>` | Direct `CacheSettings` singleton |
+
+## Interface Definition
+
+### API (3 methods)
+```csharp
+public interface ICacheService
+{
+    Task<string> GetCacheAsync(string key, CancellationToken cancellationToken);
+    Task SetCacheAsync(string key, string value, CancellationToken cancellationToken);
+    Task SetCacheAsync(string key, string value, TimeToExpireTokenType timeToExpireTokenType, CancellationToken cancellationToken);
+}
+```
+
+### Consumer (2 methods — no TimeToExpireTokenType overload exposed)
+```csharp
+public interface ICacheService
+{
+    Task SetCacheAsync(string key, string value, CancellationToken cancellationToken);
+    Task<string> GetCacheAsync(string key, CancellationToken cancellationToken);
+}
+```
+
+The Consumer's `CacheService` implementation internally supports `TimeToExpireTokenType` but the interface doesn't expose it.
+
+## CacheSettings Model
+
+```csharp
+[ExcludeFromCodeCoverage]  // API only
+public sealed class CacheSettings
+{
+    public static string SessionName => "Core:Cache";
+    
+    public string? ConnectionString { get; set; }
+    public string? InstanceName { get; set; }
+    public IReadOnlyDictionary<string, int>? MinutesToExpireToken { get; set; }

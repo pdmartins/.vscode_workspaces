@@ -1,0 +1,151 @@
+# Lessons Learned
+
+Registro de aprendizados e decisões importantes do projeto.
+
+---
+
+## Estrutura
+
+Cada lição segue o formato:
+
+```xml
+<lesson date="YYYY-MM-DD" category="categoria">
+  <context>Contexto do problema</context>
+  <decision>Decisão tomada</decision>
+  <outcome>Resultado/impacto</outcome>
+</lesson>
+```
+
+### Categorias
+
+| Categoria | Descrição |
+|-----------|-----------|
+| arquitetura | Estrutura do projeto |
+| padrões | Convenções de código |
+| tooling | Ferramentas e configs |
+| workflow | Processos |
+| debug | Problemas resolvidos |
+| performance | Otimizações |
+| segurança | Práticas de segurança |
+| regras | Definições e regras do sistema |
+| estrutura | Organização e estrutura de diretórios |
+
+## Lições
+
+<lesson date="2026-02-10" category="regras">
+  <context>O agente só registrava automaticamente correções de código gerado. Definições/correções de regras, estruturas e processos do próprio .copilot-core não eram capturadas.</context>
+  <decision>Ampliar o auto-registro para incluir correções de regras, estrutura e processos. O .copilot-core deve fazer self-dogfooding — usar seu próprio sistema de memória para governar seu desenvolvimento.</decision>
+  <outcome>Adicionada seção "Registro automático — Correções de regras, estrutura e processos" no default.instructions.md. Toda definição ou correção do usuário sobre como o sistema funciona agora é registrada automaticamente.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="estrutura">
+  <context>Ao configurar o STT, o .copilot-core foi clonado com `-b main` em vez de `-b core`. O skill project-update referenciava `git pull origin main` para o core.</context>
+  <decision>Projetos consumidores SEMPRE usam a branch `core`, nunca `main`. A branch `core` contém apenas `instructions/`, `skills/` e `templates/` (sem `.github/` do repo de desenvolvimento). A branch `main` é exclusiva para desenvolvimento do core.</decision>
+  <outcome>Corrigido project-update skill. Documentada estratégia de branches no template workspace.instructions.md. Fixado clone do STT para branch core.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="estrutura">
+  <context>Ao configurar projetos cujos repos não podem ter referência a submodules, a abordagem de junction (mklink /J) foi considerada mas rejeitada porque mudanças de branch no source refletem no projeto consumidor.</context>
+  <decision>Para projetos sem submodules, usar clones independentes dentro de uma pasta container `{projeto}/.github/`. Estrutura: pasta raiz não é git repo, repos do projeto ficam lado a lado, `.github/` contém clones separados de .copilot-core e .copilot-project + instructions/. Abrir a pasta raiz no VS Code.</decision>
+  <outcome>Setup funciona sem tocar nos repos originais. Cada projeto tem seus próprios clones com branches independentes. Copilot descobre instructions em `.github/instructions/` relativo ao workspace root.</outcome>
+</lesson>---
+
+## Registro
+
+<!-- Adicionar lições aqui, mais recente primeiro -->
+
+<lesson date="2026-02-10" category="arquitetura">
+  <context>Análise profunda revelou que API e Consumer possuem enums WorkStatus com valores numéricos divergentes (API: Processing=0, Completed=1, Pending=2 vs Consumer: Completed=0, Pending=1). Ambos projetos são independentes mas gravam/leem da mesma tabela BigQuery.</context>
+  <decision>Documentar a divergência como tech debt. Qualquer alteração no WorkStatus deve considerar ambos os projetos e a compatibilidade com dados existentes no BigQuery.</decision>
+  <outcome>Risco identificado — mudanças no enum de um projeto podem quebrar o outro silenciosamente.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="padrões">
+  <context>Análise revelou que o namespace do projeto Infra.Data.Queries da API tem typo persistente: `Hapvvida` (duplo 'v') no RootNamespace do csproj, causando inconsistência em imports.</context>
+  <decision>Manter awareness do typo. Ao gerar código referenciando Infra.Data.Queries, usar o namespace correto com `Hapvvida` (duplo v) para compilar, mas sinalizar o issue.</decision>
+  <outcome>Evita erros de compilação por namespace incorreto ao gerar código.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="padrões">
+  <context>API UnitTests usa AMBOS Moq e NSubstitute no mesmo projeto. Alguns test classes usam Moq, outros NSubstitute.</context>
+  <decision>Ao criar novos testes para a API, verificar qual framework o test class existente já usa e seguir o mesmo. Para novos test classes, preferir NSubstitute (mais recente nos testes).</decision>
+  <outcome>Consistência dentro de cada test class, minimizando confusão.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="arquitetura">
+  <context>Consumer possui BaseConsumerHandler (herda de Hapvida.Core) que não é utilizado — TransactionConsumerHandler herda diretamente de BackgroundService.</context>
+  <decision>BaseConsumerHandler é dead code / legado do padrão Service Bus do Hapvida.Core. O Consumer atual usa Pub/Sub diretamente via SubscriberClient.</decision>
+  <outcome>Não usar BaseConsumerHandler como referência para novos consumers neste projeto.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="arquitetura">
+  <context>API Domain.csproj exclui pasta Commands da compilação (`Compile Remove="Commands\**"`), e Infra.Data.Queries.csproj referencia pacotes não utilizados visivelmente (NAudio, Xabe.FFmpeg, Refit, System.Management).</context>
+  <decision>Código em Domain/Commands pode ser vestígio de refatoração. Packages potencialmente não utilizados são tech debt mas não devem ser removidos sem validação completa.</decision>
+  <outcome>Awareness para não referenciar esses artefatos como padrões a seguir.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="tooling">
+  <context>Ambos projetos usam System.Text.Json como serialização primária, mas Consumer usa Newtonsoft.Json pontualmente no BigQueryService.InsertCompletedTranscriptionAsync (JsonConvert.SerializeObject).</context>
+  <decision>Para novas serializações, usar System.Text.Json (JsonSerializer) como padrão. Newtonsoft apenas se houver necessidade específica documentada.</decision>
+  <outcome>Consistência nas dependências de serialização.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="arquitetura">
+  <context>Consumer K8s deployment não possui health checks (liveness/readiness probes), enquanto API possui ambos (/health e /ready).</context>
+  <decision>Documentado como tech debt. Worker Services .NET podem implementar health checks via IHealthCheck + endpoints HTTP em background.</decision>
+  <outcome>Risco de pods zombie em produção sem probes.</outcome>
+</lesson>
+
+<lesson date="2026-02-10" category="padrões">
+  <context>Agente gerou frontmatter de SKILL.md com description usando bloco multiline YAML (|) e em inglês.</context>
+  <decision>Descriptions de skills devem ser sempre inline (uma única linha), nunca multiline (|), e escritos em português seguindo o padrão dos demais skills.</decision>
+  <outcome>Consistência no formato de frontmatter de todos os skills.</outcome>
+</lesson>
+
+<lesson date="2026-02-12" category="arquitetura">
+  <context>Workspace STT é um multi-repo com 6 serviços interdependentes. O contexto inicial documentava apenas VoiceTranscription (API + Consumer). Os 3 repos adicionais (Pep.SamWeb.Api, Sigah.SamWeb.Api, Sigah.SamWeb.Web) formam o sistema original AutoCid/SamWeb — o frontend e backend que consomem o STT.</context>
+  <decision>O workspace cobre dois sistemas convergentes: AutoCid (sugestão CID-10 via IA) e STT (transcrição de voz). Ambos são features do SamWeb usado por médicos. Angular chama Django BFF e Java PEPSAM diretamente (dual backend pattern). Java PEPSAM orquestra chamadas para .NET CidPrediction e VoiceTranscription.Api. VoiceTranscription.Consumer é independente (event-driven via Pub/Sub).</decision>
+  <outcome>Contexto expandido para cobrir todos os 6 repos, relações, fluxos de dados e infraestrutura Docker.</outcome>
+</lesson>
+
+<lesson date="2026-02-12" category="arquitetura">
+  <context>Angular SamWeb tem dois caminhos paralelos para sugestão CID-IA: Cid10IaService (via Django BFF → Java → .NET CidPrediction) e DiagnosticoInicialService (direto Java PEPSAM → .NET CidPrediction). Ambos ativos simultaneamente.</context>
+  <decision>Manter awareness de que existem dois fluxos CID-IA paralelos. Qualquer mudança na sugestão CID precisa considerar ambos os caminhos. O fluxo via Django BFF usa o archetype system para enviar dados de anamnese.</decision>
+  <outcome>Evitar implementar mudanças em apenas um dos caminhos, quebrando o outro.</outcome>
+</lesson>
+
+<lesson date="2026-02-12" category="arquitetura">
+  <context>Java PEPSAM obtém configurações da VoiceTranscription.Api (URL base, OAuth2 credentials, subscription key) diretamente do Oracle Database via `dominioDAO.obterPropriedadesTranscricaoVoz(b)`, não de arquivos de configuração.</context>
+  <decision>Para alterar a URL ou credenciais do STT consumidas pelo Java, a mudança deve ser feita no Oracle DB, não em properties files. O Java autentica no STT via OAuth2 client_credentials flow.</decision>
+  <outcome>Evita buscar configuração STT em pepsam.properties — ela está no banco.</outcome>
+</lesson>
+
+<lesson date="2026-02-12" category="arquitetura">
+  <context>docker-compose.yml raiz referencia Insights.CidPrediction.Api que não está presente no workspace. Build do serviço csharp-api falha sem esse repo clonado.</context>
+  <decision>Para ambiente Docker completo, é necessário clonar o repo Insights.CidPrediction.Api no workspace. Alternativamente, pode-se comentar o serviço csharp-api no compose se não for necessário testar sugestão CID.</decision>
+  <outcome>docker-compose up sem o repo CidPrediction falha. Documentado nas instruções de setup.</outcome>
+</lesson>
+
+<lesson date="2026-02-12" category="arquitetura">
+  <context>Todos os endpoints Java PEPSAM usam path parameter {ds} (HAP ou SCHOSP) para selecionar datasource Oracle. Angular envia isso via header Data-Source. Django BFF extrai do header e injeta no path URL ao proxiar.</context>
+  <decision>Ao gerar código que interage com PEPSAM, sempre incluir o parâmetro {ds}. No Django, o datasource vem do header HTTP_DATA_SOURCE. No Angular, do sessionStorage via TokenService.</decision>
+  <outcome>Evita erros de rota 404 por omissão do datasource.</outcome>
+</lesson>
+
+<lesson date="2026-02-12" category="padrões">
+  <context>Django BFF usa o decorator @service_method como pattern principal. O body do método decorado retorna None (pass-through) ou dict para override de request data. O decorator constrói a URL, faz HTTP request ao PEPSAM, e faz inflexão snake_case↔camelCase automaticamente.</context>
+  <decision>Ao criar novos endpoints no Django BFF, seguir o padrão @service_method. Métodos que apenas fazem proxy direto podem ter body `pass`. Para customizar params/headers, retornar dict com overrides. Nunca fazer HTTP calls manuais — usar o framework do IntegracaoService.</decision>
+  <outcome>Mantém consistência no Django BFF e aproveita transformações automáticas de inflexão.</outcome>
+</lesson>
+
+<lesson date="2026-02-12" category="padrões">
+  <context>Angular SamWeb usa URL templating com placeholders {pepsamBackendUrl} e {dataSource} nos services, que são resolvidos pelo HTTP interceptor auth.service.ts em runtime. Diferente do padrão normal de construir URLs completas no service.</context>
+  <decision>Ao criar novos services no Angular SamWeb, usar placeholders {pepsamBackendUrl} e {dataSource} nas URLs. O interceptor resolve automaticamente e adiciona os headers de autenticação apropriados baseado no padrão de URL detectado.</decision>
+  <outcome>Mantém consistência e aproveita o mecanismo de autenticação automática do interceptor.</outcome>
+</lesson>
+
+<lesson date="2026-02-12" category="tooling">
+  <context>O docker-compose requer Oracle Database externo (VPN corporativa) e não possui fallback local. Sem Oracle, Java PEPSAM e Django BFF não funcionam.</context>
+  <decision>Para desenvolvimento local via Docker, a VPN corporativa Hapvida deve estar ativa. Não existe Oracle containerizado no compose. Os hosts Oracle são 10.1.23.75:1521 (Django) e dboradsv-scan.hapvida.com.br:1521 (Java/WildFly).</decision>
+  <outcome>Consciência de que o ambiente Docker local não é self-contained — depende de infraestrutura de rede corporativa.</outcome>
+</lesson>

@@ -1,0 +1,153 @@
+---
+name: docker-dotnet
+description: Gera Dockerfiles multi-stage para projetos .NET 8 seguindo os padrões Hapvida — golden images, test stage com coverlet, NuGet prod config, 6 stages (base, build, test, build-continued, publish, final). Use ao criar ou modificar Dockerfiles. Triggers: "Dockerfile", "Docker", "container", "build image", ao configurar containerização.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: infra
+---
+
+# Docker .NET Generator
+
+Gera Dockerfiles multi-stage para projetos .NET 8 conforme padrões Hapvida.
+
+## Quando Usar
+
+- Criar Dockerfile para novo projeto .NET
+- Modificar stages existentes
+- Atualizar configuração de NuGet ou testes
+
+## Golden Images (OBRIGATÓRIO)
+
+```dockerfile
+# Runtime
+FROM hapvidacorp.azurecr.io/hap/golden-image/dotnet-8-aspnet AS base
+
+# SDK (build)
+FROM hapvidacorp.azurecr.io/hap/golden-image/dotnet-8-sdk AS build
+```
+
+> ⚠️ **NUNCA** usar imagens oficiais da Microsoft (`mcr.microsoft.com`). Sempre usar golden images da Hapvida.
+
+## Template — 6 Stages
+
+```dockerfile
+# Stage 0: Runtime base
+FROM hapvidacorp.azurecr.io/hap/golden-image/dotnet-8-aspnet AS base
+WORKDIR /app
+
+# Stage 1: Build SDK
+FROM hapvidacorp.azurecr.io/hap/golden-image/dotnet-8-sdk AS build
+WORKDIR /src
+
+# Copiar apenas csproj para cache de restore
+COPY ["Project.Api/Project.Api.csproj", "Project.Api/"]
+COPY ["Project.Domain/Project.Domain.csproj", "Project.Domain/"]
+COPY ["Project.Infra.Data.Queries/Project.Infra.Data.Queries.csproj", "Project.Infra.Data.Queries/"]
+COPY ["Project.UnitTests/Project.UnitTests.csproj", "Project.UnitTests/"]
+
+# NuGet prod config (credenciais via build args)
+ARG NUGET_USER
+ARG NUGET_KEY
+COPY nuget-production.config nuget.config
+RUN sed -i "s/___NUGET_USER___/$NUGET_USER/g" nuget.config \
+    && sed -i "s/___NUGET_KEY___/$NUGET_KEY/g" nuget.config
+
+RUN dotnet restore "Project.Api/Project.Api.csproj"
+
+# Copiar todo o código
+COPY . .
+
+# Stage 2: Test (label para CI extrair resultados)
+LABEL test=true
+RUN dotnet test "Project.UnitTests/Project.UnitTests.csproj" \
+    --collect:"XPlat Code Coverage" \
+    -- DataCollectionRunSettings.DataCollectors.DataCollector.Configuration.Format=cobertura
+
+# Gerar report HTML (opcional)
+RUN dotnet tool install -g dotnet-reportgenerator-globaltool
+ENV PATH="${PATH}:/root/.dotnet/tools"
+RUN reportgenerator \
+    "-reports:/src/**/coverage.cobertura.xml" \
+    "-targetdir:/src/coveragereport" \
+    -reporttypes:HtmlInline_AzurePipelines
+
+# Stage 3: Build da aplicação
+WORKDIR /src/Project.Api
+RUN dotnet build "Project.Api.csproj" -c Release -o /app/build
+
+# Stage 4: Publish
+FROM build AS publish
+WORKDIR /src/Project.Api
+RUN dotnet publish "Project.Api.csproj" -c Release -o /app/publish
+
+# Stage 5: Final
+FROM base AS final
+WORKDIR /app
+COPY --from=publish /app/publish .
+ENTRYPOINT ["dotnet", "Project.Api.dll"]
+```
+
+## NuGet Configuration
+
+### nuget-production.config
+
+Arquivo com placeholders para credenciais do feed privado:
+
+```xml
+<?xml version="1.0" encoding="utf-8"?>
+<configuration>
+  <packageSources>
+    <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
+    <add key="Hapvida.Core" value="https://pkgs.dev.azure.com/hapvidalabs/_packaging/Hapvida.Core/nuget/v3/index.json" />
+  </packageSources>
+  <packageSourceCredentials>
+    <Hapvida.Core>
+      <add key="Username" value="___NUGET_USER___" />
+      <add key="ClearTextPassword" value="___NUGET_KEY___" />
+    </Hapvida.Core>
+  </packageSourceCredentials>
+</configuration>
+```
+
+## Coverage Settings
+
+O `CodeCoverage.runsettings` filtra cobertura apenas para Domain:
+
+```xml
+<DataCollectionRunSettings>
+  <DataCollectors>
+    <DataCollector>
+      <Configuration>
+        <Format>cobertura</Format>
+        <Include>[*.Domain?]*</Include>
+        <Exclude>
+          [*.Api]*
+          [*.Tests]*
+        </Exclude>
+        <ExcludeByAttribute>
+          ExcludeFromCodeCoverage
+        </ExcludeByAttribute>
+      </Configuration>
+    </DataCollector>
+  </DataCollectors>
+</DataCollectionRunSettings>
+```
+
+## Diferenças API vs Consumer
+
+| Aspecto | API | Consumer |
+|---------|-----|----------|
+| ENTRYPOINT DLL | `Project.Api.dll` | `Project.Consumer.dll` |
+| Infra projects | Infra.Data.Queries + Infra.Cache | Infra.Cache |
+| Port | 80 | N/A (worker) |
+
+## Checklist
+
+- [ ] Golden images da Hapvida (nunca Microsoft MCR)
+- [ ] NuGet prod config com `sed` para credenciais
+- [ ] Build args: `NUGET_USER`, `NUGET_KEY`
+- [ ] Test stage com label `test=true`
+- [ ] Coverage com coverlet em formato cobertura
+- [ ] COPY csproj separado para cache de layers
+- [ ] ENTRYPOINT correto para o projeto

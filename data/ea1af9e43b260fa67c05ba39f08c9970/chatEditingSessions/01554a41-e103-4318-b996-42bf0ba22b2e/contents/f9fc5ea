@@ -1,0 +1,185 @@
+---
+name: vertex-ai-prompt
+description: Gera e gerencia prompts e configurações para Vertex AI (Gemini 2.5 Flash) no projeto STT. Inclui regras de structured output, schema JSON, configuração de geração, labels, token tracking e dynamic prompts. Use ao criar ou modificar prompts, configurar Gemini, ou trabalhar com transcrição de áudio. Triggers: "novo prompt", "alterar prompt", "Gemini", "Vertex AI", "transcrição", "structured output", "schema de resposta", ao trabalhar com IA/ML.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: ai
+---
+
+# Vertex AI Prompt Manager
+
+Gerencia prompts e configurações do Gemini 2.5 Flash para transcrição de áudio médico.
+
+## Quando Usar
+
+- Criar ou modificar prompts de transcrição
+- Alterar configuração da chamada ao Gemini
+- Modificar schema de resposta
+- Adicionar novo tipo de prompt (nova plataforma)
+- Trabalhar com a integração Vertex AI
+
+## Arquitetura da Integração
+
+```
+VertexAiService
+├── GetPromptAndPlatformAsync()     → Busca prompt customizado no BigQuery
+│   └── Fallback: PromptDefault.Anamnesis
+├── Monta Content[] (audio + prompt)
+├── Monta GenerateContentConfig
+├── Chama VertexClientWrapper.GenerateAsync()
+├── Trata erros (429 → retry, outros → fail)
+├── Persiste token usage no BigQuery
+└── Valida e extrai resposta via Helper
+```
+
+## Configurações Fixas
+
+| Parâmetro | Valor | Motivo |
+|-----------|-------|--------|
+| `Temperature` | `0.0` | Determinístico — transcrição médica exige fidelidade |
+| `TopP` | `0.95` | Alto — permite vocabulário médico amplo |
+| `ResponseMimeType` | `application/json` | Structured output obrigatório |
+| `ThinkingBudget` | `0` | CoT desabilitado — foco em velocidade |
+| `Model` | `gemini-2.5-flash` | Modelo padrão |
+
+> ⚠️ **NUNCA** alterar Temperature acima de 0. Transcrição médica não tolera variação.
+
+## Response Schema
+
+O schema é definido em `TranscriptionSchemaResponse.Schema` e segue este formato:
+
+```json
+{
+  "type": "OBJECT",
+  "properties": {
+    "transcription": { "type": "STRING" },
+    "symptoms": {
+      "type": "ARRAY",
+      "items": { "type": "STRING" }
+    },
+    "suggestedCIDs": {
+      "type": "ARRAY",
+      "items": {
+        "type": "OBJECT",
+        "properties": {
+          "code": { "type": "STRING" },
+          "description": { "type": "STRING" }
+        },
+        "required": ["code", "description"]
+      }
+    }
+  },
+  "required": ["transcription", "symptoms", "suggestedCIDs"]
+}
+```
+
+Para alterar o schema, editar `Domain/Models/v1/TranscriptionSchemaResponse.cs` usando tipos do `Google.GenAI.Types`:
+
+```csharp
+using Google.GenAI.Types;
+using SchemaType = Google.GenAI.Types.Type;
+
+public static readonly Schema Schema = new Schema
+{
+    Type = SchemaType.OBJECT,
+    Properties = new Dictionary<string, Schema>
+    {
+        ["campo"] = new Schema { Type = SchemaType.STRING }
+    },
+    Required = new List<string> { "campo" }
+};
+```
+
+## Input (Content)
+
+```csharp
+Content contents = new Content
+{
+    Role = "user",
+    Parts = new List<Part>
+    {
+        new Part { FileData = new FileData { FileUri = "gs://bucket/file.webm", MimeType = "audio/mpeg" } },
+        new Part { Text = promptText }
+    }
+};
+```
+
+- **FileData**: Sempre referência GCS por URI (nunca upload inline)
+- **MimeType**: `audio/mpeg` para .webm
+- **Text**: Prompt vem do BigQuery ou fallback para `PromptDefault.Anamnesis`
+
+## Labels
+
+```csharp
+Labels = SourcePlatformHelper.ToLabels(platform)
+// Resultado: { "source_platform": "Telehealth" } ou { "source_platform": "Emergency" }
+```
+
+## Dynamic Prompts
+
+O sistema suporta prompts customizados por workId:
+
+1. API `POST /signed/upload` recebe `PromptId` e `Platform`
+2. API insere na tabela `File_Transcription` com o `promptId`
+3. Consumer busca `promptId` → consulta tabela `Prompts` → usa o texto do prompt
+4. Se não encontrar → fallback para `PromptDefault.Anamnesis`
+
+### Para adicionar novo tipo de prompt:
+1. Inserir na tabela `Prompts` do BigQuery
+2. O frontend envia o `PromptId` no POST
+3. O Consumer busca automaticamente
+
+## Error Handling
+
+| Erro | Ação | shouldRetry |
+|------|------|-------------|
+| `ClientError` com StatusCode 429 | Log error → return `(empty, true)` → Pub/Sub `Nack` | ✅ |
+| `ClientError` outro | Log error → return `(empty, false)` → Pub/Sub `Ack` | ❌ |
+| Exception genérica | Log error → return `(empty, false)` | ❌ |
+| UsageMetadata null | Log info → continua | N/A |
+| Insert token data falha | Log error → continua (não bloqueia) | N/A |
+
+## Token Tracking
+
+Após cada chamada, salvar no BigQuery (`Token_Data`):
+
+```csharp
+var tokenData = new TokenData
+{
+    PromptTokenCount = response.UsageMetadata.PromptTokenCount,
+    CandidatesTokenCount = response.UsageMetadata.CandidatesTokenCount,
+    TotalTokenCount = response.UsageMetadata.TotalTokenCount,
+    FinishMessage = response.Candidates?.FirstOrDefault()?.FinishMessage,
+    FinishReason = response.Candidates?.FirstOrDefault()?.FinishReason?.ToString()
+};
+```
+
+## Regras para Edição de Prompts
+
+### Prompt de Anamnese (`PromptDefault.Anamnesis`)
+
+O prompt é escrito em **português** e segue estrutura rígida:
+
+1. **CONTEXTO**: Define papel do assistente
+2. **VALIDAÇÃO PRÉVIA**: Áudio inválido → JSON especial
+3. **ESTRUTURA OBRIGATÓRIA**: QP, HMA, AP, Exame Físico, Conduta
+4. **REGRAS ABSOLUTAS**: JAMAIS inventar, ZERO interpretação
+5. **LINGUAGEM**: Terminologia médica formal, converter leigo → médico
+6. **PROIBIÇÕES**: Lista explícita do que NÃO fazer
+7. **FIDELIDADE**: Copiar literalmente medicações, comorbidades, alergias
+8. **CIDs**: ≥5 CID-10, hierarquia definida
+9. **VALIDAÇÃO FINAL**: Zero margem para suposição
+
+> ⚠️ Ao editar o prompt, manter a estrutura de seções. NUNCA remover regras de fidelidade ou proibições.
+
+## Checklist para Mudanças
+
+- [ ] Temperature mantido em 0.0
+- [ ] ResponseMimeType = "application/json"
+- [ ] Schema atualizado se campos de resposta mudaram
+- [ ] Token tracking mantido
+- [ ] Error handling com retry para 429
+- [ ] Labels com platform
+- [ ] Prompt em português com terminologia médica
+- [ ] Regras de fidelidade preservadas

@@ -1,0 +1,206 @@
+---
+name: dotnet-test
+description: Gera testes unitários .NET seguindo os padrões do projeto STT (xUnit, NSubstitute para API, Moq para Consumer, BuildSut pattern, AAA pattern, coverage apenas Domain). Use ao criar testes para serviços, handlers, helpers ou wrappers. Triggers: "criar teste", "novo test", "testar", "unit test", "coverage", ao criar novo serviço/handler (testes devem acompanhar).
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: dotnet
+---
+
+# .NET Test Generator
+
+Gera testes unitários seguindo os padrões estabelecidos no projeto STT.
+
+## Quando Usar
+
+- Criar testes para novo serviço ou handler
+- Adicionar testes a código existente
+- Ao receber pedido de "testar" ou "test"
+- Após criar um novo serviço (testes devem acompanhar)
+
+## Frameworks por Projeto
+
+| Projeto | Mock Framework | Test Framework | Extras |
+|---------|---------------|----------------|--------|
+| **API** (`VoiceTranscription.UnitTests`) | **NSubstitute** (preferido) + Moq (legado) | xUnit | AutoMapper, Bogus |
+| **Consumer** (`VoiceTranscription.Ai.UnitTests`) | **Moq** | xUnit | Bogus |
+
+> ⚠️ **API tem AMBOS** Moq e NSubstitute. Para novos testes, usar **NSubstitute**. Ao estender testes existentes com Moq, manter Moq naquele arquivo.
+
+## Estrutura de Diretórios
+
+```
+UnitTests/Units/
+├── Commands/v1/{NomeDoCommand}/
+│   └── {NomeDoCommand}HandlerTests.cs
+├── Queries/v1/{NomeDaQuery}/
+│   └── {NomeDaQuery}HandlerTests.cs
+├── Services/v1/
+│   └── {NomeDoServico}Tests.cs
+└── Helpers/
+    └── {NomeDoHelper}Tests.cs
+```
+
+## Padrões Obrigatórios
+
+### 1. Classe de teste (API — NSubstitute)
+
+```csharp
+using NSubstitute;
+using Xunit;
+using Microsoft.Extensions.Logging;
+
+namespace Hapvida.TI.VoiceTranscription.UnitTests.Units.Services.v1
+{
+    public class MyServiceTests
+    {
+        // BuildSut pattern — cria SUT e expõe mocks via out parameters
+        private static MyService BuildSut(
+            out ILogger<MyService> logger,
+            out ISomeDependency dependency)
+        {
+            logger = Substitute.For<ILogger<MyService>>();
+            dependency = Substitute.For<ISomeDependency>();
+
+            return new MyService(logger, dependency);
+        }
+
+        [Fact(DisplayName = "Descrição clara do cenário em português")]
+        public async Task Handle_WhenCondition_ShouldExpectedBehavior()
+        {
+            // Arrange
+            var sut = BuildSut(out var logger, out var dependency);
+
+            dependency.GetAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+                      .Returns(expectedResult);
+
+            // Act
+            var result = await sut.MethodAsync("input", CancellationToken.None);
+
+            // Assert
+            Assert.NotNull(result);
+            Assert.Equal(expected, result.Value);
+
+            await dependency.Received(1).GetAsync("input", Arg.Any<CancellationToken>());
+        }
+
+        [Fact(DisplayName = "Construtor com parâmetro nulo → ArgumentNullException")]
+        public void Ctor_WhenNullParam_ShouldThrowArgumentNullException()
+        {
+            Assert.Throws<ArgumentNullException>(() => new MyService(null!, ...));
+        }
+
+        [Fact(DisplayName = "CancellationToken cancelado → retorna sem executar")]
+        public async Task Handle_WhenCancelled_ShouldReturnEarly()
+        {
+            var sut = BuildSut(out var logger, out var dep);
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            var result = await sut.MethodAsync("input", cts.Token);
+
+            Assert.Null(result);
+            await dep.DidNotReceiveWithAnyArgs().GetAsync(default!, default);
+        }
+    }
+}
+```
+
+### 2. Classe de teste (Consumer — Moq)
+
+```csharp
+using Moq;
+using Xunit;
+using Microsoft.Extensions.Logging;
+
+namespace Hapvida.TI.VoiceTranscription.Ai.UnitTests.Units.Services.v1
+{
+    public class MyServiceTests
+    {
+        private readonly Mock<ILogger<MyService>> _loggerMock;
+        private readonly Mock<ISomeDependency> _dependencyMock;
+
+        public MyServiceTests()
+        {
+            _loggerMock = new Mock<ILogger<MyService>>();
+            _dependencyMock = new Mock<ISomeDependency>();
+        }
+
+        private MyService CreateSut()
+        {
+            return new MyService(
+                _loggerMock.Object,
+                _dependencyMock.Object);
+        }
+
+        [Fact]
+        public async Task Method_ComEntradaValida_DeveRetornarResultado()
+        {
+            // Arrange
+            _dependencyMock
+                .Setup(d => d.GetAsync(It.IsAny<string>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(expectedResult);
+
+            var sut = CreateSut();
+
+            // Act
+            var result = await sut.MethodAsync("input", CancellationToken.None);
+
+            // Assert
+            Assert.NotNull(result);
+            _dependencyMock.Verify(d => d.GetAsync("input", It.IsAny<CancellationToken>()), Times.Once);
+        }
+    }
+}
+```
+
+### 3. Nomes de teste
+
+| Framework | Padrão de nome do método |
+|-----------|------------------------|
+| NSubstitute (API) | `Handle_WhenCondition_ShouldExpectedBehavior` (inglês) |
+| Moq (Consumer) | `Method_ComCondicao_DeveComportamento` (português) |
+
+**DisplayName** sempre em português: `[Fact(DisplayName = "Descrição clara do cenário")]`
+
+### 4. Theory com InlineData
+
+```csharp
+[Theory(DisplayName = "Valores inválidos → validação")]
+[InlineData(null)]
+[InlineData("")]
+[InlineData("   ")]
+public async Task Handle_WhenInvalidInput_ShouldValidate(string? input)
+{
+    // ...
+}
+```
+
+## Cenários Obrigatórios
+
+Todo serviço/handler deve ter pelo menos:
+
+| Cenário | Prioridade |
+|---------|------------|
+| Construtor com parâmetro nulo → ArgumentNullException | **Alta** |
+| Input válido → resultado esperado | **Alta** |
+| Input inválido/vazio → validação | **Alta** |
+| CancellationToken cancelado → retorno early | **Alta** |
+| Dependência retorna null → tratamento graceful | Média |
+| Exceção na dependência → propagação ou fallback | Média |
+
+## Coverage
+
+- **Foco exclusivo**: Domain layer (`[*.Domain?]*`)
+- **Excluídos**: `[*.Api]*`, `[*.Tests]*`, `Program`, `Startup`, `Bootstrapper`
+- **Ferramenta**: coverlet + cobertura format
+
+## Checklist
+
+- [ ] Usa framework correto (NSubstitute para API, Moq para Consumer)
+- [ ] BuildSut/CreateSut pattern
+- [ ] AAA pattern (Arrange/Act/Assert)
+- [ ] DisplayName em português
+- [ ] Cenários obrigatórios cobertos
+- [ ] Sem dependência de estado externo (Redis, BigQuery real)
+- [ ] CancellationToken testado

@@ -1,0 +1,219 @@
+---
+name: k8s-deploy
+description: Gera manifests Kubernetes (k8sdeploy.yaml) seguindo os padrões do projeto STT — placeholders para CI/CD, Datadog APM labels, env vars, golden images, Redis sidecar (API). Use ao criar ou modificar deployments K8s. Triggers: "k8s", "kubernetes", "deploy", "k8sdeploy", "manifest", "replicas", "health check", "sidecar", ao trabalhar com infraestrutura.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: infra
+---
+
+# Kubernetes Deploy Generator
+
+Gera manifests K8s seguindo os padrões do projeto STT.
+
+## Quando Usar
+
+- Criar novo k8sdeploy.yaml
+- Adicionar env vars, health checks ou sidecars
+- Modificar recursos (CPU/memory)
+- Configurar novo deployment
+
+## Estrutura do Manifest
+
+O arquivo `k8sdeploy.yaml` usa **placeholders** que são substituídos pelo pipeline:
+
+```yaml
+# Formato dos placeholders:
+___NAMESPACE___
+___REPLICAS___
+___GCR___
+___IMAGE_NAME___
+___BUILD_NUMBER___
+___ACFG_MEMORY_REQUEST___
+___ACFG_CPU_REQUEST___
+___ACFG_MEMORY_LIMIT___
+___ACFG_CPU_LIMIT___
+___REDIS_CPU___
+___REDIS_MEM___
+```
+
+## Padrão de Deployment
+
+### API Deployment
+
+```yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ___DEPLOYMENT_NAME___
+  namespace: ___NAMESPACE___
+  labels:
+    tags.datadoghq.com/env: "___ENVIRONMENT___"
+    tags.datadoghq.com/service: "___SERVICE_NAME___"
+    tags.datadoghq.com/version: "___BUILD_NUMBER___"
+spec:
+  replicas: ___REPLICAS___
+  revisionHistoryLimit: ___REVISION_HISTORY_LIMIT___
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 25%
+      maxSurge: 25%
+  template:
+    metadata:
+      labels:
+        admission.datadoghq.com/enabled: "true"
+      annotations:
+        admission.datadoghq.com/dotnet-lib.version: "v3.7.0"
+    spec:
+      restartPolicy: Always
+      containers:
+        - name: api
+          image: "___GCR___/___IMAGE_NAME___:___BUILD_NUMBER___"
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+```
+
+### Health Checks (API apenas)
+
+```yaml
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 80
+  initialDelaySeconds: 15
+  periodSeconds: 30
+  timeoutSeconds: 15
+  failureThreshold: 3
+readinessProbe:
+  httpGet:
+    path: /ready
+    port: 80
+  initialDelaySeconds: 15
+  periodSeconds: 10
+  timeoutSeconds: 15
+  failureThreshold: 3
+  successThreshold: 3
+```
+
+> ⚠️ Consumer **não tem** health checks. Se adicionar, implementar via `IHealthCheck` + endpoint HTTP.
+
+### Resources
+
+```yaml
+resources:
+  requests:
+    memory: ___ACFG_MEMORY_REQUEST___
+    cpu: ___ACFG_CPU_REQUEST___
+  limits:
+    memory: ___ACFG_MEMORY_LIMIT___
+    cpu: ___ACFG_CPU_LIMIT___
+```
+
+## Redis Sidecar (API apenas)
+
+```yaml
+# ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: redis-config
+data:
+  redis.conf: |
+    maxmemory 4928307200
+    maxmemory-policy allkeys-lru
+
+# Redis Deployment
+containers:
+  - name: redis
+    image: redis:7.0.0-bullseye
+    command: ["redis-server", "/redis-config/redis.conf"]
+    ports:
+      - containerPort: 6379
+    resources:
+      requests:
+        memory: ___REDIS_MEM___
+        cpu: ___REDIS_CPU___
+    volumeMounts:
+      - name: redis-config
+        mountPath: /redis-config
+
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+spec:
+  ports:
+    - port: 6379
+  selector:
+    app: redis
+```
+
+## Environment Variables
+
+### Categorias de env vars
+
+| Categoria | Prefixo | Exemplo |
+|-----------|---------|---------|
+| Datadog APM | `DD_*` | `DD_TRACE_OTEL_ENABLED`, `DD_APPSEC_ENABLED` |
+| Telemetry | `Core__Telemetry__*` | `Core__Telemetry__ConnectionString` |
+| Resilience | `Core__Services__*` | `Core__Services__Retry__MaxRetry` |
+| GCP | `Core__VoiceTranscription__*` | `Core__VoiceTranscription__PubSub__Project` |
+| Cache | `Core__Cache__*` | `Core__Cache__ConnectionString` |
+| Kestrel | `Core__Kestrel__*` | `Core__Kestrel__Limits__MaxRequestBodySize` |
+
+### Formato de env vars
+
+```yaml
+env:
+  - name: Core__Cache__ConnectionString
+    value: "___CACHE_CONNECTION_STRING___"
+  - name: Core__VoiceTranscription__Credential__Base64JsonFile
+    value: "___GCP_CREDENTIAL_BASE64___"
+```
+
+> ⚠️ Usar `__` (double underscore) como separador de seção de configuração .NET
+
+## Service (API apenas)
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: ___SERVICE_NAME___
+  annotations:
+    networking.gke.io/load-balancer-type: "Internal"
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 80
+  selector:
+    app: ___APP_LABEL___
+```
+
+> Consumer **não expõe serviço** — é um worker que consome Pub/Sub.
+
+## Secrets
+
+```yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ___SECRET_NAME___
+type: Opaque
+data:
+  PrivateKey: ___PRIVATE_KEY_BASE64___
+```
+
+## Checklist
+
+- [ ] Placeholders para todos os valores variáveis por ambiente
+- [ ] Rolling update strategy (25%/25%)
+- [ ] Datadog labels e annotations
+- [ ] Health checks (somente para APIs com endpoints HTTP)
+- [ ] Env vars com prefixo `Core__` e `__` como separador
+- [ ] Resources requests e limits parametrizados
+- [ ] Redis sidecar se o projeto usa cache local

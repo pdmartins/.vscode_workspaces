@@ -1,0 +1,165 @@
+---
+name: bigquery-query
+description: Gera queries BigQuery parametrizadas seguindo os padrões do projeto STT (wrapper pattern, RowDto mapping, BigQueryRowExtensions, parameterized SQL). Use ao criar novas consultas, inserts ou alterações no BigQuery. Triggers: "nova query BigQuery", "consulta BigQuery", "inserir no BigQuery", "BigQuery service", ao trabalhar com persistência de dados.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: data
+---
+
+# BigQuery Query Generator
+
+Gera queries e serviços BigQuery seguindo os padrões do projeto STT.
+
+## Quando Usar
+
+- Criar nova query de leitura no BigQuery
+- Criar novo insert no BigQuery
+- Criar novo método em BigQueryService (Consumer) ou BigQueryCheckStatusService/BigQueryWriterService (API)
+- Trabalhar com tabelas `File_Transcription`, `Token_Data` ou `Prompts`
+
+## Tabelas BigQuery
+
+| Tabela | Dataset | Propósito | Usado por |
+|--------|---------|-----------|-----------|
+| `File_Transcription` | `bigquery_dataset` | Transcrições, status, CIDs, sintomas | API (read/write), Consumer (write) |
+| `Token_Data` | `bigquery_dataset` | Metadata de uso de tokens Gemini | Consumer (write) |
+| `Prompts` | `bigquery_dataset` | Prompts customizados | Consumer (read) |
+
+## Padrões por Projeto
+
+### API — Wrapper Pattern
+
+A API usa `IBigQueryClientWrapper` que abstrai o `BigQueryClient`:
+
+```csharp
+// Interface do wrapper
+public interface IBigQueryClientWrapper
+{
+    Task<IEnumerable<RowDto>> ExecuteQueryAsync(
+        string sql,
+        BigQueryParameter[] parameters,
+        QueryOptions? options = null,
+        CancellationToken cancellationToken = default);
+}
+```
+
+**Service chama wrapper → wrapper executa → retorna `IEnumerable<RowDto>`**
+
+```csharp
+// No service
+var parameters = new[]
+{
+    new BigQueryParameter("workId", BigQueryDbType.String, workId)
+};
+
+var results = await _bigQueryClientWrapper.ExecuteQueryAsync(
+    sql, parameters, null, cancellationToken: ct);
+
+var row = results.FirstOrDefault();
+```
+
+### Consumer — BigQueryClient direto
+
+O Consumer usa `BigQueryClient` diretamente no `BigQueryService`:
+
+```csharp
+var credential = _credentialProvider.GetCredential();
+var client = BigQueryClient.Create(_settings.ProjectId, credential);
+await client.ExecuteQueryAsync(sql, parameters, cancellationToken: ct);
+```
+
+## Padrões de SQL
+
+### 1. Fully qualified table name
+
+```csharp
+var tableFq = $"`{_settings.ProjectId}.{bq.DataSet}.{bq.Table}`";
+```
+
+### 2. SQL template com string.Format
+
+```csharp
+const string sqlTemplate = @"
+    SELECT workId, createdAt
+    FROM {0}
+    WHERE workId = @workId
+    ORDER BY createdAt DESC
+    LIMIT 1";
+
+var sql = string.Format(sqlTemplate, tableFq);
+```
+
+### 3. Parâmetros tipados
+
+```csharp
+var parameters = new[]
+{
+    new BigQueryParameter("workId", BigQueryDbType.String, workId),
+    new BigQueryParameter("startDate", BigQueryDbType.Timestamp, start.UtcDateTime),
+    new BigQueryParameter("endDate", BigQueryDbType.Timestamp, end.UtcDateTime)
+};
+```
+
+### 4. INSERT
+
+```csharp
+const string sqlTemplate = @"
+    INSERT INTO {0} (workId, encounterId, transcription, workStatus, createdAt)
+    VALUES (@workId, @encounterId, @transcription, @workStatus, @createdAt)";
+```
+
+### 5. Mapeamento de resultados (API — via RowDto)
+
+```csharp
+private static ConsultaStatusDto MapToConsultaStatusDto(RowDto row, string workId)
+{
+    return new ConsultaStatusDto
+    {
+        WorkId = row.WorkId,
+        EncounterId = row.EncounterId,
+        Transcription = row.Transcription,
+        WorkStatus = row.WorkStatus,
+        CreatedAt = row.CreatedAt
+    };
+}
+```
+
+### 6. Extensões de BigQueryRow
+
+Usar `BigQueryRowExtensions` para extração tipada:
+
+```csharp
+row.Get<string>("workId")       // campo string
+row.Get<DateTime>("createdAt")  // campo timestamp
+row.GetJsonArray<SuggestedCid>("suggestedCIDs")  // JSON ou repeated
+```
+
+## Error Handling
+
+| Projeto | Comportamento |
+|---------|--------------|
+| **API Reader** | try/catch com `LogCritical` + rethrow |
+| **API Writer** | try/catch → retorna `false` (não propaga) |
+| **Consumer** | try/catch → throws `DataException` |
+
+## Convenções
+
+| Regra | Padrão |
+|-------|--------|
+| SQL | SEMPRE parametrizado (`@param`, nunca concatenação) |
+| Table ref | Fully qualified com backticks: `` `project.dataset.table` `` |
+| Template | `const string sqlTemplate` com `string.Format` |
+| Logging | Log antes da query, log do resultado, log em caso de erro |
+| CancellationToken | Sempre propagado para `ExecuteQueryAsync` |
+| Dates | Converter para UTC: `start.UtcDateTime` |
+
+## Checklist
+
+- [ ] SQL parametrizado (nunca string interpolation para valores)
+- [ ] Table name fully qualified
+- [ ] BigQueryParameter com tipo correto (String, Timestamp, Int64)
+- [ ] CancellationToken propagado
+- [ ] Logging antes e depois da query
+- [ ] Error handling seguindo padrão do projeto (Reader: rethrow, Writer: return bool)
+- [ ] Mapeamento via RowDto/Extensions

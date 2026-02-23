@@ -1,0 +1,57 @@
+# API — Endpoints & Controllers
+
+> Atualizado em: 2026-02-10
+
+## SpeechTextController
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Api/Controllers/v1/SpeechTextController.cs`
+- **Tipo**: class (extends BaseController)
+- **Responsabilidade**: Consulta de transcrições e cálculo de latência
+- **Depende de**: `GetTranscriptionQuery`, `GetProcessingLatencyQuery` (via MediatR)
+
+| Método | Rota | Parâmetros | Retorno | Descrição |
+|--------|------|-----------|---------|-----------|
+| `GET` | `api/v1/speech-text/transcription` | `workId` (query, required) | `GetTranscriptionQueryResponse` | Busca transcrição (cache-first) |
+| `GET` | `api/v1/speech-text/latency` | `workId?`, `dataInicio?`, `dataFim?` | `GetProcessingLatencyResponse` | Calcula latência de processamento |
+
+---
+
+## UrlController
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Api/Controllers/v1/UrlController.cs`
+- **Tipo**: class (extends BaseController)
+- **Responsabilidade**: Geração de URLs assinadas para upload de áudio no GCS
+- **Depende de**: `GetSignedUrlUploadQuery`, `CreateSignedUrlUploadCommand` (via MediatR)
+
+| Método | Rota | Parâmetros | Retorno | Descrição |
+|--------|------|-----------|---------|-----------|
+| `GET` | `api/v1/url/signed/upload` | _(nenhum)_ | `GetSignedUrlUploadResponse { SignedUrl, WorkId }` | Gera signed URL simples |
+| `POST` | `api/v1/url/signed/upload` | `CreateSignedUrlUploadRequest { PromptId, Platform }` | `CreateSignedUrlUploadResponse { SignedUrl, WorkId, PromptId, Platform }` | Gera signed URL com prompt/platform e registra no BigQuery |
+
+---
+
+## ServerUrlDocumentFilter
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Api/Swagger/ServerUrlDocumentFilter.cs`
+- **Tipo**: class (implements IDocumentFilter)
+- **Responsabilidade**: Configura server URL no Swagger para deploy via placeholder
+- **Depende de**: nenhum
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `Apply` | `(OpenApiDocument, DocumentFilterContext)` | `void` | Define server URL como `___CORE_APPLICATION_WEB_SERVICE_URL___` |
+
+---
+
+## Bootstrapper (API)
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Api/Bootstrapper.cs`
+- **Tipo**: static class
+- **Responsabilidade**: Registro de DI para todos os serviços da API
+- **Depende de**: Todos os serviços e wrappers da API
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `ConfigurationServices` | `(IServiceCollection, IConfiguration)` | `IServiceCollection` | Registra GCS, BigQuery, Cache, Swagger, Redis |
+
+---

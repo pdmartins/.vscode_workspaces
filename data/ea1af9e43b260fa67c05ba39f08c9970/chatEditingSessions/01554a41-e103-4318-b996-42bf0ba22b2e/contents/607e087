@@ -1,0 +1,254 @@
+---
+name: cache-redis
+description: |
+  Generates Redis cache integration code following the STT workspace patterns. Activated when user asks to implement caching, create cache services, configure Redis, or work with distributed cache. Covers cache-aside pattern, CacheSettings Options, TimeToExpireTokenType, error handling, and DI registration differences between API and Consumer.
+metadata:
+  author: copilot
+  version: "1.0"
+  category: infrastructure
+---
+
+# Redis Cache — STT Projects
+
+## Architecture Overview
+
+Both projects use **StackExchange.Redis** via `IDistributedCache` with a cache-aside pattern. The cache layer lives in a dedicated Infrastructure project.
+
+| Aspect | API | Consumer |
+|--------|-----|----------|
+| Project | `Hapvida.TI.VoiceTranscription.Infra.Cache` | `Hapvida.TI.VoiceTranscription.AI.Infra.Cache` |
+| Namespace | `...Infra.Cache.Services.v1` | `...AI.Infra.Cache.Services.v1` |
+| Interface | `ICacheService` (in Domain) | `ICacheService` (in Domain) |
+| DI Lifetime | Singleton | Singleton |
+| Settings injection | `IOptions<CacheSettings>` | Direct `CacheSettings` singleton |
+
+## Interface Definition
+
+### API (3 methods)
+```csharp
+public interface ICacheService
+{
+    Task<string> GetCacheAsync(string key, CancellationToken cancellationToken);
+    Task SetCacheAsync(string key, string value, CancellationToken cancellationToken);
+    Task SetCacheAsync(string key, string value, TimeToExpireTokenType timeToExpireTokenType, CancellationToken cancellationToken);
+}
+```
+
+### Consumer (2 methods — no TimeToExpireTokenType overload exposed)
+```csharp
+public interface ICacheService
+{
+    Task SetCacheAsync(string key, string value, CancellationToken cancellationToken);
+    Task<string> GetCacheAsync(string key, CancellationToken cancellationToken);
+}
+```
+
+The Consumer's `CacheService` implementation internally supports `TimeToExpireTokenType` but the interface doesn't expose it.
+
+## CacheSettings Model
+
+```csharp
+[ExcludeFromCodeCoverage]  // API only
+public sealed class CacheSettings
+{
+    public static string SessionName => "Core:Cache";
+    
+    public string? ConnectionString { get; set; }
+    public string? InstanceName { get; set; }
+    public IReadOnlyDictionary<string, int>? MinutesToExpireToken { get; set; }
+    
+    public DistributedCacheEntryOptions GetOptions(TimeToExpireTokenType timeToExpireTokenType)
+    {
+        MinutesToExpireToken!.TryGetValue(timeToExpireTokenType.ToString(), out int minutesToExpireToken);
+        var options = new DistributedCacheEntryOptions();
+        options.SetAbsoluteExpiration(TimeSpan.FromMinutes(minutesToExpireToken));
+        return options;
+    }
+}
+```
+
+### Configuration (appsettings.json)
+```json
+{
+  "Core": {
+    "Cache": {
+      "ConnectionString": "<redis-connection-string>",
+      "InstanceName": "<instance-prefix>",
+      "MinutesToExpireToken": {
+        "DefaultTime": 60,
+        "SystemParameter": 120,
+        "SystemRegister": 30
+      }
+    }
+  }
+}
+```
+
+## TimeToExpireTokenType Enum
+
+Identical in both projects (different namespaces):
+
+```csharp
+public enum TimeToExpireTokenType
+{
+    [Description("Tempo Padrão")]
+    DefaultTime = 1,
+    
+    [Description("Parâmetros Sistema")]
+    SystemParameter = 2,
+    
+    [Description("Registro Sistema")]
+    SystemRegister = 3,
+}
+```
+
+| Project | Namespace |
+|---------|-----------|
+| API | `Hapvida.TI.VoiceTranscription.Domain.Fixed.v1` |
+| Consumer | `Hapvida.TI.VoiceTranscription.Ai.Domain.Fixed` |
+
+## CacheService Implementation
+
+### Cache-Aside Pattern (Read)
+```csharp
+public async Task<string> GetCacheAsync(string key, CancellationToken cancellationToken)
+{
+    try
+    {
+        return await _distributedCache.GetStringAsync(key, cancellationToken);
+    }
+    catch
+    {
+        return string.Empty;  // Swallow errors — cache miss is not fatal
+    }
+}
+```
+- **Both projects**: Swallow all exceptions on read, return `string.Empty`
+- Rationale: Cache is a performance optimization, not a critical path
+
+### Cache Write — Error Handling Differs!
+
+**API** — swallows write errors (logs only):
+```csharp
+catch (Exception ex)
+{
+    _logger.LogError(LogsTemplate.ErrorHandler, nameof(CacheService), ex.Message);
+    // Does NOT rethrow — write failures are silent
+}
+```
+
+**Consumer** — rethrows write errors:
+```csharp
+catch (Exception ex)
+{
+    _logger.LogError("Erro inesperado ao tentar escrever no cache. Key: {Key} - {message}", key, ex.Message);
+    throw;  // Rethrows — write failures are propagated
+}
+```
+
+> **Critical difference**: API is resilient to Redis outages on writes; Consumer will fail.
+
+## DI Registration
+
+### API (IOptions pattern)
+```csharp
+public static IServiceCollection AddDistributedCache(this IServiceCollection services, IConfiguration configuration)
+{
+    var cacheSettings = configuration.GetSection(CacheSettings.SessionName).Get<CacheSettings>();
+    
+    ArgumentNullException.ThrowIfNull(cacheSettings);
+    ArgumentNullException.ThrowIfNull(cacheSettings.InstanceName);
+    ArgumentNullException.ThrowIfNull(cacheSettings.ConnectionString);
+    
+    services.Configure<CacheSettings>(configuration.GetSection(CacheSettings.SessionName));
+    services.AddSingleton<ICacheService, CacheService>();
+    
+    return services.AddStackExchangeRedisCache(op =>
+    {
+        op.Configuration = cacheSettings.ConnectionString;
+        op.InstanceName = cacheSettings.InstanceName;
+    });
+}
+```
+- Uses `services.Configure<CacheSettings>()` → injected as `IOptions<CacheSettings>`
+- Validates `InstanceName` and `ConnectionString` at startup
+
+### Consumer (Direct singleton)
+```csharp
+public static IServiceCollection AddDistributedCache(this IServiceCollection services, IConfiguration configuration)
+{
+    var cacheSettings = configuration.GetSection(CacheSettings.SessionName).Get<CacheSettings>();
+    
+    ArgumentNullException.ThrowIfNull(cacheSettings);
+    
+    services.AddSingleton(cacheSettings);
+    services.AddSingleton<ICacheService, CacheService>();
+    
+    return services.AddStackExchangeRedisCache(op =>
+    {
+        op.Configuration = cacheSettings.ConnectionString;
+        op.InstanceName = cacheSettings.InstanceName;
+    });
+}
+```
+- Uses `services.AddSingleton(cacheSettings)` → injected directly as `CacheSettings`
+- Does NOT validate individual properties at startup
+
+## Rules When Generating Cache Code
+
+### Service Implementation
+1. **Always use `IDistributedCache`** — never use `IConnectionMultiplexer` directly
+2. **Swallow exceptions on read** — return `string.Empty` or `default`
+3. **API: swallow on write** — log and continue
+4. **Consumer: throw on write** — let caller handle
+5. **Always accept `CancellationToken`** in all async methods
+6. **Default TTL** uses `TimeToExpireTokenType.DefaultTime`
+
+### DI Registration
+7. **API**: Use `IOptions<CacheSettings>` pattern, validate all properties at startup
+8. **Consumer**: Register `CacheSettings` as direct singleton
+9. **Both**: Register `ICacheService` as Singleton
+10. **Both**: Use `AddStackExchangeRedisCache` with `Configuration` and `InstanceName`
+
+### Configuration
+11. **Config path**: `Core:Cache` (via `CacheSettings.SessionName`)
+12. **Required keys**: `ConnectionString`, `InstanceName`, `MinutesToExpireToken` dictionary
+13. **TTL mapping**: Dictionary keys match `TimeToExpireTokenType` enum names → values in minutes
+
+### Key Naming
+14. Cache keys should be descriptive and follow pattern: `{domain}:{entity}:{identifier}`
+15. Use `InstanceName` as prefix (handled by `AddStackExchangeRedisCache`)
+
+### Testing
+16. Mock `ICacheService` — never mock `IDistributedCache` directly
+17. Test both cache hit (returns value) and cache miss (returns empty) scenarios
+18. Test write error propagation according to project rules (see error handling above)
+
+## CacheOptions (Consumer only — legacy)
+
+Consumer has an additional `CacheOptions` class that wraps `DistributedCacheEntryOptions`:
+
+```csharp
+public class CacheOptions
+{
+    public static string SessionName => "Core:Cache:MinutesToExpireToken";
+    public DistributedCacheEntryOptions? Options { get; private set; }
+    
+    public CacheOptions(int minutesToExpireToken) { SetOptions(minutesToExpireToken); }
+    
+    public void SetOptions(int minutesToExpireToken)
+    {
+        var options = new DistributedCacheEntryOptions();
+        options.SetAbsoluteExpiration(TimeSpan.FromMinutes(minutesToExpireToken));
+        Options = options;
+    }
+}
+```
+> This appears to be legacy/unused — `CacheSettings.GetOptions()` is used instead.
+
+## K8s Integration
+
+Redis runs as a **sidecar container** (Cloud Memorystore proxy) in K8s:
+- Container: `cloud-sql-proxy` (name is misleading — actually Redis proxy)
+- ConnectionString typically points to `localhost:6379`
+- See `k8s-deploy` skill for sidecar configuration

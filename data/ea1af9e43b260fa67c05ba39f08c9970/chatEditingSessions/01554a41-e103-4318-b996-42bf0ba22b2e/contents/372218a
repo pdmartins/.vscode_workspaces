@@ -1,0 +1,169 @@
+# Config — Enums, Constantes, Resources
+
+> Atualizado em: 2026-02-10
+
+---
+
+# API Config
+
+---
+
+## WorkStatus (API)
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Enums/WorkStatus.cs`
+- **Tipo**: enum
+- **Responsabilidade**: Status de processamento de transcrição
+
+| Valor | Inteiro | Descrição |
+|-------|---------|-----------|
+| `Processing` | 0 | Em processamento |
+| `Completed` | 1 | Concluído |
+| `Pending` | 2 | Pendente |
+
+---
+
+## TimeToExpireTokenType (API)
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Enums/TimeToExpireTokenType.cs`
+- **Tipo**: enum
+- **Responsabilidade**: Tipos de expiração para tokens de cache
+
+| Valor | Inteiro | Descrição |
+|-------|---------|-----------|
+| `DefaultTime` | 1 | Tempo padrão (2 min) |
+| `SystemParameter` | 2 | Parâmetro de sistema (60 min) |
+| `SystemRegister` | 3 | Registro de sistema (60 min) |
+
+---
+
+## Constants
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Resources/Constants.cs`
+- **Tipo**: static class
+- **Responsabilidade**: Constantes de info/log
+
+| Constante | Descrição |
+|-----------|-----------|
+| `InfoAudioFile` | Template de info para arquivo de áudio |
+| `InfoJsonDeserializedParent` | Template para JSON desserializado (pai) |
+| `InfoJsonDeserializedChild` | Template para JSON desserializado (filho) |
+
+---
+
+## LogsTemplate (API)
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Resources/LogsTemplate.cs`
+- **Tipo**: static class
+- **Responsabilidade**: Templates de logging estruturado
+
+| Template | Descrição |
+|----------|-----------|
+| `StartHandler` | `[Iniciando]: {handler}` |
+| `InfoHandler` | `[Executando]: {handler} - {message}` |
+| `EndHandler` | `[Finalizando]: {handler}` |
+| `TraceHandler` | `[Trace]: {handler} - {message}` |
+| `ErrorHandler` | `[Erro]: {handler} - {message}` |
+| `WarningHandler` | `[Aviso]: {handler} - {message}` |
+
+---
+
+## Message
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Resources/Message.cs`
+- **Tipo**: static class
+- **Responsabilidade**: Mensagens user-facing em português
+
+| Constante | Valor |
+|-----------|-------|
+| `WorkIdRequired` | WorkId é obrigatório |
+| `TranscriptionNotFound` | Transcrição não encontrada |
+| `Pending` | Processamento pendente |
+| `GettingFromCache` | Buscando do cache |
+| `AddingToCache` | Adicionando ao cache |
+| `GettingFromBigQuery` | Buscando do BigQuery |
+| `DateByPeriodRequired` | Período de datas obrigatório |
+| `DataInicioGreaterThanDataFim` | Data inicial maior que data final |
+
+---
+
+# Consumer Config
+
+---
+
+## WorkStatus (Consumer)
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Enum/WorkStatus.cs`
+- **Tipo**: enum
+- **Responsabilidade**: Status de processamento (valores diferentes da API!)
+
+| Valor | Inteiro | Descrição |
+|-------|---------|-----------|
+| `Completed` | 0 | Concluído |
+| `Pending` | 1 | Pendente |
+
+> ⚠️ **Nota**: Valores numéricos divergem da API (API: Processing=0, Completed=1, Pending=2)
+
+---
+
+## TimeToExpireTokenType (Consumer)
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Fixed/TimeToExpireTokenType.cs`
+- **Tipo**: enum
+- **Responsabilidade**: Tipos de expiração para cache (idêntico à API)
+
+---
+
+## SourcePlatform
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Models/v1/SourcePlatform.cs`
+- **Tipo**: enum
+- **Responsabilidade**: Plataforma de origem do áudio
+
+| Valor | Inteiro | Descrição |
+|-------|---------|-----------|
+| `Telehealth` | 1 | Telemedicina |
+| `Emergency` | 2 | Emergência |
+
+---
+
+## LogTemplate (Consumer)
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Resources/LogTemplate.cs`
+- **Tipo**: static class
+- **Responsabilidade**: Templates de logging estruturado para Consumer
+
+| Template | Formato |
+|----------|---------|
+| `CommandHandler.Start` | `[Iniciando]: CommandHandler - {handler}` |
+| `CommandHandler.Execute` | `[Executando]: CommandHandler - {handler}` |
+| `CommandHandler.End` | `[Finalizando]: CommandHandler - {handler}` |
+| `ServiceHandler.*` | Idem para services |
+| `EventHandler.*` | Idem para event handlers |
+| `Repository.*` | Idem para repositories |
+
+---
+
+## PromptDefault
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Models/v1/PromptDefault.cs`
+- **Tipo**: static class
+- **Responsabilidade**: Prompt padrão para anamnese clínica via Gemini (~117 linhas)
+- **Conteúdo**: Instruções completas em PT-BR para transcrição de consultas médicas — inclui contexto, validação, estrutura obrigatória (QP, HMA, AP, Exame Físico, Conduta), regras absolutas, terminologia médica, CIDs
+
+---
+
+## TranscriptionSchemaResponse
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Models/v1/TranscriptionSchemaResponse.cs`
+- **Tipo**: static class
+- **Responsabilidade**: JSON Schema para structured output do Gemini
+
+```json
+{
+  "transcription": "STRING (required)",
+  "symptoms": "ARRAY<STRING> (required)",
+  "suggestedCIDs": "ARRAY<{code: STRING, description: STRING}> (required)"
+}
+```
+
+---

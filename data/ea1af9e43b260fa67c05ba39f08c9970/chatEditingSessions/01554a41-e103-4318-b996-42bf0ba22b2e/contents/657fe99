@@ -1,0 +1,37 @@
+# Code Map
+
+> Atualizado em: 2026-02-10
+
+## Arquitetura
+
+Sistema STT (Speech-To-Text) composto por dois projetos .NET 8: uma REST API para geração de URLs assinadas e consulta de transcrições, e um Worker Service (Consumer) que consome eventos Pub/Sub do GCS e processa transcrições via Vertex AI (Gemini 2.5 Flash). Ambos compartilham BigQuery e Redis como stores.
+
+## Módulos
+
+| Módulo | Arquivo do Mapa | Descrição | Artefatos |
+|--------|-----------------|-----------|-----------|
+| API | [api.md](api.md) | Controllers e endpoints REST | 4 |
+| Services | [services.md](services.md) | Serviços de negócio e handlers | 16 |
+| Models | [models.md](models.md) | Models, DTOs, interfaces de dados | 24 |
+| Utils | [utils.md](utils.md) | Helpers, extensions, wrappers | 8 |
+| Config | [config.md](config.md) | Enums, constantes, resources, settings | 14 |
+
+## Dependências entre Módulos
+
+### API Project
+```
+Controllers → Handlers (MediatR) → Services → Wrappers → GCP SDKs
+                                  → CacheService → Redis
+```
+
+### Consumer Project
+```
+TransactionConsumerHandler → TranscriptionsCommandHandler → MessageProcessor → VertexAiService → VertexClientWrapper → Gemini
+                                                          → BigQueryService → BigQuery
+                                                          → CacheService → Redis
+```
+
+### Shared Patterns
+- Ambos projetos usam `Bootstrapper.cs` para DI
+- Ambos usam `IOptions<T>` para configuração tipada
+- Ambos usam BigQuery e Redis (com implementações separadas)

@@ -1,0 +1,236 @@
+---
+name: dotnet-service
+description: Gera serviços, handlers, commands e queries .NET seguindo os padrões do projeto STT (layered architecture, MediatR CQRS-lite, Bootstrapper, Options pattern, Wrapper pattern). Use ao criar novo serviço, handler, command, query, interface ou wrapper. Triggers: "criar serviço", "novo service", "criar handler", "novo command", "nova query", "criar wrapper", "novo endpoint", ao implementar nova funcionalidade de negócio.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: dotnet
+---
+
+# .NET Service Generator
+
+Gera serviços e handlers seguindo os padrões estabelecidos no projeto STT.
+
+## Quando Usar
+
+- Criar novo serviço de domínio
+- Criar novo handler (Command ou Query)
+- Criar nova interface de contrato
+- Criar novo wrapper para testabilidade
+- Adicionar novo endpoint na API
+
+## Quando NÃO Usar
+
+- Alteração interna sem mudar interface pública
+- Criar testes (usar `dotnet-test`)
+- Configuração de cache (usar `cache-redis`)
+
+## Arquitetura do Projeto
+
+### Layered Architecture
+
+```
+0 - Presentation  → Api (Controllers) / Consumer (BackgroundService)
+1 - Domain        → Domain (Contracts, Services, Models, DTOs, Wrappers)
+2 - Infrastructure → Infra.Data.Queries (Handlers), Infra.Cache
+3 - Tests         → UnitTests
+```
+
+### Onde colocar cada artefato
+
+| Artefato | Localização (API) | Localização (Consumer) |
+|----------|-------------------|----------------------|
+| Interface de serviço | `Domain/Contracts/v1/Services/` | `Domain/Contracts/v1/` |
+| Interface de wrapper | `Domain/Contracts/v1/Wrappers/` | `Domain/Contracts/v1/` |
+| Implementação de serviço | `Domain/Services/v1/` | `Domain/Services/v1/` |
+| Implementação de wrapper | `Domain/Wrappers/v1/` | `Domain/Wrappers/v1/` |
+| Query (MediatR) | `Infra.Data.Queries/Queries/v1/{NomeDaQuery}/` | N/A |
+| Command (MediatR) | `Infra.Data.Queries/Commands/v1/{NomeDoCommand}/` | `Domain/Commands/v1/{Nome}/` |
+| Model/DTO | `Domain/Models/v1/` ou `Domain/Dtos/` | `Domain/Models/v1/` ou `Domain/Dtos/` |
+| Controller | `Api/Controllers/v1/` | N/A |
+| Registro DI | `Api/Bootstrapper.cs` | `Consumer/Bootstrapper.cs` |
+
+## Padrões Obrigatórios
+
+### 1. Interface segregation
+
+Sempre criar interface ANTES da implementação:
+
+```csharp
+// Domain/Contracts/v1/Services/IMyService.cs
+namespace Hapvida.TI.VoiceTranscription.Domain.Contracts.v1.Services
+{
+    public interface IMyService
+    {
+        Task<ResultDto?> GetByIdAsync(string id, CancellationToken ct);
+    }
+}
+```
+
+### 2. Implementação de serviço
+
+```csharp
+// Domain/Services/v1/MyService.cs
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+namespace Hapvida.TI.VoiceTranscription.Domain.Services.v1
+{
+    public class MyService : IMyService
+    {
+        private readonly ILogger<MyService> _logger;
+        private readonly MySettings _settings;
+        private readonly ISomeDependency _dependency;
+
+        public MyService(
+            IOptions<MySettings> options,
+            ILogger<MyService> logger,
+            ISomeDependency dependency)
+        {
+            _settings = options?.Value ?? throw new ArgumentNullException(nameof(options));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            _dependency = dependency ?? throw new ArgumentNullException(nameof(dependency));
+        }
+
+        public async Task<ResultDto?> GetByIdAsync(string id, CancellationToken ct)
+        {
+            if (ct.IsCancellationRequested)
+            {
+                _logger.LogWarning("Operação cancelada em {Service}", nameof(MyService));
+                ct.ThrowIfCancellationRequested();
+            }
+
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                _logger.LogWarning("ID inválido em {Service}", nameof(MyService));
+                return null;
+            }
+
+            try
+            {
+                // implementação
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogWarning("Operação cancelada durante execução em {Service}", nameof(MyService));
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogCritical(ex, "Erro inesperado em {Service}", nameof(MyService));
+                throw;
+            }
+        }
+    }
+}
+```
+
+### 3. Query Handler (API — CQRS read)
+
+Cada query vive em pasta própria com 2 arquivos:
+
+```
+Infra.Data.Queries/Queries/v1/{NomeDaQuery}/
+├── {NomeDaQuery}Query.cs
+└── {NomeDaQuery}Handler.cs
+```
+
+```csharp
+// Query
+using Hapvida.Core.Domain.Models;
+
+namespace Hapvvida.TI.VoiceTranscription.Infra.Data.Queries.Queries.v1.GetSomething
+{
+    public class GetSomethingQuery : Query
+    {
+        public string Id { get; set; }
+        public GetSomethingQuery(string id) { Id = id; }
+    }
+}
+
+// Handler
+using Hapvida.Core.Domain.Handlers;
+using Hapvida.Core.Domain.Models;
+
+namespace Hapvvida.TI.VoiceTranscription.Infra.Data.Queries.Queries.v1.GetSomething
+{
+    public class GetSomethingHandler : QueryHandler<GetSomethingQuery>
+    {
+        public override async Task<Response> Handle(GetSomethingQuery query, CancellationToken ct)
+        {
+            _logger.LogInformation(LogsTemplate.StartHandler, nameof(GetSomethingHandler));
+
+            // validação → cache → BigQuery → cache set → return
+            return new Response { Content = result };
+        }
+    }
+}
+```
+
+> ⚠️ **NOTA**: O namespace de Infra.Data.Queries usa `Hapvvida` (duplo 'v') por causa do RootNamespace no csproj. Manter essa inconsistência.
+
+### 4. Command Handler (API)
+
+Pasta com 4 arquivos: Command, Handler, Request, Response:
+
+```
+Infra.Data.Queries/Commands/v1/{NomeDoCommand}/
+├── {Nome}Command.cs       — extends Command
+├── {Nome}Handler.cs        — extends CommandHandler<T>
+├── {Nome}Request.cs        — [Required] validations
+└── {Nome}Response.cs       — response DTO
+```
+
+### 5. Registro DI no Bootstrapper
+
+```csharp
+// API — Bootstrapper.cs
+services.AddScoped<IMyService, MyService>();     // Serviços normais → Scoped
+services.AddSingleton<IMyWrapper, MyWrapper>();   // Wrappers GCP → Singleton
+
+// Consumer — Bootstrapper.cs
+services.AddSingleton<IMyService, MyService>();   // Consumer → tudo Singleton
+```
+
+### 6. Wrapper para testabilidade
+
+Criar wrapper para qualquer SDK externo:
+
+```csharp
+// Interface
+public interface IMyClientWrapper
+{
+    Task<Result> ExecuteAsync(string input, CancellationToken ct);
+}
+
+// Implementação
+public class MyClientWrapper : IMyClientWrapper
+{
+    // Thin wrapper — apenas delega para o SDK real
+}
+```
+
+## Convenções de Código
+
+| Regra | Padrão |
+|-------|--------|
+| Namespace | `Hapvida.TI.VoiceTranscription.{Layer}.{Feature}.v1` |
+| Null guard | `ArgumentNullException.ThrowIfNull()` ou `?? throw new ArgumentNullException()` |
+| Config | `IOptions<T>` com `configuration.GetSection().Get<T>()` |
+| Fail-fast | Validar config no construtor |
+| Logging | Structured logging com `ILogger<T>` |
+| Templates de log | Usar `LogsTemplate` (API) ou `LogTemplate` (Consumer) |
+| CancellationToken | Verificar `IsCancellationRequested` no início do Handle |
+| Async | Suffix `Async` em todos os métodos assíncronos |
+| Versioning | Pasta `v1/` em todas as camadas |
+| Idioma | Código em inglês, mensagens de log em português |
+
+## Checklist
+
+- [ ] Interface criada em `Contracts/v1/`
+- [ ] Implementação em `Services/v1/` ou `Wrappers/v1/`
+- [ ] Null guards em todos os parâmetros do construtor
+- [ ] CancellationToken em todos os métodos async
+- [ ] Structured logging com templates
+- [ ] Registrado no `Bootstrapper.cs` com lifetime correto
+- [ ] Code map atualizado (usar `code-map-update`)

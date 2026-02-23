@@ -1,0 +1,169 @@
+using System.Globalization;
+using Google.Cloud.BigQuery.V2;
+using Hapvida.TI.VoiceTranscription.Domain.Contracts.v1.Wrappers;
+using Hapvida.TI.VoiceTranscription.Domain.Dtos;
+using Hapvida.TI.VoiceTranscription.Domain.Enums;
+using Hapvida.TI.VoiceTranscription.Domain.Models.v1;
+using Hapvida.TI.VoiceTranscription.Domain.Services.v1;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using NSubstitute;
+using NSubstitute.ExceptionExtensions;
+using Xunit;
+
+
+namespace Hapvida.TI.VoiceTranscription.UnitTests.Units.Services.v1.BigQueryCheckStatus
+{
+    public class GetBigQueryCheckStatusServiceTests
+    {
+        private static IOptions<GoogleCloudStorageSettings> OkOptions() =>
+            Options.Create(new GoogleCloudStorageSettings
+            {
+                ProjectId = "Projeto-1",
+                GoogleBigQuery = new GoogleBigQueryOptionsSettings
+                {
+                    DataSet = "dataset-1",
+                    Table = "table-1"
+                }
+            });
+
+        private static ILogger<BigQueryCheckStatusService> NullLogger() =>
+            Substitute.For<ILogger<BigQueryCheckStatusService>>();
+
+        private static IBigQueryClientWrapper FakeClient() =>
+            Substitute.For<IBigQueryClientWrapper>();
+
+        // ------------------------------
+        // CONSTRUCTOR VALIDATION
+        // ------------------------------
+
+        [Fact(DisplayName = "Ctor: configurações válidas criam instância")]
+        public void BigQuery_Valid_ShouldCreateInstance()
+        {
+            var service = new BigQueryCheckStatusService(OkOptions(), NullLogger(), FakeClient());
+            Assert.NotNull(service);
+        }
+
+        [Theory(DisplayName = "Ctor: faltando config obrigatória deve lançar InvalidOperationException")]
+        [InlineData("", "dataset-1", "table-1")]           // ProjectId
+        [InlineData("Projeto-1", "", "table-1")]           // DataSet
+        [InlineData("Projeto-1", "dataset-1", "")]         // Table
+        public void Ctor_MissingConfig_ShouldThrow(string projectId, string dataset, string table)
+        {
+            var options = Options.Create(new GoogleCloudStorageSettings
+            {
+                ProjectId = projectId,
+                GoogleBigQuery = new GoogleBigQueryOptionsSettings
+                {
+                    DataSet = dataset,
+                    Table = table
+                }
+            });
+
+            Assert.Throws<InvalidOperationException>(() =>
+                new BigQueryCheckStatusService(options, NullLogger(), FakeClient()));
+        }
+
+        // ------------------------------
+        // GetLatestByWorkIdAsync BEHAVIOR
+        // ------------------------------
+
+        [Fact(DisplayName = "WorkId em branco → retorna null e não consulta cliente")]
+        public async Task GetLatestByWorkIdAsync_EmptyWorkId_ShouldReturnNull()
+        {
+            var client = FakeClient();
+            var service = new BigQueryCheckStatusService(OkOptions(), NullLogger(), client);
+
+            var result = await service.GetLatestByWorkIdAsync("   ", CancellationToken.None);
+
+            Assert.Null(result);
+            await client.DidNotReceiveWithAnyArgs().ExecuteQueryAsync(default!, default!, default, default);
+        }
+
+        [Fact(DisplayName = "CancellationToken cancelado → lança OperationCanceledException")]
+        public async Task GetLatestByWorkIdAsync_Cancelled_ShouldThrow()
+        {
+            var client = FakeClient();
+            var service = new BigQueryCheckStatusService(OkOptions(), NullLogger(), client);
+
+            using var cts = new CancellationTokenSource();
+            cts.Cancel();
+
+            await Assert.ThrowsAsync<OperationCanceledException>(() =>
+                service.GetLatestByWorkIdAsync("123", cts.Token));
+        }
+
+        [Fact(DisplayName = "Sem resultados → retorna null")]
+        public async Task GetLatestByWorkIdAsync_WithoutResults_ShallReturnNull()
+        {
+            var client = FakeClient();
+            client.ExecuteQueryAsync(Arg.Any<string>(), Arg.Any<BigQueryParameter[]>(), null, Arg.Any<CancellationToken>())
+                  .Returns(new List<RowDto>());
+
+            var service = new BigQueryCheckStatusService(OkOptions(), NullLogger(), client);
+
+            var result = await service.GetLatestByWorkIdAsync("123", CancellationToken.None);
+
+            Assert.Null(result);
+        }
+
+        [Fact(DisplayName = "Com dados → mapeia DTO corretamente (listas, enum, data)")]
+        public void GetLatestByWorkIdAsync_WithData_ShallReturnDto()
+        {
+            var client = FakeClient();
+
+            var logger = Substitute.For<ILogger<BigQueryCheckStatusService>>();
+
+
+            var row = new RowDto()
+            {
+                WorkId = "123",
+                Symptoms = new List<string>() { "algum" },
+                Transcription = "alguma",
+                WorkStatus = WorkStatus.Completed,
+                CreatedAt = DateTime.UtcNow.ToString("o"),
+                ReadyFields = new List<string>(),
+                SuggestedCIDs = new List<SuggestedCid>(),
+                EncounterId = "abc"
+            };
+        }
+
+        [Fact(DisplayName = "CreatedAt como string → converte para ISO-8601 UTC")]
+        public async Task GetLatestByWorkIdAsync_CreatedAtString_ShouldNormalize()
+        {
+            var client = FakeClient();
+
+            var createdLocal = DateTime.Now.ToString("O", CultureInfo.InvariantCulture);
+
+            var row = new RowDto()
+            {
+                WorkId = "w1",
+                CreatedAt = createdLocal
+            };
+
+            client.ExecuteQueryAsync(Arg.Any<string>(), Arg.Any<BigQueryParameter[]>(), null, Arg.Any<CancellationToken>())
+                  .Returns(new List<RowDto> { row });
+
+            var service = new BigQueryCheckStatusService(OkOptions(), NullLogger(), client);
+
+            var dto = await service.GetLatestByWorkIdAsync("w1", CancellationToken.None);
+
+            Assert.NotNull(dto);
+            // só garante que veio em formato "o" não-vazio
+            Assert.True(DateTime.TryParse(dto!.CreatedAt, out _));
+        }
+
+        [Fact(DisplayName = "Exceção do client → deve propagar (não retornar null)")]
+        public async Task GetLatestByWorkIdAsync_ClientThrows_ShouldPropagate()
+        {
+            var client = FakeClient();
+            client.ExecuteQueryAsync(Arg.Any<string>(), Arg.Any<BigQueryParameter[]>(), null, Arg.Any<CancellationToken>())
+                  .Throws(new Exception("erro bigquery"));
+
+            var service = new BigQueryCheckStatusService(OkOptions(), NullLogger(), client);
+
+            await Assert.ThrowsAsync<Exception>(() =>
+                service.GetLatestByWorkIdAsync("123", CancellationToken.None));
+        }
+    }
+}

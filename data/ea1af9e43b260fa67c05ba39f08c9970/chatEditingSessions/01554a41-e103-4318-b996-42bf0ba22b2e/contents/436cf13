@@ -1,0 +1,230 @@
+# Services — Lógica de Negócio e Handlers
+
+> Atualizado em: 2026-02-10
+
+---
+
+# API Services
+
+---
+
+## BigQueryCheckStatusService
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Services/v1/BigQueryCheckStatusService.cs`
+- **Tipo**: class
+- **Responsabilidade**: Consulta BigQuery para status de transcrição e dados de latência
+- **Depende de**: `IBigQueryClientWrapper`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `GetLatestByWorkIdAsync` | `(string workId, CancellationToken)` | `ConsultaStatusDto?` | Busca transcrição completa por workId |
+| `GetTranscriptionsByPeriodAsync` | `(DateTimeOffset start, end, CancellationToken)` | `IReadOnlyList<TranscriptionSummaryDto>` | Lista transcrições por período |
+| `GetLatestTranscriptionByWorkIdAsync` | `(string workId, CancellationToken)` | `TranscriptionSummaryDto?` | Busca resumo da transcrição por workId |
+
+---
+
+## BigQueryWriterService
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Services/v1/BigQueryWriterService.cs`
+- **Tipo**: class
+- **Responsabilidade**: Insere registros de signed URL no BigQuery
+- **Depende de**: `IBigQueryClientWrapper`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `InsertSignedUrlRecordAsync` | `(SignedUrlRecordDto record, CancellationToken)` | `bool` | Insere registro; retorna false em caso de erro |
+
+---
+
+## GenerateUrlSignedService
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Services/v1/GenerateUrlSignedService.cs`
+- **Tipo**: class
+- **Responsabilidade**: Gera URLs assinadas para upload de áudio no GCS
+- **Depende de**: `IOptions<GoogleCloudStorageSettings>`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `GenerateForUploadAsync` | `()` | `(string signedUrl, string workId)` | Gera signed URL simples (nome: `{guid}.webm`) |
+| `GenerateForUploadAsync` | `(string prompt, string platform)` | `(string signedUrl, string workId)` | Gera signed URL com path `{prompt}/{platform}/{guid}.webm` |
+
+---
+
+## GoogleCloudStorageService
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Services/v1/GoogleCloudStorageService.cs`
+- **Tipo**: class
+- **Responsabilidade**: Interação com GCS para leitura de metadados de objetos
+- **Depende de**: `IOptions<GoogleCloudStorageSettings>`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `GetObjectAsync` | `(string objectName, CancellationToken)` | `GoogleCloudStorageFile?` | Busca metadados de um objeto GCS |
+| `ListByCreatedAtAsync` | `(DateTimeOffset? from, to, CancellationToken)` | `IReadOnlyList<GoogleCloudStorageFile>` | Lista objetos filtrados por data (client-side) |
+
+---
+
+## CacheService (API)
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Infra.Cache/Services/v1/CacheService.cs`
+- **Tipo**: class
+- **Responsabilidade**: Abstração sobre Redis via IDistributedCache. Resiliente — swallows exceptions
+- **Depende de**: `IDistributedCache`, `CacheSettings`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `GetCacheAsync` | `(string key, CancellationToken)` | `string` | Busca valor; retorna empty em caso de erro |
+| `SetCacheAsync` | `(string key, string value, CancellationToken)` | `void` | Grava valor com expiração default |
+| `SetCacheAsync` | `(string key, string value, TimeToExpireTokenType, CancellationToken)` | `void` | Grava valor com expiração customizada |
+
+---
+
+## GetTranscriptionHandler
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Infra.Data.Queries/Queries/v1/GetTranscription/GetTranscriptionHandler.cs`
+- **Tipo**: class (QueryHandler)
+- **Responsabilidade**: Busca transcrição com cache-aside: cache → BigQuery → cache set
+- **Depende de**: `ICacheService`, `IBigQueryServiceReader`, `IMapper`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `Handle` | `(GetTranscriptionQuery, CancellationToken)` | `GetTranscriptionQueryResponse` | Cache-first lookup |
+
+---
+
+## GetSignedUrlUploadHandler
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Infra.Data.Queries/Queries/v1/GetSignedUrlUpload/GetSignedUrlUploadHandler.cs`
+- **Tipo**: class (QueryHandler)
+- **Responsabilidade**: Gera signed URL simples
+- **Depende de**: `IGenerateUrlSignedService`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `Handle` | `(GetSignedUrlUploadQuery, CancellationToken)` | `GetSignedUrlUploadResponse` | Delega para GenerateUrlSignedService |
+
+---
+
+## GetProcessingLatencyHandler
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Infra.Data.Queries/Queries/v1/GetProcessingLatency/GetProcessingLatencyHandler.cs`
+- **Tipo**: class (QueryHandler)
+- **Responsabilidade**: Calcula latência entre upload no GCS e persistência no BigQuery
+- **Depende de**: `IGoogleCloudStorageService`, `IBigQueryServiceReader`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `Handle` | `(GetProcessingLatencyQuery, CancellationToken)` | `GetProcessingLatencyResponse` | Correlaciona GCS + BQ por workId/período |
+
+---
+
+## CreateSignedUrlUploadHandler
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Infra.Data.Queries/Commands/v1/CreateSignedUrlUpload/CreateSignedUrlUploadHandler.cs`
+- **Tipo**: class (CommandHandler)
+- **Responsabilidade**: Gera signed URL com prompt/platform e registra no BigQuery
+- **Depende de**: `IGenerateUrlSignedService`, `IBigQueryServiceWriter`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `Handle` | `(CreateSignedUrlUploadCommand, CancellationToken)` | `CreateSignedUrlUploadResponse` | Gera URL + persiste registro (resiliente a falha do BQ) |
+
+---
+
+# Consumer Services
+
+---
+
+## TransactionConsumerHandler
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Consumer/Consumers/v1/Transcription/TransactionConsumerHandler.cs`
+- **Tipo**: class (BackgroundService)
+- **Responsabilidade**: Entry point do Worker Service — delega para CommandHandler
+- **Depende de**: `TranscriptionsCommandHandler`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `ExecuteAsync` | `(CancellationToken)` | `Task` | Cria command e delega ao handler |
+
+---
+
+## TranscriptionsCommandHandler
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Commands/v1/Transcriptions/TranscriptionsCommandHandler.cs`
+- **Tipo**: class (CommandHandler)
+- **Responsabilidade**: Inicia subscriber Pub/Sub, processa mensagens, delega ao MessageProcessor
+- **Depende de**: `IGoogleCredentialProvider`, `IOptions<PubSubSettings>`, `ITranscriptionMessageProcessor`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `Handle` | `(TranscriptionsCommand, CancellationToken)` | `Task` | Inicia subscriber, filtra OBJECT_FINALIZE, processa ou nack |
+
+---
+
+## TranscriptionMessageProcessor
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Services/v1/TranscriptionMessageProcessor.cs`
+- **Tipo**: class
+- **Responsabilidade**: Núcleo do processamento — orquestra transcrição via Vertex AI e persistência
+- **Depende de**: `IVertexAiService`, `ICacheService`, `IBigQueryService`, `IGoogleCredentialProvider`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `ProcessAsync` | `(string messageJson, string messageId, CancellationToken)` | `SubscriberClient.Reply` | Extrai workId, chama Vertex, persiste em paralelo (Cache + BQ) |
+
+---
+
+## VertexAiService
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Services/v1/VertexAiService.cs`
+- **Tipo**: class
+- **Responsabilidade**: Integração com Gemini 2.5 Flash para transcrição de áudio
+- **Depende de**: `IVertexClientWrapper`, `IBigQueryService`, `IOptions<VertexSettings>`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `SendForTranscriptionAsync` | `(string uri, GoogleCredential, string messageId, string workId, CancellationToken)` | `(string contents, bool shouldRetry)` | Chama Gemini, retorna transcrição JSON |
+
+---
+
+## BigQueryService (Consumer)
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Services/v1/BigQueryService.cs`
+- **Tipo**: class
+- **Responsabilidade**: Persistência em BigQuery — transcrições, tokens e consulta de prompts
+- **Depende de**: `IOptions<BigQuerySettings>`, `IGoogleCredentialProvider`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `InsertUsageMetadataAsync` | `(string key, string messageId, TokenData, CancellationToken)` | `void` | Insere dados de token na Token_Data |
+| `InsertCompletedTranscriptionAsync` | `(string key, ClinicalResponse, string messageId, CancellationToken)` | `void` | Insere transcrição na File_Transcription |
+| `GetPromptByWorkIdAsync` | `(string workId, CancellationToken)` | `PromptDto?` | Busca prompt customizado pelo workId |
+
+---
+
+## GoogleCredentialProvider
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Services/v1/GoogleCredentialProvider.cs`
+- **Tipo**: class
+- **Responsabilidade**: Decodifica Base64 de service account e cria GoogleCredential
+- **Depende de**: `IOptions<GoogleCredentialSettings>`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `GetCredential` | `()` | `GoogleCredential` | Retorna credencial scoped para cloud-platform |
+
+---
+
+## CacheService (Consumer)
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.AI.Infra.Cache/Services/v1/CacheService.cs`
+- **Tipo**: class
+- **Responsabilidade**: Abstração sobre Redis. Get resiliente (swallows), Set rethrows
+- **Depende de**: `IDistributedCache`, `CacheSettings`
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `SetCacheAsync` | `(string key, string value, CancellationToken)` | `void` | Grava valor com expiração default; rethrows em caso de erro |
+| `GetCacheAsync` | `(string key, CancellationToken)` | `string` | Busca valor; retorna empty em caso de erro |
+
+---

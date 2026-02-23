@@ -1,0 +1,142 @@
+# Project Context — STT (Speech-To-Text)
+
+Estado atual do projeto para referência do Copilot.
+
+---
+
+## Objetivo
+
+Sistema de transcrição de voz por IA para o contexto de Telemedicina (TeleHealth) da Hapvida. O fluxo principal é: o cliente (frontend TeleHealth) faz upload de áudio (.webm) para o Google Cloud Storage via URL assinada, um evento Pub/Sub dispara o Consumer que envia o áudio para o Vertex AI (Gemini 2.5 Flash) para transcrição, persiste o resultado no BigQuery e Redis, e a API permite consultar as transcrições.
+
+## Repos
+
+| Repo | Tipo | Propósito |
+|------|------|-----------|
+| `VoiceTranscription.AI.Api` | REST API (.NET 8 Web) | Gera URLs assinadas para upload no GCS e consulta transcrições do BigQuery/Cache |
+| `VoiceTranscription.Ai.Consumer` | Worker Service (.NET 8) | Consome eventos Pub/Sub, envia áudio para Vertex AI (Gemini), persiste resultados no BigQuery e Redis |
+
+## Stack
+
+| Componente | Tecnologia | Versão |
+|------------|------------|--------|
+| Linguagem | C# | 12.0 |
+| Framework | .NET | 8.0 |
+| AI/ML | Google Vertex AI (Gemini 2.5 Flash) via `Google.GenAI` | 0.6.0 |
+| Message Broker | Google Cloud Pub/Sub | 3.30.0 |
+| Database | Google BigQuery | 3.11.0 |
+| Cache | Redis (StackExchange) | 8.0.7 |
+| Object Storage | Google Cloud Storage | 4.13.0 |
+| HTTP Client | Refit | 8.0.0 |
+| Audio Processing | NAudio + Xabe.FFmpeg | 2.2.1 / 6.0.2 |
+| Mediator | MediatR (via Hapvida.Core.Domain) | — |
+| Observability | OpenTelemetry → Datadog | 2.1.0 |
+| Testes | xUnit + Moq + NSubstitute + Bogus + Coverlet | — |
+
+## Arquitetura
+
+**Layered Architecture** com pastas numeradas na solution:
+
+```
+0 - Presentation    → Api / Consumer (entry point)
+1 - Domain          → Domain (business logic, contracts, services)
+2 - Infrastructure  → Infra.Cache, Infra.Data.Queries
+3 - Tests           → UnitTests
+```
+
+### Padrões utilizados
+
+- **Command/Handler** — pares isolados command/handler via MediatR (`Hapvida.Core.Domain`)
+- **Bootstrapper** — `Bootstrapper.cs` com extension methods para registro de DI
+- **Wrapper** — `BigQueryClientWrapper`, `VertexClientWrapper` para testabilidade
+- **Interface segregation** — `Contracts/v1/` com interfaces de serviço
+- **API versioning** — pastas `v1/` em todas as camadas
+- **Options pattern** — `IOptions<T>` para configurações tipadas
+- **Multi-stage Dockerfile** — 6 stages (base → build → test → build app → publish → final)
+
+### Data Flow
+
+```
+Client → [Signed URL] → GCS Upload (.webm)
+                              ↓ (event)
+                        Google Pub/Sub
+                              ↓
+                     Consumer (Worker Service)
+                     ├─→ Vertex AI (Gemini 2.5 Flash) → Transcrição
+                     ├─→ BigQuery (persistência)
+                     └─→ Redis Cache (consulta rápida)
+                              ↓
+                        API (lê de Cache/BigQuery)
+                              ↓
+                        Client (TeleHealth frontend)
+```
+
+## Infraestrutura
+
+| Aspecto | Detalhes |
+|---------|----------|
+| Container Registry | Azure Container Registry (`hapvidacorp.azurecr.io`) + GCP GCR |
+| Base Images | Golden images: `dotnet-8-aspnet`, `dotnet-8-sdk` |
+| Orquestração | Kubernetes (GKE) |
+| CI/CD | Azure Pipelines → Docker build, SonarQube, TechDocs |
+| Code Quality | SonarQube |
+| Developer Portal | Backstage (catalog-info.yaml, mkdocs.yaml) |
+| Observabilidade | OpenTelemetry → Datadog (APM, traces, runtime metrics) |
+| Redis em K8s | Redis 7.0 sidecar (API), 4.6 GB maxmemory, LRU eviction |
+| GCP Project | `prj-hap-ti-vtx-voice-trsc-dev` |
+
+## Pacotes Internos (Hapvida.Core)
+
+| Pacote | Versão | Propósito |
+|--------|--------|-----------|
+| `Hapvida.Core.Api.Http` | 2.1.2 | Bootstrapping de API (AddAppContext, UseApplicationContext) |
+| `Hapvida.Core.Domain` | 2.1.1 | Base de domínio (MediatR, CommandHandler) |
+| `Hapvida.Core.Infra.Services.Http` | 2.1.0 | Infraestrutura HTTP |
+| `Hapvida.Core.Infra.OpenTelemetry.Exporter.Collector` | 2.1.0 | Export OpenTelemetry → Datadog |
+| `Hapvida.Core.Infra.EventBus.ServiceBus` | 2.1.0 | Event bus (Consumer) |
+
+## Convenções
+
+1. **Namespace**: `Hapvida.TI.VoiceTranscription.[Layer]` — prefixo corporativo, PascalCase
+2. **API versioning**: pastas `v1/` em todas as camadas
+3. **Bootstrapper pattern**: `Bootstrapper.cs` estático com extension methods para DI
+4. **GlobalUsings.cs**: `global using` centralizado por projeto
+5. **Nullable reference types**: habilitado
+6. **Warnings as errors**: `TreatWarningsAsErrors=true`
+7. **C# 12**: `LangVersion=12.0`
+8. **Config binding**: Options pattern (`IOptions<T>`, `GetSection().Get<T>()`)
+9. **Argument validation**: `ArgumentNullException.ThrowIfNull()` para validação de config
+10. **User Secrets**: habilitado para dev local
+11. **Test coverage**: apenas Domain layer (`[*.Domain?]*`)
+12. **Cultures**: `pt-BR` primário, `en-US` secundário
+
+## Restrições
+
+- Usar apenas golden images da Hapvida para Docker (`hapvidacorp.azurecr.io`)
+- NuGet packages internos via Azure Artifacts feed privado
+- Cobertura de testes focada exclusivamente na camada Domain
+- `TreatWarningsAsErrors` sempre habilitado
+- Manter compatibilidade com .NET 8.0
+
+## Integrações
+
+| Sistema | Propósito | Status |
+|---------|-----------|--------|
+| Google Vertex AI (Gemini 2.5 Flash) | Transcrição de áudio via IA | Ativo |
+| Google Cloud Pub/Sub | Message broker para eventos de upload | Ativo |
+| Google BigQuery | Persistência de transcrições e dados de token | Ativo |
+| Google Cloud Storage | Upload de arquivos de áudio (.webm) | Ativo |
+| Redis | Cache para consulta rápida de transcrições | Ativo |
+| Datadog | Observabilidade (APM, traces, métricas) | Ativo |
+| SonarQube | Análise de qualidade de código | Ativo |
+| Backstage | Portal do desenvolvedor e TechDocs | Ativo |
+| Azure DevOps | CI/CD pipelines | Ativo |
+
+## Estado Atual
+
+**Fase**: Produção
+**Status**: Sistema ativo em produção, usado pelo TeleHealth para transcrição de consultas médicas
+
+## Última Atualização
+
+**Data**: 2026-02-10
+**Motivo**: Criação inicial — onboarding Copilot Core

@@ -1,0 +1,6 @@
+using System.Collections.Generic;
+
+namespace Hapvida.TI.VoiceTranscription.Domain.Dtos
+{
+    public record RowDto(IDictionary<string, object?> Columns);
+}

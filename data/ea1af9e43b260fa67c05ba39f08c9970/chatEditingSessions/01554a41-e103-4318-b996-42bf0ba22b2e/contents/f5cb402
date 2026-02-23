@@ -1,0 +1,230 @@
+# Project Context — STT (Speech-To-Text)
+
+Estado atual do projeto para referência do Copilot.
+
+---
+
+## Objetivo
+
+Sistema de transcrição de voz por IA para o contexto de Telemedicina (TeleHealth) da Hapvida. O fluxo principal é: o cliente (frontend TeleHealth) faz upload de áudio (.webm) para o Google Cloud Storage via URL assinada, um evento Pub/Sub dispara o Consumer que envia o áudio para o Vertex AI (Gemini 2.5 Flash) para transcrição, persiste o resultado no BigQuery e Redis, e a API permite consultar as transcrições.
+
+## Repos
+
+| Repo | Tipo | Propósito | Solution Projects |
+|------|------|-----------|-------------------|
+| `VoiceTranscription.AI.Api` | REST API (.NET 8 Web) | Gera URLs assinadas para upload no GCS e consulta transcrições do BigQuery/Cache | Api, Domain, Infra.Data.Queries, Infra.Cache, UnitTests |
+| `VoiceTranscription.Ai.Consumer` | Worker Service (.NET 8) | Consome eventos Pub/Sub, envia áudio para Vertex AI (Gemini), persiste resultados no BigQuery e Redis | Consumer, Domain, Infra.Cache, UnitTests |
+
+### API — Endpoints
+
+| Controller | Método | Rota | Descrição |
+|------------|--------|------|-----------|
+| `SpeechTextController` | `GET` | `api/v1/speech-text/transcription?workId=` | Busca transcrição (cache-first, fallback BigQuery) |
+| `SpeechTextController` | `GET` | `api/v1/speech-text/latency?workId=&dataInicio=&dataFim=` | Calcula latência de processamento |
+| `UrlController` | `GET` | `api/v1/url/signed/upload` | Gera signed URL para upload no GCS |
+| `UrlController` | `POST` | `api/v1/url/signed/upload` | Gera signed URL com prompt/platform e registra no BigQuery |
+
+### Consumer — Fluxo de Processamento
+
+1. `TransactionConsumerHandler` (BackgroundService) → inicia listener Pub/Sub
+2. `TranscriptionsCommandHandler` → gerencia subscriber, filtra `OBJECT_FINALIZE`
+3. `TranscriptionMessageProcessor` → extrai workId, monta URI, chama Vertex AI
+4. `VertexAiService` → busca prompt no BigQuery (fallback: `PromptDefault.Anamnesis`), chama Gemini 2.5 Flash
+5. Resultado persistido em paralelo: `Task.WhenAll(cacheTask, bigQueryTask)`
+
+### Consumer — Integração com Gemini
+
+| Aspecto | Valor |
+|---------|-------|
+| Modelo | `gemini-2.5-flash` |
+| SDK | `Google.GenAI` v0.6.0 |
+| Temperature | 0.0 (determinístico) |
+| TopP | 0.95 |
+| ResponseMimeType | `application/json` (structured output) |
+| ThinkingBudget | 0 (desabilitado) |
+| ResponseSchema | JSON Schema com `transcription`, `symptoms`, `suggestedCIDs` |
+| Input | FileData (GCS URI, audio/mpeg) + Prompt text |
+| Retry | HTTP 429 → Pub/Sub Nack (redelivery) |
+| Token Tracking | Salva usage metadata no BigQuery (`Token_Data`) |
+| Dynamic Prompts | Busca prompt customizado no BigQuery; fallback para `PromptDefault.Anamnesis` |
+| Labels | `source_platform: Telehealth|Emergency` |
+
+## Stack
+
+| Componente | Tecnologia | Versão | Usado em |
+|------------|------------|--------|----------|
+| Linguagem | C# | 12.0 | Ambos |
+| Framework | .NET | 8.0 | Ambos |
+| AI/ML | Google Vertex AI (Gemini 2.5 Flash) via `Google.GenAI` | 0.6.0 | Consumer |
+| Message Broker | Google Cloud Pub/Sub | 3.30.0 | Consumer |
+| Database | Google BigQuery | 3.11.0 | Ambos |
+| Cache | Redis (StackExchange) | 8.0.7 | Ambos |
+| Object Storage | Google Cloud Storage | 4.13.0 | API |
+| HTTP Client | Refit | 8.0.0 | API (Infra.Data.Queries) |
+| Audio Processing | NAudio + Xabe.FFmpeg | 2.2.1 / 6.0.2 | API (referenciados mas sem uso visível) |
+| Mediator | MediatR (via Hapvida.Core.Domain) | — | Ambos |
+| Observability | OpenTelemetry → Datadog | 2.1.0 | Ambos |
+| Testes (API) | xUnit + Moq + NSubstitute + Bogus + Coverlet | — | API |
+| Testes (Consumer) | xUnit + Moq + Bogus + Coverlet | — | Consumer |
+
+## Arquitetura
+
+**Layered Architecture** com pastas numeradas na solution:
+
+```
+0 - Presentation    → Api / Consumer (entry point)
+1 - Domain          → Domain (business logic, contracts, services)
+2 - Infrastructure  → Infra.Cache, Infra.Data.Queries (apenas API)
+3 - Tests           → UnitTests
+```
+
+### Padrões utilizados
+
+- **Command/Handler** — pares isolados command/handler via MediatR (`Hapvida.Core.Domain`)
+- **Query/Handler** — queries de leitura separadas de comandos (CQRS-lite)
+- **Bootstrapper** — `Bootstrapper.cs` estático com extension methods para registro de DI
+- **Wrapper** — `BigQueryClientWrapper` (API), `VertexClientWrapper` (Consumer) para testabilidade
+- **Interface segregation** — `Contracts/v1/` com interfaces de serviço granulares (`IBigQueryServiceReader`/`IBigQueryServiceWriter`)
+- **API versioning** — pastas `v1/` em todas as camadas
+- **Options pattern** — `IOptions<T>` para configurações tipadas
+- **Multi-stage Dockerfile** — 6 stages (base → build → test → build app → publish → final)
+- **Cache-aside** — API lê do cache primeiro, fallback para BigQuery, persiste no cache
+- **Domain notifications** — `IDomainContextNotifications` para erros de validação
+- **Fail-fast** — validação de config no startup com `ArgumentNullException.ThrowIfNull()`
+
+### Data Flow
+
+```
+Client → [Signed URL] → GCS Upload (.webm)
+                              ↓ (event OBJECT_FINALIZE)
+                        Google Pub/Sub
+                              ↓
+                     Consumer (Worker Service)
+                     ├─→ BigQuery (busca prompt customizado, fallback para default)
+                     ├─→ Vertex AI (Gemini 2.5 Flash) → Transcrição JSON
+                     │     { transcription, symptoms, suggestedCIDs }
+                     ├─→ BigQuery (persiste transcrição em File_Transcription)
+                     ├─→ BigQuery (persiste token usage em Token_Data)
+                     └─→ Redis Cache (consulta rápida)
+                              ↓
+                        API (lê de Cache/BigQuery)
+                              ↓
+                        Client (TeleHealth frontend)
+```
+
+### BigQuery Tables
+
+| Tabela | Propósito | Usado por |
+|--------|-----------|-----------|
+| `File_Transcription` | Transcrições, status, CIDs, sintomas | API (read), Consumer (write), API (write signed URL records) |
+| `Token_Data` | Metadata de uso de tokens do Gemini | Consumer (write) |
+| `Prompts` | Prompts customizados por ID | Consumer (read) |
+
+## Infraestrutura
+
+| Aspecto | Detalhes |
+|---------|----------|
+| Container Registry | Azure Container Registry (`hapvidacorp.azurecr.io`) + GCP GCR |
+| Base Images | Golden images: `dotnet-8-aspnet`, `dotnet-8-sdk` |
+| Orquestração | Kubernetes (GKE) |
+| CI/CD | Azure Pipelines → Docker build, SonarQube, TechDocs |
+| Code Quality | SonarQube |
+| Developer Portal | Backstage (catalog-info.yaml, mkdocs.yaml) |
+| Observabilidade | OpenTelemetry → Datadog (APM, traces, runtime metrics) |
+| Redis em K8s | Redis 7.0 sidecar (apenas API), 4.6 GB maxmemory, LRU eviction |
+| GCP Project | `prj-hap-ti-vtx-voice-trsc-dev` |
+| K8s (API) | LoadBalancer interno, liveness `/health` (30s), readiness `/ready` (10s) |
+| K8s (Consumer) | Deployment sem health checks, sem sidecars |
+
+### K8s Differences
+
+| Aspecto | API | Consumer |
+|---------|-----|----------|
+| Tipo de Service | LoadBalancer (interno GKE) | Nenhum (não expõe porta) |
+| Redis Sidecar | Sim (Redis 7.0, ConfigMap) | Não |
+| Health Checks | Liveness `/health`, Readiness `/ready` | Nenhum |
+| Datadog APM | Labels + admission controller | Labels + admission controller |
+
+## Pacotes Internos (Hapvida.Core)
+
+| Pacote | Versão | Usado em | Propósito |
+|--------|--------|----------|-----------|
+| `Hapvida.Core.Api.Http` | 2.1.2 | API | Bootstrapping de API (AddAppContext, UseApplicationContext, BaseController) |
+| `Hapvida.Core.Domain` | 2.1.1 | Ambos | Base de domínio (MediatR, CommandHandler, Query, Command) |
+| `Hapvida.Core.Infra.Services.Http` | 2.1.0 | API | Infraestrutura HTTP |
+| `Hapvida.Core.Infra.OpenTelemetry.Exporter.Collector` | 2.1.0 | Ambos | Export OpenTelemetry → Datadog |
+| `Hapvida.Core.Infra.EventBus.ServiceBus` | 2.1.0 | Consumer | Event bus, BaseConsumerHandler |
+
+## Convenções
+
+1. **Namespace**: `Hapvida.TI.VoiceTranscription.[Layer]` — prefixo corporativo, PascalCase
+2. **API versioning**: pastas `v1/` em todas as camadas
+3. **Bootstrapper pattern**: `Bootstrapper.cs` estático com extension methods para DI
+4. **GlobalUsings.cs**: `global using` centralizado por projeto
+5. **Nullable reference types**: habilitado
+6. **Warnings as errors**: `TreatWarningsAsErrors=true`
+7. **C# 12**: `LangVersion=12.0`
+8. **Config binding**: Options pattern (`IOptions<T>`, `GetSection().Get<T>()`)
+9. **Argument validation**: `ArgumentNullException.ThrowIfNull()` para validação de config
+10. **User Secrets**: habilitado para dev local (apenas API)
+11. **Test coverage**: apenas Domain layer (`[*.Domain?]*`)
+12. **Cultures**: `pt-BR` primário, `en-US` secundário
+13. **Error handling**: Domain notifications para validação, cache resiliente (swallows exceptions), BigQuery writer retorna bool
+14. **Logging**: Structured logging via `ILogger<T>` com templates estáticos (`LogsTemplate`/`LogTemplate`)
+15. **DI lifetimes**: GCP clients como Singleton, handlers como Scoped/Transient
+16. **Serialization**: `System.Text.Json` primário, `Newtonsoft.Json` pontual no Consumer
+
+## Restrições
+
+- Usar apenas golden images da Hapvida para Docker (`hapvidacorp.azurecr.io`)
+- NuGet packages internos via Azure Artifacts feed privado
+- Cobertura de testes focada exclusivamente na camada Domain
+- `TreatWarningsAsErrors` sempre habilitado
+- Manter compatibilidade com .NET 8.0
+- Prompts de IA em português (contexto médico brasileiro — CIDs, terminologia SUS)
+
+## Integrações
+
+| Sistema | Propósito | Status | Usado por |
+|---------|-----------|--------|-----------|
+| Google Vertex AI (Gemini 2.5 Flash) | Transcrição de áudio via IA | Ativo | Consumer |
+| Google Cloud Pub/Sub | Message broker para eventos de upload | Ativo | Consumer |
+| Google BigQuery | Persistência de transcrições, tokens e prompts | Ativo | Ambos |
+| Google Cloud Storage | Upload/leitura de arquivos de áudio (.webm) | Ativo | API (signed URL), Consumer (referência) |
+| Redis | Cache para consulta rápida de transcrições | Ativo | Ambos |
+| Datadog | Observabilidade (APM, traces, métricas) | Ativo | Ambos |
+| SonarQube | Análise de qualidade de código | Ativo | Ambos |
+| Backstage | Portal do desenvolvedor e TechDocs | Ativo | Ambos |
+| Azure DevOps | CI/CD pipelines | Ativo | Ambos |
+
+## Tech Debt Identificado
+
+| Item | Projeto | Impacto | Detalhe |
+|------|---------|---------|---------|
+| Namespace typo `Hapvvida` | API (Infra.Data.Queries) | Confusão de imports | `RootNamespace` no csproj tem duplo 'v' |
+| Mixed mocking frameworks | API (UnitTests) | Inconsistência | Usa Moq E NSubstitute no mesmo projeto |
+| Pre-release packages | API | Risco de breaking changes | `System.Text.Json 10.0.0-rc.1`, `System.Management 10.0.0-rc.1` em target .NET 8 |
+| Packages sem uso visível | API | Bloat de dependências | `NAudio`, `Xabe.FFmpeg`, `Refit`, `System.Management` referenciados mas sem uso no código |
+| GCS ListObjects client-side filter | API | Performance em escala | `GoogleCloudStorageService.ListByCreatedAtAsync` lista TODOS objetos e filtra in-memory |
+| Sem health checks no K8s | Consumer | Resiliência | Deployment sem liveness/readiness probes |
+| BaseConsumerHandler não utilizado | Consumer | Dead code | Existe mas `TransactionConsumerHandler` herda de `BackgroundService` |
+| Mixed serialization | Consumer | Inconsistência | `System.Text.Json` e `Newtonsoft.Json` no mesmo projeto |
+| Logging inconsistente | Consumer | Manutenibilidade | Mix de structured templates e string interpolation |
+| Commands excluídos da compilação | API (Domain) | Confusão | `<Compile Remove="Commands\**" />` no Domain.csproj |
+
+## Testes
+
+| Projeto | Framework | Quantidade | Padrão |
+|---------|-----------|------------|--------|
+| API UnitTests | xUnit + Moq + NSubstitute | ~44 tests (8 classes) | AAA, `[Fact]`/`[Theory]`, `BuildSut` pattern |
+| Consumer UnitTests | xUnit + Moq | ~13 tests (4 classes) | AAA, `[Fact]`, Mock + Verify |
+
+## Estado Atual
+
+**Fase**: Produção
+**Status**: Sistema ativo em produção, usado pelo TeleHealth para transcrição de consultas médicas
+
+## Última Atualização
+
+**Data**: 2026-02-10
+**Motivo**: Análise profunda dos dois projetos — documentação completa de endpoints, fluxos, tech debt e detalhes técnicos

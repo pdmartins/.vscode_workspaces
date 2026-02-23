@@ -1,0 +1,436 @@
+# Models — Models, DTOs, Interfaces
+
+> Atualizado em: 2026-02-10
+
+---
+
+# API Models
+
+---
+
+## GoogleCloudStorageSettings
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Models/v1/GoogleCloudStorageSettings.cs`
+- **Tipo**: class (Options)
+- **Responsabilidade**: Configuração tipada para GCS (`Core:GoogleCloudStorage`)
+
+| Propriedade | Tipo | Descrição |
+|-------------|------|-----------|
+| `ProjectId` | `string` | ID do projeto GCP |
+| `BucketName` | `string` | Nome do bucket GCS |
+| `CredentialsBase64` | `string` | Service account JSON em Base64 |
+| `UrlExpirationMinutes` | `int` | Expiração da signed URL (default 15) |
+| `DefaultUploadContentType` | `string` | Content-type padrão (video/webm) |
+| `DefaultExtension` | `string` | Extensão padrão (.webm) |
+| `GoogleBigQuery` | `GoogleBigQueryOptionsSettings` | Configuração BigQuery aninhada |
+
+---
+
+## GoogleCloudStorageFile
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Models/v1/GoogleCloudStorageFile.cs`
+- **Tipo**: record
+- **Responsabilidade**: Metadados de arquivo do GCS
+
+| Propriedade | Tipo | Descrição |
+|-------------|------|-----------|
+| `Name` | `string` | Nome do objeto |
+| `CreatedAt` | `DateTimeOffset?` | Data de criação |
+| `Size` | `ulong?` | Tamanho em bytes |
+
+---
+
+## GetTranscriptionQueryResponse
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Models/v1/GetTranscriptionQueryResponse.cs`
+- **Tipo**: class
+- **Responsabilidade**: Response da consulta de transcrição
+
+| Propriedade | Tipo | Descrição |
+|-------------|------|-----------|
+| `EncounterId` | `string` | ID do atendimento |
+| `Transcription` | `string` | Texto transcrito |
+| `Symptoms` | `List<string>` | Sintomas identificados |
+| `SuggestedCIDs` | `List<SuggestedCid>` | CIDs sugeridos |
+| `WorkStatus` | `WorkStatus` | Status do processamento |
+| `CreatedAt` | `DateTime` | Data de criação |
+
+---
+
+## GetSignedUrlUploadResponse
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Models/v1/GetSignedUrlUploadResponse.cs`
+- **Tipo**: class
+- **Responsabilidade**: Response da geração de signed URL
+
+| Propriedade | Tipo | Descrição |
+|-------------|------|-----------|
+| `SignedUrl` | `string` | URL assinada para upload |
+| `WorkId` | `string` | ID do trabalho (GUID) |
+
+---
+
+## ConsultaStatusDto
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Dtos/ConsultaStatusDto.cs`
+- **Tipo**: class (DTO)
+- **Responsabilidade**: DTO interno para status de transcrição do BigQuery
+
+| Propriedade | Tipo | Descrição |
+|-------------|------|-----------|
+| `WorkId` | `string` | ID do trabalho |
+| `EncounterId` | `string` | ID do atendimento |
+| `Transcription` | `string` | Texto transcrito |
+| `Symptoms` | `List<string>` | Sintomas |
+| `SuggestedCIDs` | `List<SuggestedCid>` | CIDs sugeridos |
+| `WorkStatus` | `WorkStatus` | Status |
+| `CreatedAt` | `DateTime` | Data de criação |
+
+---
+
+## SuggestedCid (API)
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Dtos/SuggestedCid.cs`
+- **Tipo**: class (DTO)
+- **Responsabilidade**: Par código/descrição de CID-10
+
+| Propriedade | Tipo | Descrição |
+|-------------|------|-----------|
+| `Code` | `string` | Código CID-10 |
+| `Description` | `string` | Descrição do CID |
+
+---
+
+## SignedUrlRecordDto
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Dtos/SignedUrlRecordDto.cs`
+- **Tipo**: class (DTO)
+- **Responsabilidade**: Registro de signed URL para inserção no BigQuery
+
+| Propriedade | Tipo | Descrição |
+|-------------|------|-----------|
+| `WorkId` | `string` | ID do trabalho |
+| `PromptId` | `string` | ID do prompt |
+| `Platform` | `string` | Plataforma |
+| `SignedUrl` | `string` | URL assinada |
+| `CreatedAt` | `DateTime` | Data de criação |
+
+---
+
+## RowDto
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Dtos/RowDto.cs`
+- **Tipo**: class (DTO)
+- **Responsabilidade**: Mapeamento de BigQueryRow para objeto tipado
+
+---
+
+## TranscriptionSummaryDto
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Dtos/TranscriptionSummaryDto.cs`
+- **Tipo**: class (DTO)
+- **Responsabilidade**: DTO leve para cálculos de latência
+
+| Propriedade | Tipo | Descrição |
+|-------------|------|-----------|
+| `WorkId` | `string` | ID do trabalho |
+| `CreatedAt` | `DateTime` | Data de criação |
+
+---
+
+## LatencyRowDto / ProcessingLatencyItemDto
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Dtos/`
+- **Tipo**: class (DTO)
+- **Responsabilidade**: DTOs para cálculo e exibição de latência
+
+---
+
+## CacheSettings (API)
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Infra.Cache/Models/v1/CacheSettings.cs`
+- **Tipo**: class (Options)
+- **Responsabilidade**: Configuração tipada para Redis (`Core:Cache`)
+
+| Propriedade | Tipo | Descrição |
+|-------------|------|-----------|
+| `ConnectionString` | `string` | String de conexão Redis |
+| `InstanceName` | `string` | Nome da instância |
+| `MinutesToExpireToken` | `Dictionary<string, int>` | Tempos de expiração por tipo |
+
+---
+
+# API Interfaces
+
+---
+
+## IBigQueryServiceReader
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Contracts/v1/Services/IBigQueryServiceReader.cs`
+- **Tipo**: interface
+- **Implementação**: `BigQueryCheckStatusService`
+
+---
+
+## IBigQueryServiceWriter
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Contracts/v1/Services/IBigQueryServiceWriter.cs`
+- **Tipo**: interface
+- **Implementação**: `BigQueryWriterService`
+
+---
+
+## ICacheService (API)
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Contracts/v1/Services/ICacheService.cs`
+- **Tipo**: interface
+- **Implementação**: `CacheService` (Infra.Cache)
+
+---
+
+## IGenerateUrlSignedService
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Contracts/v1/Services/IGenerateUrlSignedService.cs`
+- **Tipo**: interface
+- **Implementação**: `GenerateUrlSignedService`
+
+---
+
+## IGoogleCloudStorageService
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Contracts/v1/Services/IGoogleCloudStorageService.cs`
+- **Tipo**: interface
+- **Implementação**: `GoogleCloudStorageService`
+
+---
+
+## IBigQueryClientWrapper
+
+- **Arquivo**: `Api/src/Hapvida.TI.VoiceTranscription.Domain/Contracts/v1/Wrappers/IBigQueryClientWrapper.cs`
+- **Tipo**: interface
+- **Implementação**: `BigQueryClientWrapper`
+
+---
+
+# Consumer Models
+
+---
+
+## EventFile
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Models/v1/EventFile.cs`
+- **Tipo**: class
+- **Responsabilidade**: Representação de evento de arquivo do Pub/Sub (GCS notification)
+
+| Propriedade | Tipo | Descrição |
+|-------------|------|-----------|
+| `Kind` | `string` | Tipo do evento |
+| `Name` | `string` | Nome do arquivo |
+| `Bucket` | `string` | Nome do bucket |
+
+| Método | Parâmetros | Retorno | Descrição |
+|--------|-----------|---------|-----------|
+| `IsValid` | `(out string error)` | `bool` | Valida campos obrigatórios |
+| `NameContainsDot` | `(out string error)` | `bool` | Verifica extensão do arquivo |
+
+---
+
+## ClinicalResponse
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Models/v1/ClinicalResponse.cs`
+- **Tipo**: class
+- **Responsabilidade**: Resposta clínica estruturada do Gemini
+
+| Propriedade | Tipo | Descrição |
+|-------------|------|-----------|
+| `EncounterId` | `Guid` | ID do atendimento (auto-gerado) |
+| `Transcription` | `string` | Texto transcrito |
+| `Symptoms` | `List<string>` | Sintomas identificados |
+| `SuggestedCIDs` | `List<SuggestedCid>` | CIDs sugeridos |
+| `WorkStatus` | `WorkStatus` | Status (Completed) |
+| `CreatedAt` | `DateTime` | Data UTC (auto-gerada) |
+
+---
+
+## SuggestedCid (Consumer)
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Models/v1/SuggestedCid.cs`
+- **Tipo**: class
+- **Responsabilidade**: Par código/descrição CID-10
+
+---
+
+## TokenData
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Models/v1/TokenData.cs`
+- **Tipo**: class
+- **Responsabilidade**: Metadata de uso de tokens do Gemini
+
+| Propriedade | Tipo | Descrição |
+|-------------|------|-----------|
+| `PromptTokenCount` | `int` | Tokens no prompt |
+| `CandidatesTokenCount` | `int` | Tokens na resposta |
+| `TotalTokenCount` | `int` | Total de tokens |
+| `ThoughtsTokenCount` | `int` | Tokens de raciocínio |
+| `FinishMessage` | `string` | Mensagem de finalização |
+| `FinishReason` | `string` | Razão de parada |
+
+---
+
+## VertexValidationResult
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Models/v1/VertexResponseResult.cs`
+- **Tipo**: class
+- **Responsabilidade**: Resultado de validação da resposta do Vertex AI
+
+| Propriedade | Tipo | Descrição |
+|-------------|------|-----------|
+| `IsValid` | `bool` | Se a resposta é válida |
+| `ExtractedText` | `string` | Texto extraído |
+| `Error` | `string` | Mensagem de erro |
+| `RawResponse` | `string` | Resposta bruta |
+
+---
+
+## TranscriptionSchemaResponse
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Models/v1/TranscriptionSchemaResponse.cs`
+- **Tipo**: static class
+- **Responsabilidade**: JSON Schema para structured output do Gemini
+
+---
+
+## PromptDefault
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Models/v1/PromptDefault.cs`
+- **Tipo**: static class
+- **Responsabilidade**: Prompt padrão de anamnese clínica (~117 linhas)
+
+---
+
+## PromptDto
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Dtos/PromptDto.cs`
+- **Tipo**: class (DTO)
+- **Responsabilidade**: DTO para prompt customizado do BigQuery
+
+| Propriedade | Tipo | Descrição |
+|-------------|------|-----------|
+| `Prompt` | `string?` | Texto do prompt |
+| `Platform` | `string?` | Plataforma de origem |
+
+---
+
+# Consumer Settings
+
+---
+
+## VertexSettings
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Models/v1/VertexSettings.cs`
+- **Tipo**: class (Options)
+- **Config key**: `Core:VoiceTranscription:Vertex`
+
+| Propriedade | Tipo | Default | Descrição |
+|-------------|------|---------|-----------|
+| `Location` | `string` | `us-central1` | Região do Vertex AI |
+| `Project` | `string` | — | Projeto GCP |
+| `Model` | `string` | `gemini-2.5-flash` | Modelo Gemini |
+| `Endpoint` | `string` | — | Endpoint do Vertex |
+| `TimeoutSeconds` | `int` | `60` | Timeout da chamada |
+| `RetryCount` | `int` | `3` | Tentativas de retry |
+
+---
+
+## PubSubSettings
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Models/v1/PubSubSettings.cs`
+- **Tipo**: class (Options)
+- **Config key**: `Core:VoiceTranscription:PubSub`
+
+| Propriedade | Tipo | Descrição |
+|-------------|------|-----------|
+| `Project` | `string` | Projeto GCP |
+| `Subscriber` | `string` | Nome do subscriber |
+
+---
+
+## BigQuerySettings (Consumer)
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Models/v1/BigQuerySettings.cs`
+- **Tipo**: class (Options)
+- **Config key**: `Core:VoiceTranscription:BigQuery`
+
+| Propriedade | Tipo | Descrição |
+|-------------|------|-----------|
+| `ProjectId` | `string` | Projeto GCP |
+| `Dataset` | `string` | Dataset BigQuery |
+| `ResultsTable` | `string` | Tabela de transcrições |
+| `PromptsTable` | `string` | Tabela de prompts |
+| `TokenDataTable` | `string` | Tabela de dados de tokens |
+
+---
+
+## GoogleCredentialSettings
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Models/v1/GoogleCredentialSettings.cs`
+- **Tipo**: class (Options)
+- **Config key**: `Core:VoiceTranscription:Credential`
+
+| Propriedade | Tipo | Descrição |
+|-------------|------|-----------|
+| `Base64JsonFile` | `string` | Service account JSON em Base64 |
+
+---
+
+# Consumer Interfaces
+
+---
+
+## IBigQueryService
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Contracts/v1/IBigQueryService.cs`
+- **Tipo**: interface
+- **Implementação**: `BigQueryService`
+
+---
+
+## ICacheService (Consumer)
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Contracts/v1/ICacheService.cs`
+- **Tipo**: interface
+- **Implementação**: `CacheService` (Infra.Cache)
+
+---
+
+## IGoogleCredentialProvider
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Contracts/v1/IGoogleCredentialProvider.cs`
+- **Tipo**: interface
+- **Implementação**: `GoogleCredentialProvider`
+
+---
+
+## ITranscriptionMessageProcessor
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Contracts/v1/ITranscriptionMessageProcessor.cs`
+- **Tipo**: interface
+- **Implementação**: `TranscriptionMessageProcessor`
+
+---
+
+## IVertexAiService
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Contracts/v1/IVertexAiService.cs`
+- **Tipo**: interface
+- **Implementação**: `VertexAiService`
+
+---
+
+## IVertexClientWrapper
+
+- **Arquivo**: `Consumer/src/Hapvida.TI.VoiceTranscription.Ai.Domain/Contracts/v1/IVertexClientWrapper.cs`
+- **Tipo**: interface
+- **Implementação**: `VertexClientWrapper`
+
+---

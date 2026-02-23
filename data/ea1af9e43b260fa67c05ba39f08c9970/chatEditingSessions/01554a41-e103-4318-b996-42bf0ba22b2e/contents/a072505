@@ -1,0 +1,129 @@
+---
+name: pipeline-azure
+description: Gera e mantém Azure Pipelines YAML seguindo os padrões do projeto STT — template references (Hapvida.Core.DevOps.Templates), triggers (develop, hotfix/*, release/*), variable groups (Nuget), dual registry push (ACR + GCR), SonarQube e TechDocs. Use ao criar ou modificar pipelines CI/CD. Triggers: "pipeline", "azure-pipelines", "CI/CD", "build", "deploy", "SonarQube", "TechDocs", ao configurar integração contínua.
+metadata:
+  author: copilot
+  version: "1.0"
+  category: devops
+---
+
+# Azure Pipelines — STT Projects
+
+## Pipeline Structure
+
+Both API and Consumer share the same pipeline structure:
+
+```yaml
+trigger:
+  branches:
+    include:
+      - develop
+      - hotfix/*
+      - release/*
+  paths:
+    include:
+      - src/*
+
+variables:
+  - group: Nuget
+
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: Hapvida.Core.DevOps.Templates
+      ref: refs/heads/develop
+
+jobs:
+  - job: DockerBuildImage
+    pool:
+      name: Azure Pipelines
+    steps:
+      - checkout
+      - template: build-gcp.yaml@templates
+      - template: sonar-dotnet.yaml@templates
+      - template: techdocs.yaml@templates
+```
+
+## Template Repository
+
+All pipeline logic is externalized to `Hapvida.Core.DevOps.Templates` (branch `develop`).
+
+| Template | Path | Purpose |
+|----------|------|---------|
+| Build GCP | `azure-pipelines/build-gcp.yaml` | Docker build + dual registry push |
+| SonarQube | `azure-pipelines/v2/sonar-dotnet.yaml` | Static analysis |
+| TechDocs | `azure-pipelines/v2/techdocs.yaml` | Backstage documentation |
+
+## Key Patterns
+
+### Trigger Rules
+- **Branches**: `develop`, `hotfix/*`, `release/*` only
+- **Path filter**: `src/*` — triggers only when source code changes
+- `main` is NOT in the trigger list (release branch strategy)
+
+### Variable Groups
+- `Nuget` group provides `NUGET_USER` and `NUGET_KEY` for private feed authentication
+- These are passed as Docker build args
+
+### Checkout Configuration
+```yaml
+- checkout: self
+  clean: true
+  persistCredentials: true
+  fetchDepth: 0          # Full history for SonarQube analysis
+```
+- `fetchDepth: 0` is required for SonarQube to compute diff coverage
+
+### Build Template Parameters
+```yaml
+- template: azure-pipelines/build-gcp.yaml@templates
+  parameters:
+    arguments: --build-arg NUGET_USER=$(NUGET_USER) --build-arg NUGET_KEY=$(NUGET_KEY)
+    containerRegistry1: hapvidacorp       # Azure Container Registry
+    containerRegistry2: hapvidacorp-gcp   # Google Container Registry (GCR)
+```
+- **Dual registry push**: ACR (`hapvidacorp`) + GCR (`hapvidacorp-gcp`)
+- Build args pass NuGet credentials into the Docker build
+
+### TechDocs (Backstage)
+
+| Project | `backstageCatalogEntity` |
+|---------|------------------------|
+| API | `default/Component/hapvida-ti-voicetranscription-ai` |
+| Consumer | `default/Component/hapvida-ti-voicetranscription-ai-consumer` |
+
+Both use `blobAccountKey: $(blobAccountKey)` for docs storage.
+
+## Differences Between Projects
+
+| Aspect | API | Consumer |
+|--------|-----|----------|
+| Backstage entity | `hapvida-ti-voicetranscription-ai` | `hapvida-ti-voicetranscription-ai-consumer` |
+| Build args | Same | Same (has trailing `"` — likely typo) |
+| Everything else | Identical | Identical |
+
+## Rules When Generating Pipelines
+
+1. **Always use template references** — never inline build/deploy logic
+2. **Always include `fetchDepth: 0`** — required for SonarQube
+3. **Always pass NuGet credentials** as build args from the `Nuget` variable group
+4. **Always push to both registries** — `hapvidacorp` (ACR) and `hapvidacorp-gcp` (GCR)
+5. **Keep `paths.include: src/*`** — prevents doc-only changes from triggering builds
+6. **Template ref must point to `develop`** branch of `Hapvida.Core.DevOps.Templates`
+7. **Pool is `Azure Pipelines`** (Microsoft-hosted)
+
+## Configuration Files Involved
+
+| File | Location | Purpose |
+|------|----------|---------|
+| `azure-pipelines.yaml` | `{project}/src/` | Pipeline definition |
+| `Dockerfile` | `{project}/src/` | Multi-stage build (see `docker-dotnet` skill) |
+| `nuget-production.config` | `{project}/src/` | Private NuGet feed for Docker build |
+| `catalog-info.yaml` | `{project}/` | Backstage component registration |
+| `mkdocs.yaml` | `{project}/` | TechDocs configuration |
+
+## Known Issues
+
+- **Consumer pipeline** has a trailing `"` in the build-arg arguments line — likely a copy-paste typo
+- Both pipelines are identical in structure; only the `backstageCatalogEntity` differs

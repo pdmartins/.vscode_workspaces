@@ -1,0 +1,197 @@
+---
+name: gcp-integration
+description: Padrões de integração com Google Cloud Platform no projeto STT (credential provider, Pub/Sub, GCS, BigQuery). Inclui Options pattern, Singleton lifecycle, wrapper pattern e autenticação via service account Base64. Use ao criar ou modificar integrações GCP. Triggers: "integração GCP", "Google Cloud", "Pub/Sub", "GCS", "credential", "service account", ao configurar novos serviços GCP.
+metadata:
+  author: copilot-project
+  version: "1.0"
+  category: infra
+---
+
+# GCP Integration Patterns
+
+Padrões de integração com Google Cloud Platform no projeto STT.
+
+## Quando Usar
+
+- Criar nova integração com serviço GCP
+- Modificar autenticação ou credenciais
+- Adicionar novo client GCP (Storage, PubSub, BigQuery, etc.)
+- Configurar Options pattern para serviço GCP
+
+## Serviços GCP em Uso
+
+| Serviço | SDK | Versão | Projeto |
+|---------|-----|--------|---------|
+| BigQuery | `Google.Cloud.BigQuery.V2` | 3.11.0 | Ambos |
+| Cloud Storage | `Google.Cloud.Storage.V1` | 4.13.0 | API |
+| Pub/Sub | `Google.Cloud.PubSub.V1` | 3.30.0 | Consumer |
+| Vertex AI | `Google.GenAI` | 0.6.0 | Consumer |
+| Auth | `Google.Apis.Auth` | 1.71.0 | API |
+
+## Autenticação
+
+### Service Account via Base64
+
+O projeto usa service account JSON encodado em Base64 na configuração:
+
+```json
+{
+  "Core": {
+    "VoiceTranscription": {
+      "Credential": {
+        "Base64JsonFile": "<base64-encoded-sa-json>"
+      }
+    }
+  }
+}
+```
+
+### Credential Provider Pattern (Consumer)
+
+```csharp
+public class GoogleCredentialProvider : IGoogleCredentialProvider
+{
+    private readonly GoogleCredential _credential;
+
+    public GoogleCredentialProvider(IOptions<GoogleCredentialSettings> options)
+    {
+        var base64 = options?.Value?.Base64JsonFile
+            ?? throw new ArgumentNullException(nameof(options));
+
+        var json = Convert.FromBase64String(base64);
+        using var stream = new MemoryStream(json);
+
+        var serviceAccount = ServiceAccountCredential
+            .CreateFromStream<ServiceAccountCredential>(stream);
+
+        _credential = GoogleCredential.FromServiceAccountCredential(serviceAccount)
+            .CreateScoped("https://www.googleapis.com/auth/cloud-platform");
+    }
+
+    public GoogleCredential GetCredential() => _credential;
+}
+```
+
+### API — Credential nas Settings direto
+
+A API decodifica Base64 no construtor do service:
+
+```csharp
+public GenerateUrlSignedService(IOptions<GoogleCloudStorageSettings> options)
+{
+    var base64 = options.Value.CredentialsBase64;
+    var jsonBytes = Convert.FromBase64String(base64);
+    // usa UrlSigner.FromServiceAccountCredential(...)
+}
+```
+
+## Options Pattern
+
+### Registrar settings tipadas
+
+```csharp
+// No Bootstrapper.cs
+services.Configure<PubSubSettings>(configuration.GetSection("Core:VoiceTranscription:PubSub"));
+services.Configure<BigQuerySettings>(configuration.GetSection("Core:VoiceTranscription:BigQuery"));
+services.Configure<VertexSettings>(configuration.GetSection("Core:VoiceTranscription:Vertex"));
+services.Configure<GoogleCredentialSettings>(configuration.GetSection("Core:VoiceTranscription:Credential"));
+```
+
+### Settings class pattern
+
+```csharp
+public class MyGcpSettings
+{
+    public const string SessionName = "Core:MyService"; // config section key
+
+    public string ProjectId { get; set; } = string.Empty;
+    public string ServiceName { get; set; } = string.Empty;
+}
+```
+
+### Validação fail-fast no Bootstrapper
+
+```csharp
+var settings = configuration.GetSection(MySettings.SessionName).Get<MySettings>();
+ArgumentNullException.ThrowIfNull(settings);
+ArgumentNullException.ThrowIfNull(settings.ProjectId);
+```
+
+## DI Lifetimes
+
+| Tipo | Lifetime | Motivo |
+|------|----------|--------|
+| Credential Provider | **Singleton** | Credencial criada uma vez no startup |
+| BigQuery Client Wrapper | **Singleton** (Consumer) / **Scoped** (API) | Client reutilizável |
+| GCS Service | **Singleton** | StorageClient é thread-safe |
+| Vertex Client Wrapper | **Singleton** | Client reutilizável |
+| Pub/Sub Subscriber | **via BackgroundService** | Lifecycle gerenciado pelo .NET Host |
+
+## Wrapper Pattern para Testabilidade
+
+Sempre criar wrapper para SDKs GCP:
+
+```csharp
+// Interface
+public interface IBigQueryClientWrapper
+{
+    Task<IEnumerable<RowDto>> ExecuteQueryAsync(string sql, BigQueryParameter[] parameters, ...);
+}
+
+// Implementação (thin wrapper)
+public class BigQueryClientWrapper : IBigQueryClientWrapper
+{
+    private readonly BigQueryClient _client;
+
+    public BigQueryClientWrapper(IOptions<Settings> options)
+    {
+        _client = BigQueryClient.Create(options.Value.ProjectId, credential);
+    }
+
+    public async Task<IEnumerable<RowDto>> ExecuteQueryAsync(...)
+    {
+        var results = await _client.ExecuteQueryAsync(sql, parameters);
+        return results.Select(MapToRowDto);
+    }
+}
+```
+
+## Configuration Keys (appsettings)
+
+### API
+```
+Core:GoogleCloudStorage:ProjectId
+Core:GoogleCloudStorage:BucketName
+Core:GoogleCloudStorage:CredentialsBase64
+Core:GoogleCloudStorage:UrlExpirationMinutes (15)
+Core:GoogleCloudStorage:DefaultUploadContentType (video/webm)
+Core:GoogleCloudStorage:DefaultExtension (.webm)
+Core:GoogleCloudStorage:GoogleBigQuery:DataSet
+Core:GoogleCloudStorage:GoogleBigQuery:Table
+```
+
+### Consumer
+```
+Core:VoiceTranscription:Credential:Base64JsonFile
+Core:VoiceTranscription:PubSub:Project
+Core:VoiceTranscription:PubSub:Subscriber
+Core:VoiceTranscription:BigQuery:ProjectId
+Core:VoiceTranscription:BigQuery:Dataset
+Core:VoiceTranscription:BigQuery:ResultsTable
+Core:VoiceTranscription:BigQuery:PromptsTable
+Core:VoiceTranscription:BigQuery:TokenDataTable
+Core:VoiceTranscription:Vertex:Endpoint
+Core:VoiceTranscription:Vertex:Project
+Core:VoiceTranscription:Vertex:Location (global)
+Core:VoiceTranscription:Vertex:Model (gemini-2.5-flash)
+```
+
+## Checklist
+
+- [ ] Credencial via Base64 (nunca arquivo solto)
+- [ ] Options pattern com `IOptions<T>`
+- [ ] Validação fail-fast no Bootstrapper
+- [ ] Wrapper para testabilidade
+- [ ] Singleton para clients GCP
+- [ ] CancellationToken propagado
+- [ ] Logging estruturado
