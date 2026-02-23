@@ -71,7 +71,6 @@ collect_storage_paths_linux() {
     IFS=',' read -ra EDITIONS_ARR <<< "$editions"
     for edition in "${EDITIONS_ARR[@]}"; do
         edition=$(echo "$edition" | tr -d ' ')
-        # WSL edition only makes sense on Windows (PowerShell handles it)
         [ "$edition" = "wsl" ] && continue
         local path
         path=$(get_storage_path_linux "$edition")
@@ -81,6 +80,7 @@ collect_storage_paths_linux() {
     done
 }
 
+# Sync entire workspace to repo
 sync_workspace_to_repo() {
     local ws_id="$1"
     local ws_src="$2"
@@ -88,29 +88,29 @@ sync_workspace_to_repo() {
     local force="${FORCE_SYNC:-0}"
     local ws_dest="$data_dir/$ws_id"
 
-    local copilot_dir="$ws_src/GitHub.copilot-chat"
-    local workspace_json="$ws_src/workspace.json"
+    # Skip empty directories
+    if [ -z "$(ls -A "$ws_src" 2>/dev/null)" ]; then
+        return 1
+    fi
 
-    if [ -d "$copilot_dir" ] || [ -f "$workspace_json" ]; then
+    if [ "$force" = "1" ]; then
         mkdir -p "$ws_dest"
-        [ -f "$workspace_json" ] && cp "$workspace_json" "$ws_dest/"
-        if [ -d "$copilot_dir" ]; then
-            if [ "$force" = "1" ]; then
-                rsync -a --delete "$copilot_dir/" "$ws_dest/GitHub.copilot-chat/"
-            else
-                # Last-write-wins
-                local src_ts dest_ts
-                src_ts=$(find "$copilot_dir" -type f -printf '%T@\n' 2>/dev/null | sort -rn | head -1 | cut -d. -f1)
-                dest_ts=$(find "$ws_dest/GitHub.copilot-chat" -type f -printf '%T@\n' 2>/dev/null | sort -rn | head -1 | cut -d. -f1)
-                src_ts="${src_ts:-0}"
-                dest_ts="${dest_ts:-0}"
-
-                if [ "$src_ts" -ge "$dest_ts" ]; then
-                    rsync -a --delete "$copilot_dir/" "$ws_dest/GitHub.copilot-chat/"
-                fi
-            fi
-        fi
+        rsync -a --delete "$ws_src/" "$ws_dest/"
         return 0
     fi
+
+    # Last-write-wins: compare newest file timestamps
+    local src_ts dest_ts
+    src_ts=$(find "$ws_src" -type f -printf '%T@\n' 2>/dev/null | sort -rn | head -1 | cut -d. -f1)
+    dest_ts=$(find "$ws_dest" -type f -printf '%T@\n' 2>/dev/null | sort -rn | head -1 | cut -d. -f1)
+    src_ts="${src_ts:-0}"
+    dest_ts="${dest_ts:-0}"
+
+    if [ "$src_ts" -ge "$dest_ts" ]; then
+        mkdir -p "$ws_dest"
+        rsync -a --delete "$ws_src/" "$ws_dest/"
+        return 0
+    fi
+
     return 1
 }

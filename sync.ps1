@@ -31,17 +31,11 @@ $VscodeEditions = if ($env:VSCODE_EDITIONS) { $env:VSCODE_EDITIONS } else { "sta
 # Resolve WSL storage path
 function Get-WslStoragePath {
     $distro = if ($env:WSL_DISTRO) { $env:WSL_DISTRO } else { "Ubuntu" }
+    if ($env:VSCODE_STORAGE_PATH_WSL) { return $env:VSCODE_STORAGE_PATH_WSL }
 
-    if ($env:VSCODE_STORAGE_PATH_WSL) {
-        return $env:VSCODE_STORAGE_PATH_WSL
-    }
-
-    # Auto-detect WSL user
     $wslUser = $env:WSL_USER
     if (-not $wslUser) {
-        try {
-            $wslUser = (wsl -d $distro whoami 2>$null).Trim()
-        } catch { return $null }
+        try { $wslUser = (wsl -d $distro whoami 2>$null).Trim() } catch { return $null }
     }
     if (-not $wslUser) { return $null }
 
@@ -63,7 +57,6 @@ function Get-WslGlobalStoragePath {
     return $null
 }
 
-# Resolve storage paths
 function Get-StoragePath {
     param([string]$Edition)
     switch ($Edition) {
@@ -77,9 +70,7 @@ function Get-StoragePath {
             $p = Join-Path $env:APPDATA "Code - Insiders\User\workspaceStorage"
             if (Test-Path $p) { return $p }
         }
-        "wsl" {
-            return Get-WslStoragePath
-        }
+        "wsl" { return Get-WslStoragePath }
     }
     return $null
 }
@@ -102,7 +93,6 @@ function Get-GlobalStoragePath {
 $StoragePaths = @{}
 $VscodeEditions -split ',' | ForEach-Object {
     $edition = $_.Trim()
-    # SSH edition handled on the remote machine, not Windows
     if ($edition -eq "ssh") { return }
     $path = Get-StoragePath $edition
     if ($path -and (Test-Path $path)) {
@@ -145,30 +135,26 @@ function Sync-WorkspaceToRepo {
     param([string]$WsId, [string]$WsSrc, [switch]$Force)
     $wsDest = Join-Path $DataDir $WsId
 
-    $copilotDir = Join-Path $WsSrc "GitHub.copilot-chat"
-    $workspaceJson = Join-Path $WsSrc "workspace.json"
+    # Skip empty directories
+    $contents = Get-ChildItem $WsSrc -ErrorAction SilentlyContinue
+    if (-not $contents) { return $false }
 
-    if ((Test-Path $copilotDir) -or (Test-Path $workspaceJson)) {
-        New-Item -ItemType Directory -Force -Path $wsDest | Out-Null
-        if (Test-Path $workspaceJson) { Copy-Item $workspaceJson $wsDest -Force }
-        if (Test-Path $copilotDir) {
-            $destCopilot = Join-Path $wsDest "GitHub.copilot-chat"
-
-            if ($Force) {
-                if (Test-Path $destCopilot) { Remove-Item $destCopilot -Recurse -Force }
-                Copy-Item $copilotDir $destCopilot -Recurse -Force
-            } else {
-                $srcTs = Get-NewestFileTimestamp $copilotDir
-                $destTs = Get-NewestFileTimestamp $destCopilot
-
-                if ($srcTs -ge $destTs) {
-                    if (Test-Path $destCopilot) { Remove-Item $destCopilot -Recurse -Force }
-                    Copy-Item $copilotDir $destCopilot -Recurse -Force
-                }
-            }
-        }
+    if ($Force) {
+        if (Test-Path $wsDest) { Remove-Item $wsDest -Recurse -Force }
+        Copy-Item $WsSrc $wsDest -Recurse -Force
         return $true
     }
+
+    # Last-write-wins
+    $srcTs = Get-NewestFileTimestamp $WsSrc
+    $destTs = Get-NewestFileTimestamp $wsDest
+
+    if ($srcTs -ge $destTs) {
+        if (Test-Path $wsDest) { Remove-Item $wsDest -Recurse -Force }
+        Copy-Item $WsSrc $wsDest -Recurse -Force
+        return $true
+    }
+
     return $false
 }
 
@@ -254,17 +240,8 @@ function Sync-FromRepo {
             $srcDir = $_.FullName
             $destDir = Join-Path $storage $wsId
 
-            New-Item -ItemType Directory -Force -Path $destDir | Out-Null
-
-            $workspaceJson = Join-Path $srcDir "workspace.json"
-            if (Test-Path $workspaceJson) { Copy-Item $workspaceJson $destDir -Force }
-
-            $copilotDir = Join-Path $srcDir "GitHub.copilot-chat"
-            if (Test-Path $copilotDir) {
-                $destCopilot = Join-Path $destDir "GitHub.copilot-chat"
-                New-Item -ItemType Directory -Force -Path $destCopilot | Out-Null
-                Copy-Item "$copilotDir\*" $destCopilot -Recurse -Force
-            }
+            if (Test-Path $destDir) { Remove-Item $destDir -Recurse -Force }
+            Copy-Item $srcDir $destDir -Recurse -Force
         }
 
         # Global storage
@@ -347,9 +324,9 @@ switch ($Action) {
     default  {
         Write-Host "Usage: .\sync.ps1 {push|force-push|pull|status}"
         Write-Host ""
-        Write-Host "  push       - Sync changed chats to repo and push (one commit per workspace)"
-        Write-Host "  force-push - Sync ALL chats ignoring timestamps (for initial sync)"
-        Write-Host "  pull       - Pull from repo and apply to ALL active editions (incl. WSL)"
+        Write-Host "  push       - Sync changed workspaces to repo and push"
+        Write-Host "  force-push - Sync ALL workspaces ignoring timestamps (for initial sync)"
+        Write-Host "  pull       - Pull from repo and apply to ALL active editions"
         Write-Host "  status     - Show pending changes and workspace mappings"
     }
 }

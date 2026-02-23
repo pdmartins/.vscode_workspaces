@@ -19,13 +19,13 @@ $PullInterval = if ($env:PULL_INTERVAL) { [int]$env:PULL_INTERVAL } else { 5 }
 $PullIntervalSec = $PullInterval * 60
 $VscodeEditions = if ($env:VSCODE_EDITIONS) { $env:VSCODE_EDITIONS } else { "stable,insiders" }
 
-# Collect watch paths (reuse logic from sync.ps1)
+# Collect watch paths
 $WatchPaths = @()
 $WslPath = $null
 
 $VscodeEditions -split ',' | ForEach-Object {
     $edition = $_.Trim()
-    if ($edition -eq "ssh") { return } # SSH handled on remote
+    if ($edition -eq "ssh") { return }
 
     switch ($edition) {
         "stable" {
@@ -48,7 +48,6 @@ $VscodeEditions -split ',' | ForEach-Object {
         }
     }
     if ($p -and (Test-Path $p)) {
-        # FileSystemWatcher doesn't work on \\wsl$ paths, use polling for WSL
         if ($edition -eq "wsl") {
             $WslPath = $p
         } else {
@@ -100,12 +99,11 @@ foreach ($watchPath in $WatchPaths) {
     $watchers += $watcher
 }
 
-# WSL polling: compute hash of file timestamps to detect changes
+# WSL polling
 function Get-WslContentHash {
     if (-not $WslPath -or -not (Test-Path $WslPath)) { return "" }
     try {
         $files = Get-ChildItem $WslPath -Recurse -File -ErrorAction SilentlyContinue |
-            Where-Object { $_.FullName -match 'GitHub\.copilot-chat|workspace\.json' } |
             ForEach-Object { "$($_.FullName)|$($_.LastWriteTimeUtc.Ticks)" }
         return ($files -join "`n").GetHashCode().ToString()
     } catch { return "" }

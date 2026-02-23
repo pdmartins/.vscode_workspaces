@@ -12,7 +12,6 @@ PULL_INTERVAL_SEC=$((PULL_INTERVAL * 60))
 
 collect_storage_paths_linux
 
-# Collect watch paths
 WATCH_PATHS=()
 for edition in "${!STORAGE_PATHS[@]}"; do
     WATCH_PATHS+=("${STORAGE_PATHS[$edition]}")
@@ -23,7 +22,6 @@ if [ ${#WATCH_PATHS[@]} -eq 0 ]; then
     exit 1
 fi
 
-# Check for inotifywait
 if ! command -v inotifywait &>/dev/null; then
     echo "Installing inotify-tools..."
     sudo apt-get install -y inotify-tools
@@ -47,7 +45,6 @@ LAST_PULL=$(date +%s)
 
 while true; do
     inotifywait -r -q -t "$SYNC_INTERVAL" \
-        --include '(GitHub\.copilot-chat|workspace\.json)' \
         -e modify,create,delete,move \
         "${WATCH_PATHS[@]}" 2>/dev/null && FILE_CHANGED=true || FILE_CHANGED=false
 

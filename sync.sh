@@ -89,14 +89,7 @@ sync_from_repo() {
 
             local dest_dir="$storage/$ws_id"
             mkdir -p "$dest_dir"
-
-            local workspace_json="$ws_data_dir/workspace.json"
-            [ -f "$workspace_json" ] && cp "$workspace_json" "$dest_dir/"
-
-            local copilot_dir="$ws_data_dir/GitHub.copilot-chat"
-            if [ -d "$copilot_dir" ]; then
-                rsync -a "$copilot_dir/" "$dest_dir/GitHub.copilot-chat/"
-            fi
+            rsync -a "$ws_data_dir/" "$dest_dir/"
         done
 
         # Global storage
@@ -130,6 +123,11 @@ do_pull() {
     fi
 }
 
+do_force_push() {
+    echo "Force sync: copying ALL workspaces (ignoring timestamps)..."
+    FORCE_SYNC=1 do_push
+}
+
 do_status() {
     mkdir -p "$DATA_DIR"
 
@@ -159,11 +157,6 @@ do_status() {
     done
 }
 
-do_force_push() {
-    echo "Force sync: copying ALL workspaces (ignoring timestamps)..."
-    FORCE_SYNC=1 do_push
-}
-
 case "${1:-help}" in
     push)       do_push ;;
     force-push) do_force_push ;;
@@ -172,8 +165,8 @@ case "${1:-help}" in
     *)
         echo "Usage: $0 {push|force-push|pull|status}"
         echo ""
-        echo "  push       - Sync changed chats to repo and push (one commit per workspace)"
-        echo "  force-push - Sync ALL chats ignoring timestamps (for initial sync)"
+        echo "  push       - Sync changed workspaces to repo and push"
+        echo "  force-push - Sync ALL workspaces ignoring timestamps (for initial sync)"
         echo "  pull       - Pull from repo and apply to ALL active editions"
         echo "  status     - Show pending changes and workspace mappings"
         exit 1
