@@ -1,0 +1,103 @@
+using Sky.HubAI.Api.Contracts.IntentClassifications;
+using Sky.HubAI.Application.Models;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+namespace Sky.HubAI.Api.Mappings
+{
+    public static class IntentClassificationMappingExtensions
+    {
+        /// <summary>
+        /// Maps IntentClassificationResult (Application layer) to IntentClassificationsResponse (API contract).
+        /// </summary>
+        public static IntentClassificationsResponse ToResponse(this IntentClassificationResult result)
+        {
+            // Build catalog lookup from search queries for resolving catalog product names
+            var catalogLookup = result.SearchQueries
+                .SelectMany(q => q.ProductsReturned)
+                .GroupBy(p => p.ProductCode)
+                .ToDictionary(g => g.Key, g => g.First().ProductName);
+
+            return new IntentClassificationsResponse
+            {
+                Description = result.Description,
+                ClassifiedProducts = result.ClassifiedProducts
+                    .Select(p => new ClassifiedProductResponse(p.ProductCode, p.ProductName, p.Action))
+                    .ToList(),
+                Action = result.Action,
+                ProductDescription = result.ProductDescription,
+                ProductCode = result.ProductCode,
+                Keywords = result.Keywords,
+                Log = new ClassificationLogResponse
+                {
+                    Thinking = result.Log.Thinking,
+                    Callings = result.Log.Callings
+                        .Select(c => new FunctionCallLogResponse(c.Function, c.Input, c.Output))
+                        .ToList()
+                },
+                Csv = BuildCsv(result.ClassifiedProducts, result.UnmatchedProducts, catalogLookup),
+                UnmatchedProducts = result.UnmatchedProducts,
+                SearchQueries = result.SearchQueries
+                    .Select(q => new ProductSearchQueryResponse(
+                        q.Keywords,
+                        q.ProductsReturned
+                            .Select(p => new ProductCandidateResponse(p.ProductCode, p.ProductName))
+                            .ToList()))
+                    .ToList()
+            };
+        }
+
+        /// <summary>
+        /// Builds a CSV string with columns: received, code, product, founded, action.
+        /// </summary>
+        private static string BuildCsv(
+            IReadOnlyList<ClassifiedProduct> classifiedProducts,
+            IReadOnlyList<string> unmatchedProducts,
+            Dictionary<string, string> catalogLookup)
+        {
+            var sb = new StringBuilder();
+            sb.AppendLine("received,code,product,founded,action");
+
+            foreach (var product in classifiedProducts)
+            {
+                var received = EscapeCsvField(product.ProductName);
+                var code = EscapeCsvField(product.ProductCode);
+                var founded = string.IsNullOrEmpty(product.ProductCode) ? "NO" : "YES";
+
+                // Look up catalog name by code; fall back to ProductName if not found
+                var catalogName = !string.IsNullOrEmpty(product.ProductCode) && catalogLookup.TryGetValue(product.ProductCode, out var name)
+                    ? name
+                    : product.ProductName;
+                var productField = EscapeCsvField(catalogName);
+                var action = EscapeCsvField(product.Action);
+
+                sb.AppendLine($"{received},{code},{productField},{founded},{action}");
+            }
+
+            foreach (var unmatched in unmatchedProducts)
+            {
+                var received = EscapeCsvField(unmatched);
+                sb.AppendLine($"{received},,,NO,none");
+            }
+
+            return sb.ToString().TrimEnd();
+        }
+
+        /// <summary>
+        /// Escapes a field for CSV: wraps in quotes if it contains commas, quotes, or newlines.
+        /// </summary>
+        private static string EscapeCsvField(string field)
+        {
+            if (string.IsNullOrEmpty(field))
+                return string.Empty;
+
+            if (field.Contains(',') || field.Contains('"') || field.Contains('\n') || field.Contains('\r'))
+            {
+                return $"\"{field.Replace("\"", "\"\"")}\"";
+            }
+
+            return field;
+        }
+    }
+}

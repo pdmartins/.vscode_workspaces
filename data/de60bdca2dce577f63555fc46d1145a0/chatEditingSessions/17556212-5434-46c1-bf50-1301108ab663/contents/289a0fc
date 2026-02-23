@@ -1,0 +1,78 @@
+using System.Collections.Generic;
+
+namespace Sky.HubAI.Api.Contracts.IntentClassifications
+{
+    /// <summary>
+    /// Response contract for intent classification operations.
+    /// Contains analyzed intents for multiple products and supporting metadata.
+    /// </summary>
+    public record IntentClassificationsResponse
+    {
+        /// <summary>
+        /// Original description text that was analyzed.
+        /// </summary>
+        public string Description { get; init; } = string.Empty;
+
+        /// <summary>
+        /// List of classified products with their respective actions.
+        /// Each product identified in the description has its own action (product-add, product-remove, none).
+        /// </summary>
+        public IReadOnlyList<ClassifiedProductResponse> ClassifiedProducts { get; init; } = new List<ClassifiedProductResponse>();
+
+        /// <summary>
+        /// Identified action/intent for the first product (e.g., "product-add", "product-remove").
+        /// Maintained for backward compatibility. Use ClassifiedProducts for multiple products.
+        /// </summary>
+        public string Action { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Natural language description of the first identified product.
+        /// Maintained for backward compatibility. Use ClassifiedProducts for multiple products.
+        /// </summary>
+        public string ProductDescription { get; init; } = string.Empty;
+
+        /// <summary>
+        /// Product code of the first identified product.
+        /// Maintained for backward compatibility. Use ClassifiedProducts for multiple products.
+        /// </summary>
+        public string ProductCode { get; init; } = string.Empty;
+
+        /// <summary>
+        /// List of keywords extracted from the description.
+        /// </summary>
+        public IReadOnlyList<string> Keywords { get; init; } = new List<string>();
+
+        /// <summary>
+        /// Diagnostic log or reasoning from the AI analysis.
+        /// </summary>
+        public string Log { get; init; } = string.Empty;
+
+        /// <summary>
+        /// List of product search queries made by the LLM during function calling.
+        /// Contains the keywords searched and the products returned for each query.
+        /// </summary>
+        public IReadOnlyList<ProductSearchQueryResponse> SearchQueries { get; init; } = new List<ProductSearchQueryResponse>();
+    }
+
+    /// <summary>
+    /// Represents a classified product with its identified action.
+    /// </summary>
+    public record ClassifiedProductResponse(
+        string ProductCode,
+        string ProductName,
+        string Action);
+
+    /// <summary>
+    /// Represents a product search query made by the LLM.
+    /// </summary>
+    public record ProductSearchQueryResponse(
+        IReadOnlyList<string> Keywords,
+        IReadOnlyList<ProductCandidateResponse> ProductsReturned);
+
+    /// <summary>
+    /// Represents a candidate product.
+    /// </summary>
+    public record ProductCandidateResponse(
+        string ProductCode,
+        string ProductName);
+}

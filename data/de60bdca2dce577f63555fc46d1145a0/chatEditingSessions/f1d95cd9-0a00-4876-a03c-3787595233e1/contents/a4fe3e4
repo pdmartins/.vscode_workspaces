@@ -1,0 +1,21 @@
+#!/bin/bash
+# =============================================================================
+# Git Pre-Push Hook
+# Lembrete para fazer upload dos produtos ao fazer push para develop ou main
+# =============================================================================
+
+branch_name=$(git branch --show-current)
+
+if [ "$branch_name" = "develop" ] || [ "$branch_name" = "main" ]; then
+    echo ""
+    echo "============================================================"
+    echo "  ATENCAO: Push para a branch '$branch_name' detectado!"
+    echo "============================================================"
+    echo ""
+    echo "  LEMBRETE: Nao esqueca de fazer o UPLOAD DOS PRODUTOS!"
+    echo ""
+    echo "============================================================"
+    echo ""
+fi
+
+exit 0

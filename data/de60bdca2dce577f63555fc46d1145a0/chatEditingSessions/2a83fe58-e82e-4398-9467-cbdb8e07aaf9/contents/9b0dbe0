@@ -1,0 +1,29 @@
+namespace Sky.HubAI.Domain.Entities
+{
+    public class Product(
+        string code,
+        string name)
+    {
+        public string Code { get; private set; } = code;
+        public string Name { get; private set; } = name;
+    }
+
+    /// <summary>
+    /// Represents a product match result with its compatibility score.
+    /// </summary>
+    public class ProductMatchResult(
+        Product product,
+        double score)
+    {
+        /// <summary>
+        /// The matched product.
+        /// </summary>
+        public Product Product { get; } = product;
+
+        /// <summary>
+        /// Match score as a percentage (0-100).
+        /// Represents how many words from the product name were found in the search description.
+        /// </summary>
+        public double MatchPercentage { get; } = System.Math.Round(score * 100, 1);
+    }
+}

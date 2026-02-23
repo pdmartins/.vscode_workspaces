@@ -1,0 +1,38 @@
+using Sky.HubAI.Domain.Entities;
+using System.Collections.Generic;
+
+namespace Sky.HubAI.Domain.Services.Interfaces
+{
+    /// <summary>
+    /// Domain service responsible for matching products based on text descriptions.
+    /// Implements business rules for product search and similarity calculation.
+    /// </summary>
+    public interface IProductMatchingService
+    {
+        /// <summary>
+        /// Finds the top N products that best match the given description.
+        /// Uses tokenization and word compatibility analysis.
+        /// </summary>
+        /// <param name="allProducts">Complete list of available products.</param>
+        /// <param name="description">Text description to match against products.</param>
+        /// <param name="topCount">Maximum number of results to return.</param>
+        /// <returns>List of products ordered by match quality (best matches first).</returns>
+        IReadOnlyList<Product> FindTopMatchingProducts(
+            IReadOnlyList<Product> allProducts,
+            string description,
+            int topCount);
+
+        /// <summary>
+        /// Finds the top N products that best match the given description, including match score.
+        /// Uses tokenization and word compatibility analysis.
+        /// </summary>
+        /// <param name="allProducts">Complete list of available products.</param>
+        /// <param name="description">Text description to match against products.</param>
+        /// <param name="topCount">Maximum number of results to return.</param>
+        /// <returns>List of product match results with scores, ordered by match quality (best matches first).</returns>
+        IReadOnlyList<ProductMatchResult> FindTopMatchingProductsWithScore(
+            IReadOnlyList<Product> allProducts,
+            string description,
+            int topCount);
+    }
+}

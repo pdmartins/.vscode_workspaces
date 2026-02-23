@@ -1,0 +1,133 @@
+using MediatR;
+using Microsoft.Extensions.Logging;
+using Sky.HubAI.Application.Abstractions;
+using Sky.HubAI.Application.Models;
+using Sky.HubAI.Domain.Services.Interfaces;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace Sky.HubAI.Application.UseCases.Intent.ClassifyIntent
+{
+    /// <summary>
+    /// Use case handler for classifying user intent from text descriptions.
+    /// Orchestrates: product search via function calling, calling AI service, normalizing results.
+    /// </summary>
+    public class ClassifyIntentQueryHandler : IRequestHandler<ClassifyIntentQuery, ClassifyIntentResult>
+    {
+        private readonly IOpenAiIntentClassifyService _openAiService;
+        private readonly IProductMemoryCacheService _productCache;
+        private readonly IProductMatchingService _productMatching;
+        private readonly ILogger<ClassifyIntentQueryHandler> _logger;
+
+        private const int TopCandidatesPerKeyword = 10;
+
+        public ClassifyIntentQueryHandler(
+            IOpenAiIntentClassifyService openAiService,
+            IProductMemoryCacheService productCache,
+            IProductMatchingService productMatching,
+            ILogger<ClassifyIntentQueryHandler> logger)
+        {
+            _openAiService = openAiService;
+            _productCache = productCache;
+            _productMatching = productMatching;
+            _logger = logger;
+        }
+
+        public async Task<ClassifyIntentResult> Handle(ClassifyIntentQuery request, CancellationToken cancellationToken)
+        {
+            _logger.LogInformation(
+                "Iniciando análise de intenção. Descrição: {DescriptionLength} caracteres",
+                request.Description?.Length ?? 0);
+
+            // 1. Buscar todos os produtos do cache (para uso na função de busca)
+            var allProducts = _productCache.GetAllProducts();
+            _logger.LogInformation("Produtos carregados do cache: {ProductCount}", allProducts.Count);
+
+            // 2. Criar função de busca para function calling
+            // Esta função será chamada pela LLM quando precisar buscar produtos
+            IReadOnlyList<Domain.Entities.Product> SearchProducts(string[] keywords)
+            {
+                _logger.LogInformation("Function calling: buscando produtos com keywords: {Keywords}", 
+                    string.Join(", ", keywords));
+
+                var results = new List<Domain.Entities.Product>();
+                foreach (var keyword in keywords)
+                {
+                    var matches = _productMatching.FindTopMatchingProducts(
+                        allProducts,
+                        keyword,
+                        TopCandidatesPerKeyword);
+                    
+                    // Adicionar apenas produtos não duplicados
+                    foreach (var product in matches)
+                    {
+                        if (!results.Any(p => p.Code == product.Code))
+                        {
+                            results.Add(product);
+                        }
+                    }
+                }
+
+                _logger.LogInformation("Function calling: encontrados {Count} produtos únicos", results.Count);
+                return results;
+            }
+
+            // 3. Chamar serviço de IA com function calling
+            var classificationResult = await _openAiService.ClassifyIntentAsync(
+                request.Description,
+                SearchProducts,
+                cancellationToken);
+
+            // 4. Normalizar ações de todos os produtos classificados (regra de aplicação)
+            var normalizedProducts = classificationResult.ClassifiedProducts
+                .Select(p => new ClassifiedProduct(
+                    p.ProductCode,
+                    p.ProductName,
+                    NormalizeAction(p.Action)))
+                .ToList();
+
+            // 5. Construir resultado final
+            var result = new ClassifyIntentResult(new IntentClassificationResult
+            {
+                Description = classificationResult.Description,
+                ClassifiedProducts = normalizedProducts,
+                Keywords = classificationResult.Keywords,
+                Log = classificationResult.Log,
+                PossibleProducts = classificationResult.PossibleProducts,
+                UnmatchedProducts = classificationResult.UnmatchedProducts,
+                SearchQueries = classificationResult.SearchQueries
+            });
+
+            _logger.LogInformation(
+                "Classificação concluída. {ProductCount} produtos classificados. Primeiro: Action={Action}, ProductCode={ProductCode}",
+                result.Data.ClassifiedProducts.Count,
+                result.Data.Action,
+                result.Data.ProductCode);
+
+            return result;
+        }
+
+        /// <summary>
+        /// Normalizes action names to standardized values.
+        /// Application-level business rule for consistency.
+        /// </summary>
+        private static string NormalizeAction(string action)
+        {
+            if (string.IsNullOrWhiteSpace(action))
+                return string.Empty;
+
+            var normalized = action.Trim().ToLowerInvariant();
+
+            // Mapeia ações conhecidas
+            return normalized switch
+            {
+                "product-add" or "inclusão" or "incluir" or "adicionar" or "ativação" or "liberação" => "product-add",
+                "product-remove" or "cancelamento" or "cancelar" or "retirada" or "excluir" or "exclusão" => "product-remove",
+                "none" => "none",
+                _ => string.Empty
+            };
+        }
+    }
+}

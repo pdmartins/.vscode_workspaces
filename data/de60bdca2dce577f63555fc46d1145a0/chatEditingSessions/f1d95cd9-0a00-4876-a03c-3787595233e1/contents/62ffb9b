@@ -1,0 +1,12 @@
+# =============================================================================
+# Setup Git Hooks
+# Execute este script após clonar o repositório para ativar os hooks do Git.
+# Uso: .\.github\.hooks\setup.ps1
+# =============================================================================
+
+git config core.hooksPath .github/.hooks
+
+Write-Host ""
+Write-Host "  ✅ Git hooks configurados com sucesso!" -ForegroundColor Green
+Write-Host "  📂 Hooks path: .github/.hooks"
+Write-Host ""

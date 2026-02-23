@@ -1,0 +1,22 @@
+{
+  "AllowedHosts": "*",
+  "AzureOpenAi": {
+    "Endpoint": "",
+    "ApiKey": "",
+    "DeploymentName": "gpt-4o"
+  },
+  "FileStorage": {
+    "ProductCsvPath": "./products.csv",
+	"BlockedKeywordsPath": "./blocked_keywords.txt"
+  },
+  "Auth": {
+    "EnableClientToken": false,
+    "ClientToken": ""
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  }
+}

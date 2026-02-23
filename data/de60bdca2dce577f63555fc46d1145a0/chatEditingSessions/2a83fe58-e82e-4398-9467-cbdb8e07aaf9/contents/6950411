@@ -1,0 +1,29 @@
+using Sky.HubAI.Application.Models;
+using Sky.HubAI.Domain.Entities;
+using System;
+using System.Collections.Generic;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace Sky.HubAI.Application.Abstractions
+{
+    /// <summary>
+    /// Service for classifying user intent and identifying products using Azure OpenAI.
+    /// Supports function calling for dynamic product search.
+    /// </summary>
+    public interface IOpenAiIntentClassifyService
+    {
+        /// <summary>
+        /// Classifies the intent from a text description, using function calling to search for products.
+        /// The LLM extracts keywords and calls the product search function to find matching products.
+        /// </summary>
+        /// <param name="description">User's text description to analyze.</param>
+        /// <param name="productSearchFunction">Function to search products by keywords. Called by the LLM via function calling.</param>
+        /// <param name="cancellationToken">Cancellation token.</param>
+        /// <returns>Strongly-typed classification result with multiple classified products.</returns>
+        Task<IntentClassificationResult> ClassifyIntentAsync(
+            string description,
+            Func<string[], IReadOnlyList<ProductMatchResult>> productSearchFunction,
+            CancellationToken cancellationToken = default);
+    }
+}

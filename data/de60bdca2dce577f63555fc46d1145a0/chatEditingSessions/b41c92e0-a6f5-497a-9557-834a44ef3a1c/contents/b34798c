@@ -1,0 +1,10 @@
+{
+  "github-actions.workflows.pinned.refresh.enabled": true,
+  "github-actions.workflows.pinned.refresh.interval": 60,
+  "git.repositoryScanMaxDepth": 3,
+  "git.scanRepositories": [
+    ".",
+    ".copilot-core",
+    ".copilot-project"
+  ]
+}

@@ -1,0 +1,15 @@
+namespace Sky.HubAI.Infrastructure.OpenAI.Settings
+{
+    public class AzureOpenAiSettings
+    {
+        public string Endpoint { get; set; } = string.Empty;
+        public string ApiKey { get; set; } = string.Empty;
+        public string DeploymentName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Number of top candidate products to consider for intent classification.
+        /// Default: 10
+        /// </summary>
+        public int TopCandidatesCount { get; set; } = 10;
+    }
+}

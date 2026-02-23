@@ -1,0 +1,13 @@
+#!/bin/bash
+# =============================================================================
+# Setup Git Hooks
+# Execute este script após clonar o repositório para ativar os hooks do Git.
+# Uso: bash .github/.hooks/setup.sh
+# =============================================================================
+
+git config core.hooksPath .github/.hooks
+
+echo ""
+echo "  ✅ Git hooks configurados com sucesso!"
+echo "  📂 Hooks path: .github/.hooks"
+echo ""

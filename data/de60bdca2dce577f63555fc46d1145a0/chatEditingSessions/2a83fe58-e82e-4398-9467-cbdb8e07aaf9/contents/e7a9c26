@@ -1,0 +1,378 @@
+using Azure;
+using Azure.AI.OpenAI;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+using OpenAI.Chat;
+using Sky.HubAI.Application.Abstractions;
+using Sky.HubAI.Application.Models;
+using Sky.HubAI.Domain.Entities;
+using Sky.HubAI.Infrastructure.OpenAI.Prompts;
+using Sky.HubAI.Infrastructure.OpenAI.Settings;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace Sky.HubAI.Infrastructure.OpenAI.Services
+{
+    public class OpenAiIntentClassifyService : IOpenAiIntentClassifyService
+    {
+        private readonly AzureOpenAiSettings _settings;
+        private readonly AzureOpenAIClient _client;
+        private readonly ILogger<OpenAiIntentClassifyService> _logger;
+
+        private const string SearchProductsToolName = "search_products";
+        private const int MaxFunctionCallingIterations = 5;
+
+        public OpenAiIntentClassifyService(
+            IOptions<AzureOpenAiSettings> settings,
+            ILogger<OpenAiIntentClassifyService> logger)
+        {
+            _settings = settings.Value;
+            _client = new AzureOpenAIClient(new Uri(_settings.Endpoint), new AzureKeyCredential(_settings.ApiKey));
+            _logger = logger;
+        }
+
+        public async Task<IntentClassificationResult> ClassifyIntentAsync(
+            string description,
+            Func<string[], IReadOnlyList<ProductMatchResult>> productSearchFunction,
+            CancellationToken cancellationToken = default)
+        {
+            _logger.LogInformation("Iniciando classificação de intenção com function calling");
+
+            var chatClient = _client.GetChatClient(_settings.DeploymentName);
+            var systemPrompt = TextClassificationPrompt.GetSystemPrompt(_settings.MinMatchPercentage);
+            var allFoundProducts = new List<Product>();
+            var searchQueries = new List<ProductSearchQuery>();
+
+            var messages = new List<ChatMessage>
+            {
+                new SystemChatMessage(systemPrompt),
+                new UserChatMessage(description)
+            };
+
+            var tools = new List<ChatTool> { CreateSearchProductsTool() };
+            var chatOptions = new ChatCompletionOptions
+            {
+                Tools = { tools[0] }
+            };
+
+            // Function calling loop
+            for (int iteration = 0; iteration < MaxFunctionCallingIterations; iteration++)
+            {
+                var response = await chatClient.CompleteChatAsync(messages, chatOptions, cancellationToken);
+                var chatCompletion = response?.Value;
+
+                if (chatCompletion == null)
+                {
+                    _logger.LogWarning("Modelo OpenAI retornou resposta vazia na iteração {Iteration}", iteration);
+                    break;
+                }
+
+                // Check if the model wants to call a tool
+                if (chatCompletion.FinishReason == ChatFinishReason.ToolCalls)
+                {
+                    _logger.LogInformation("LLM solicitou chamada de ferramenta na iteração {Iteration}", iteration);
+
+                    // Add assistant message with tool calls
+                    messages.Add(new AssistantChatMessage(chatCompletion));
+
+                    // Process each tool call
+                    foreach (var toolCall in chatCompletion.ToolCalls)
+                    {
+                        if (toolCall.FunctionName == SearchProductsToolName)
+                        {
+                            var toolResult = ProcessSearchProductsCall(toolCall, productSearchFunction, allFoundProducts, searchQueries);
+                            messages.Add(new ToolChatMessage(toolCall.Id, toolResult));
+                        }
+                        else
+                        {
+                            _logger.LogWarning("Ferramenta desconhecida solicitada: {ToolName}", toolCall.FunctionName);
+                            messages.Add(new ToolChatMessage(toolCall.Id, "Ferramenta não reconhecida."));
+                        }
+                    }
+
+                    continue; // Continue loop to get final response
+                }
+
+                // Final response - parse classification
+                if (chatCompletion.FinishReason == ChatFinishReason.Stop)
+                {
+                    var contentItems = chatCompletion.Content;
+                    if (contentItems == null || contentItems.Count == 0)
+                    {
+                        _logger.LogWarning("Resposta final sem conteúdo");
+                        break;
+                    }
+
+                    var content = contentItems[0].Text;
+                    _logger.LogDebug("Resposta final da OpenAI: {ContentLength} caracteres", content?.Length ?? 0);
+
+                    return ParseFinalResponse(description, content, allFoundProducts, searchQueries);
+                }
+
+                _logger.LogWarning("Finish reason inesperado: {FinishReason}", chatCompletion.FinishReason);
+                break;
+            }
+
+            // Fallback if loop exhausted
+            _logger.LogWarning("Loop de function calling esgotado sem resposta final");
+            return CreateEmptyResult(description, allFoundProducts, searchQueries, "Não foi possível obter classificação após múltiplas tentativas.");
+        }
+
+        private ChatTool CreateSearchProductsTool()
+        {
+            return ChatTool.CreateFunctionTool(
+                functionName: SearchProductsToolName,
+                functionDescription: $"Busca produtos no catálogo por palavras-chave. Retorna produtos com percentual de acerto (%). Use esta ferramenta para encontrar produtos mencionados no texto do usuário. IMPORTANTE: Primeiro busque o nome completo/combinado. Se nenhum resultado tiver acerto >= {_settings.MinMatchPercentage}%, busque cada produto separadamente. Inclua variações e abreviações expandidas nas keywords (ex: DEG → DEGUSTAÇÃO).",
+                functionParameters: BinaryData.FromString("""
+                {
+                    "type": "object",
+                    "properties": {
+                        "keywords": {
+                            "type": "array",
+                            "items": { "type": "string" },
+                            "description": "Lista de palavras-chave ou termos para buscar produtos. Para melhores resultados: use o nome completo do produto, variações com abreviações expandidas (DEG→DEGUSTAÇÃO, PROMO→PROMOÇÃO), e termos parciais. Pode incluir nomes combinados (ex: 'PROMO SUPER 30D + DEG HBO 30D') para verificar se existe como produto único. Os resultados incluem percentual de acerto (%)."
+                        }
+                    },
+                    "required": ["keywords"]
+                }
+                """));
+        }
+
+        private string ProcessSearchProductsCall(
+            ChatToolCall toolCall,
+            Func<string[], IReadOnlyList<ProductMatchResult>> productSearchFunction,
+            List<Product> allFoundProducts,
+            List<ProductSearchQuery> searchQueries)
+        {
+            try
+            {
+                var arguments = JsonSerializer.Deserialize<SearchProductsArguments>(toolCall.FunctionArguments);
+                var keywords = arguments?.Keywords ?? Array.Empty<string>();
+
+                _logger.LogInformation("Buscando produtos com keywords: {Keywords}", string.Join(", ", keywords));
+
+                var foundMatches = productSearchFunction(keywords);
+
+                // Somente considerar produtos com mais de MinMatchPercentage% de match
+                var qualifiedMatches = foundMatches
+                    .Where(m => m.MatchPercentage > _settings.MinMatchPercentage)
+                    .ToList();
+
+                allFoundProducts.AddRange(qualifiedMatches
+                    .Where(m => !allFoundProducts.Any(ap => ap.Code == m.Product.Code))
+                    .Select(m => m.Product));
+
+                // Registrar a busca realizada (keywords + TODOS os produtos retornados com percentual)
+                var productsReturned = foundMatches
+                    .Select(m => new ProductCandidate(m.Product.Code, m.Product.Name, m.MatchPercentage))
+                    .ToList();
+                searchQueries.Add(new ProductSearchQuery(keywords, productsReturned));
+
+                _logger.LogInformation("Encontrados {Count} produtos para as keywords", foundMatches.Count);
+
+                if (foundMatches.Count == 0)
+                {
+                    return "Nenhum produto encontrado para as palavras-chave fornecidas.";
+                }
+
+                var sb = new StringBuilder();
+                sb.AppendLine($"Encontrados {foundMatches.Count} produtos (ordenados por percentual de acerto):");
+                foreach (var match in foundMatches)
+                {
+                    sb.AppendLine($"- Código: {match.Product.Code} | Nome: {match.Product.Name} | Acerto: {match.MatchPercentage}%");
+                }
+                return sb.ToString();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Erro ao processar chamada search_products");
+                return "Erro ao buscar produtos.";
+            }
+        }
+
+        private IntentClassificationResult ParseFinalResponse(
+            string description,
+            string? content,
+            List<Product> allFoundProducts,
+            List<ProductSearchQuery> searchQueries)
+        {
+            var possibleProducts = allFoundProducts
+                .Select(p => new ProductCandidate(p.Code, p.Name, 0))
+                .ToList();
+
+            if (string.IsNullOrWhiteSpace(content))
+            {
+                return CreateEmptyResult(description, allFoundProducts, searchQueries, "Resposta vazia do modelo.");
+            }
+
+            var parsed = ParseResponseToDictionary(content);
+            if (parsed == null)
+            {
+                _logger.LogWarning("Falha ao interpretar JSON da resposta final");
+                return CreateEmptyResult(description, allFoundProducts, searchQueries, "Falha ao interpretar JSON da resposta.");
+            }
+
+            var keywords = ExtractKeywords(parsed);
+            var classifiedProducts = ExtractClassifiedProducts(parsed, allFoundProducts);
+            var unmatchedProducts = ExtractUnmatchedProducts(parsed);
+            var log = parsed.TryGetValue("log", out var logVal) ? logVal?.ToString() ?? string.Empty : string.Empty;
+
+            var result = new IntentClassificationResult
+            {
+                Description = description,
+                ClassifiedProducts = classifiedProducts,
+                Keywords = keywords,
+                Log = log,
+                PossibleProducts = possibleProducts,
+                UnmatchedProducts = unmatchedProducts,
+                SearchQueries = searchQueries
+            };
+
+            _logger.LogInformation(
+                "Classificação concluída. {ProductCount} produtos classificados",
+                classifiedProducts.Count);
+
+            return result;
+        }
+
+        private IReadOnlyList<ClassifiedProduct> ExtractClassifiedProducts(
+            Dictionary<string, object>? parsed,
+            List<Product> allFoundProducts)
+        {
+            if (parsed == null) return Array.Empty<ClassifiedProduct>();
+
+            var result = new List<ClassifiedProduct>();
+
+            // Try to extract "classifiedProducts" array
+            if (parsed.TryGetValue("classifiedProducts", out var productsVal) && productsVal is JsonElement jsonArray)
+            {
+                if (jsonArray.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var item in jsonArray.EnumerateArray())
+                    {
+                        var productCode = item.TryGetProperty("productCode", out var codeEl) ? codeEl.GetString() ?? string.Empty : string.Empty;
+                        var productName = item.TryGetProperty("productName", out var nameEl) ? nameEl.GetString() ?? string.Empty : string.Empty;
+                        var action = item.TryGetProperty("action", out var actionEl) ? actionEl.GetString() ?? string.Empty : string.Empty;
+
+                        // If productName is empty, try to get from found products
+                        if (string.IsNullOrEmpty(productName) && !string.IsNullOrEmpty(productCode))
+                        {
+                            productName = allFoundProducts.FirstOrDefault(p => p.Code == productCode)?.Name ?? string.Empty;
+                        }
+
+                        if (!string.IsNullOrEmpty(productCode) || !string.IsNullOrEmpty(productName))
+                        {
+                            result.Add(new ClassifiedProduct(productCode, productName, action));
+                        }
+                    }
+                }
+            }
+
+            // Fallback: try legacy single product format
+            if (result.Count == 0)
+            {
+                var action = parsed.TryGetValue("action", out var actionVal) ? actionVal?.ToString() ?? string.Empty : string.Empty;
+                var productCode = parsed.TryGetValue("product_code", out var codeVal) ? codeVal?.ToString() ?? string.Empty : string.Empty;
+                var productDescription = parsed.TryGetValue("productDescription", out var descVal) ? descVal?.ToString() ?? string.Empty : string.Empty;
+
+                if (!string.IsNullOrEmpty(productCode) || !string.IsNullOrEmpty(productDescription))
+                {
+                    result.Add(new ClassifiedProduct(productCode, productDescription, action));
+                }
+            }
+
+            return result;
+        }
+
+        private IntentClassificationResult CreateEmptyResult(
+            string description,
+            List<Product> allFoundProducts,
+            List<ProductSearchQuery> searchQueries,
+            string logMessage)
+        {
+            return new IntentClassificationResult
+            {
+                Description = description,
+                ClassifiedProducts = Array.Empty<ClassifiedProduct>(),
+                Keywords = Array.Empty<string>(),
+                Log = logMessage,
+                PossibleProducts = allFoundProducts
+                    .Select(p => new ProductCandidate(p.Code, p.Name, 0))
+                    .ToList(),
+                SearchQueries = searchQueries
+            };
+        }
+
+        private IReadOnlyList<string> ExtractUnmatchedProducts(Dictionary<string, object>? parsed)
+        {
+            if (parsed == null) return Array.Empty<string>();
+
+            if (parsed.TryGetValue("unmatchedProducts", out var val) && val is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Array)
+            {
+                return jsonElement.EnumerateArray()
+                    .Select(e => e.GetString() ?? string.Empty)
+                    .Where(s => !string.IsNullOrWhiteSpace(s))
+                    .ToList();
+            }
+
+            return Array.Empty<string>();
+        }
+
+        private IReadOnlyList<string> ExtractKeywords(Dictionary<string, object>? parsed)
+        {
+            if (parsed == null) return Array.Empty<string>();
+
+            if (parsed.TryGetValue("keywords", out var keyVal) && keyVal != null)
+            {
+                if (keyVal is JsonElement jsonElement && jsonElement.ValueKind == JsonValueKind.Array)
+                {
+                    return jsonElement.EnumerateArray()
+                        .Select(e => e.GetString() ?? string.Empty)
+                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                        .ToList();
+                }
+
+                var str = keyVal.ToString() ?? string.Empty;
+                if (!string.IsNullOrWhiteSpace(str))
+                {
+                    return str.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries)
+                        .Select(s => s.Trim())
+                        .Where(s => !string.IsNullOrWhiteSpace(s))
+                        .ToList();
+                }
+            }
+
+            return Array.Empty<string>();
+        }
+
+        private static Dictionary<string, object>? ParseResponseToDictionary(string content)
+        {
+            if (string.IsNullOrWhiteSpace(content))
+                return null;
+            try
+            {
+                content = content.Replace("```json", "", StringComparison.OrdinalIgnoreCase)
+                                 .Replace("```", "", StringComparison.OrdinalIgnoreCase)
+                                 .Trim();
+                var extractedData = JsonSerializer.Deserialize<Dictionary<string, object>>(content, new JsonSerializerOptions
+                {
+                    NumberHandling = JsonNumberHandling.AllowReadingFromString
+                });
+                return extractedData;
+            }
+            catch { return null; }
+        }
+
+        private class SearchProductsArguments
+        {
+            [JsonPropertyName("keywords")]
+            public string[] Keywords { get; set; } = Array.Empty<string>();
+        }
+    }
+}

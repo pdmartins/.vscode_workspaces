@@ -1,0 +1,91 @@
+using System.Collections.Generic;
+using System.Linq;
+
+namespace Sky.HubAI.Application.Models
+{
+    /// <summary>
+    /// Strongly-typed result from intent classification operation.
+    /// Represents the analyzed intents for multiple products and supporting metadata.
+    /// </summary>
+    public record IntentClassificationResult
+    {
+        /// <summary>
+        /// Original description text that was analyzed.
+        /// </summary>
+        public string Description { get; init; } = string.Empty;
+
+        /// <summary>
+        /// List of classified products with their respective actions.
+        /// Each product identified in the description has its own action (product-add, product-remove, none).
+        /// </summary>
+        public IReadOnlyList<ClassifiedProduct> ClassifiedProducts { get; init; } = new List<ClassifiedProduct>();
+
+        /// <summary>
+        /// Identified action/intent for the first classified product.
+        /// Maintained for backward compatibility. Use ClassifiedProducts for multiple products.
+        /// </summary>
+        public string Action => ClassifiedProducts.FirstOrDefault()?.Action ?? string.Empty;
+
+        /// <summary>
+        /// Natural language description of the first identified product.
+        /// Maintained for backward compatibility. Use ClassifiedProducts for multiple products.
+        /// </summary>
+        public string ProductDescription => ClassifiedProducts.FirstOrDefault()?.ProductName ?? string.Empty;
+
+        /// <summary>
+        /// Product code of the first identified product.
+        /// Maintained for backward compatibility. Use ClassifiedProducts for multiple products.
+        /// </summary>
+        public string ProductCode => ClassifiedProducts.FirstOrDefault()?.ProductCode ?? string.Empty;
+
+        /// <summary>
+        /// List of keywords extracted from the description.
+        /// </summary>
+        public IReadOnlyList<string> Keywords { get; init; } = new List<string>();
+
+        /// <summary>
+        /// Diagnostic log or reasoning from the AI analysis.
+        /// </summary>
+        public string Log { get; init; } = string.Empty;
+
+        /// <summary>
+        /// List of candidate products that were considered during matching.
+        /// Each entry contains product code and name.
+        /// </summary>
+        public IReadOnlyList<ProductCandidate> PossibleProducts { get; init; } = new List<ProductCandidate>();
+
+        /// <summary>
+        /// List of product names mentioned in the description that could not be matched to any product in the catalog.
+        /// </summary>
+        public IReadOnlyList<string> UnmatchedProducts { get; init; } = new List<string>();
+
+        /// <summary>
+        /// List of product search queries made by the LLM during function calling.
+        /// Contains the keywords searched and the products returned for each query.
+        /// </summary>
+        public IReadOnlyList<ProductSearchQuery> SearchQueries { get; init; } = new List<ProductSearchQuery>();
+    }
+
+    /// <summary>
+    /// Represents a product that was classified with its identified action.
+    /// </summary>
+    public record ClassifiedProduct(
+        string ProductCode,
+        string ProductName,
+        string Action);
+
+    /// <summary>
+    /// Represents a candidate product during matching.
+    /// </summary>
+    public record ProductCandidate(
+        string ProductCode,
+        string ProductName);
+
+    /// <summary>
+    /// Represents a product search query made by the LLM.
+    /// Contains the keywords that were searched and the products that were returned.
+    /// </summary>
+    public record ProductSearchQuery(
+        IReadOnlyList<string> Keywords,
+        IReadOnlyList<ProductCandidate> ProductsReturned);
+}

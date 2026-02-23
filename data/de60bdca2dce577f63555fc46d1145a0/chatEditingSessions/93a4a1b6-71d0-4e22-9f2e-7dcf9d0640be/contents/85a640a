@@ -1,0 +1,212 @@
+# Code Map — Sky HubAI
+
+Inventário de artefatos do projeto organizado por camada.
+
+---
+
+## API Layer (`src/Api/`)
+
+### Controllers
+
+| Controller | Rota | Métodos | Arquivo |
+|-----------|------|---------|---------|
+| `V1ControllerBase` | — | Base abstrata (IMediator, ILogger) | `Controllers/V1ControllerBase.cs` |
+| `BlockedKeywordsController` | `api/v1/blocked-keywords` | GET, POST | `Controllers/V1/BlockedKeywordsController.cs` |
+| `DocumentAnalysisController` | `api/v1/document-analysis` | POST | `Controllers/V1/DocumentAnalysisController.cs` |
+| `IntentClassificationsController` | `api/v1/intent-classifications` | POST | `Controllers/V1/IntentClassificationsController.cs` |
+| `ProductsController` | `api/v1/products` | GET, POST | `Controllers/V1/ProductsController.cs` |
+
+### Contracts
+
+| Feature | Request | Response | Validator |
+|---------|---------|----------|-----------|
+| UpdateProductList | `UpdateProductListRequest` (IFormFile) | `UpdateProductListResponse` | `UpdateProductListRequestValidator` |
+| GetProductList | — | `GetProductListResponse` | — |
+| UpdateBlockedKeywordList | `UpdateBlockedKeywordListRequest` (IFormFile) | `UpdateBlockedKeywordListResponse` | `UpdateBlockedKeywordListRequestValidator` |
+| GetBlockedKeywordList | — | `GetBlockedKeywordListResponse` | — |
+| DocumentAnalysis | `DocumentAnalysisRequest` (List\<IFormFile\>, string×3) | `DocumentAnalysisResponse` | — (manual) |
+| IntentClassifications | `IntentClassificationsRequest` (string) | `IntentClassificationsResponse` | — |
+
+### Middlewares
+
+| Middleware | Arquivo | Propósito |
+|-----------|---------|-----------|
+| `CorrelationIdMiddleware` | `Middleware/CorrelationIdMiddleware.cs` | Gera/propaga X-Correlation-Id |
+| `ClientTokenAuthMiddleware` | `Middleware/ClientTokenAuthMiddleware.cs` | Auth via X-Client-Token |
+| `HttpLoggingMiddleware` | `Middleware/HttpLoggingMiddleware.cs` | Log de request/response body |
+| `GlobalExceptionHandlerMiddleware` | `Middleware/GlobalExceptionHandlerMiddleware.cs` | IExceptionHandler → ProblemDetails |
+
+### Mappings (API)
+
+| Classe | Arquivo |
+|--------|---------|
+| `ProductMappingExtensions` | `Mappings/ProductMappingExtensions.cs` |
+| `BlockedKeywordMappingExtensions` | `Mappings/BlockedKeywordMappingExtensions.cs` |
+| `DocumentMappingExtensions` | `Mappings/DocumentMappingExtensions.cs` |
+| `IntentMappingExtensions` | `Mappings/IntentMappingExtensions.cs` |
+
+### Outros (API)
+
+| Artefato | Arquivo | Propósito |
+|----------|---------|-----------|
+| `PresentationServiceCollectionExtensions` | `DependencyInjection/PresentationServiceCollectionExtensions.cs` | DI da camada API |
+| `PresentationApplicationBuilderExtensions` | `DependencyInjection/PresentationApplicationBuilderExtensions.cs` | Pipeline HTTP |
+| `PresentationConstants` | `DependencyInjection/PresentationConstants.cs` | Constantes |
+| `AuthSettings` | `Settings/AuthSettings.cs` | Config de autenticação |
+| `LowercaseRouteTransformer` | `Routing/LowercaseRouteTransformer.cs` | Rotas kebab-case |
+| `MemoryCacheWarmupHostedService` | `HostedService/MemoryCacheWarmupHostedService.cs` | Warm-up do cache no startup |
+
+---
+
+## Application Layer (`src/Application/`)
+
+### Use Cases
+
+| Use Case | Tipo | Feature | Arquivo |
+|----------|------|---------|---------|
+| `UpdateProductListCommand` | Command | Product | `UseCases/Product/UpdateProductList/UpdateProductListCommand.cs` |
+| `UpdateProductListCommandHandler` | Handler | Product | `UseCases/Product/UpdateProductList/UpdateProductListCommandHandler.cs` |
+| `GetProductListQuery` | Query | Product | `UseCases/Product/GetProductList/GetProductListQuery.cs` |
+| `GetProductListQueryHandler` | Handler | Product | `UseCases/Product/GetProductList/GetProductListQueryHandler.cs` |
+| `UpdateBlockedKeywordListCommand` | Command | BlockedKeyword | `UseCases/BlockedKeyword/UpdateBlockedKeywordList/UpdateBlockedKeywordListCommand.cs` |
+| `UpdateBlockedKeywordListCommandHandler` | Handler | BlockedKeyword | `UseCases/BlockedKeyword/UpdateBlockedKeywordList/UpdateBlockedKeywordListCommandHandler.cs` |
+| `GetBlockedKeywordListQuery` | Query | BlockedKeyword | `UseCases/BlockedKeyword/GetBlockedKeywordList/GetBlockedKeywordListQuery.cs` |
+| `GetBlockedKeywordListQueryHandler` | Handler | BlockedKeyword | `UseCases/BlockedKeyword/GetBlockedKeywordList/GetBlockedKeywordListQueryHandler.cs` |
+| `AnalyzeDocumentQuery` | Query | Document | `UseCases/Document/AnalyzeDocument/AnalyzeDocumentQuery.cs` |
+| `AnalyzeDocumentQueryHandler` | Handler | Document | `UseCases/Document/AnalyzeDocument/AnalyzeDocumentQueryHandler.cs` |
+| `ClassifyIntentQuery` | Query | Intent | `UseCases/Intent/ClassifyIntent/ClassifyIntentQuery.cs` |
+| `ClassifyIntentQueryHandler` | Handler | Intent | `UseCases/Intent/ClassifyIntent/ClassifyIntentQueryHandler.cs` |
+
+### Abstractions (Interfaces)
+
+| Interface | Implementada por | Camada |
+|-----------|-----------------|--------|
+| `IFileStorageImporterService` | `FileStorageImporterService` | Infrastructure.FileStorage |
+| `IIntentExcelReaderService` | `IntentExcelReaderService` | Infrastructure.FileStorage |
+| `IOpenAiDocumentAnalysisService` | `OpenAiDocumentAnalysisService` | Infrastructure.OpenAI |
+| `IOpenAiIntentClassifyService` | `OpenAiIntentClassifyService` | Infrastructure.OpenAI |
+| `IProductMemoryCacheService` | `ProductMemoryCacheService` | Infrastructure.FileStorage |
+
+### Validators (Application)
+
+| Validator | Valida |
+|-----------|--------|
+| `UpdateProductListCommandValidator` | Stream não-nulo, não-vazio |
+| `UpdateBlockedKeywordListCommandValidator` | Stream não-nulo, não-vazio, max 5MB, magic bytes |
+| `ClassifyIntentQueryValidator` | Description não-vazia, max 5000 chars |
+
+### Behaviors
+
+| Behavior | Propósito |
+|----------|-----------|
+| `ValidationBehavior<TRequest, TResponse>` | Executa FluentValidation validators |
+| `RequestResponseLoggingBehavior<TRequest, TResponse>` | Log de request/response |
+
+### Models
+
+| Model | Propósito |
+|-------|-----------|
+| `ImportResultServiceModel` | Resultado genérico de import (ImportedCount, SkippedCount) |
+| `IntentClassificationResult` | Resultado completo de classificação de intenção |
+| `ClassifiedProduct` | Produto classificado (sub-record) |
+| `ProductCandidate` | Candidato a match (sub-record) |
+| `ProductSearchQuery` | Query de busca executada (sub-record) |
+
+### Mappings (Application)
+
+| Classe | Direção |
+|--------|---------|
+| `ProductMappingExtensions` | `IReadOnlyList<Product>` → `IEnumerable<ProductDTO>` |
+| `DocumentMappingExtensions` | `DocumentAnalysis` → `AnalyzeDocumentResult` |
+| `BlockedKeywordMappingExtensions` | `IReadOnlyList<string>` → `IEnumerable<BlockedKeywordDTO>` |
+
+---
+
+## Domain Layer (`src/Domain/`)
+
+### Entities
+
+| Entidade | Arquivo | Propriedades |
+|----------|---------|-------------|
+| `Product` | `Entities/Product.cs` | `Code`, `Name` |
+| `ProductMatchResult` | `Entities/Product.cs` | `Product`, `MatchPercentage` |
+| `Document` | `Entities/Document.cs` | `ClientFullName`, `ClientDocumentNumber`, `ClientBirthDate`, `DocumentImages` |
+| `DocumentAnalysis` | `Entities/DocumentAnalysis.cs` | `InformedData`, `ImageData`, `Similarity` |
+
+### Domain Services
+
+| Serviço | Interface | Propósito |
+|---------|-----------|-----------|
+| `ProductMatchingService` | `IProductMatchingService` | Fuzzy matching de produtos (tokenização, scoring, Levenshtein) |
+| `DocumentDataComparisonService` | `IDocumentDataComparisonService` | Comparação de dados extraídos vs. informados (Levenshtein similarity) |
+
+### Exceptions
+
+| Exceção | Error Code | Factory Methods |
+|---------|------------|----------------|
+| `DomainException` (abstract) | — | Base class |
+| `ProductImportException` | `PRODUCT_IMPORT_ERROR` | `NoValidRecords()`, `InvalidFormat()`, `ProcessingFailed()` |
+| `BlockedKeywordImportException` | `BLOCKED_KEYWORD_IMPORT_ERROR` | `NoValidRecords()`, `InvalidFormat()`, `ProcessingFailed()` |
+
+---
+
+## Infrastructure.FileStorage (`src/Infrastructure.FileStorage/`)
+
+### Services
+
+| Serviço | Lifetime | Propósito |
+|---------|----------|-----------|
+| `ProductMemoryCacheService` | Singleton | Cache in-memory (Dictionary + List), retry com exponential backoff |
+| `FileStorageImporterService` | Singleton | Import Excel→CSV, TXT→TXT, atomic file replace |
+| `IntentExcelReaderService` | Singleton | Leitura de Excel para batch intent |
+| `CsvConstants` | Static | Delimitador CSV e nomes de headers |
+
+### Settings
+
+| Classe | Config Section | Propriedades |
+|--------|---------------|-------------|
+| `FileStorageSettings` | `FileStorage` | `ProductCsvPath`, `BlockedKeywordsPath` |
+
+---
+
+## Infrastructure.OpenAI (`src/Infrastructure.OpenAI/`)
+
+### Services
+
+| Serviço | Lifetime | Propósito |
+|---------|----------|-----------|
+| `OpenAiIntentClassifyService` | Singleton | Classificação de intenção via function calling (max 5 iterações) |
+| `OpenAiDocumentAnalysisService` | Singleton | Análise de documentos via GPT-4o Vision (retry 3x por imagem) |
+
+### Prompts
+
+| Prompt | Classe | Propósito |
+|--------|--------|-----------|
+| Document Vision | `DocumentVisionPrompt` | System prompt para extração de cédula uruguaia |
+| Text Classification | `TextClassificationPrompt` | System prompt para classificação de intenção (~200 linhas) |
+
+### Settings
+
+| Classe | Config Section | Propriedades |
+|--------|---------------|-------------|
+| `AzureOpenAiSettings` | `AzureOpenAI` | `Endpoint`, `ApiKey`, `DeploymentName`, `TopCandidatesCount`, `MinMatchPercentage` |
+
+---
+
+## Resumo Quantitativo
+
+| Tipo | Quantidade |
+|------|-----------|
+| Controllers | 4 (+1 base) |
+| Use Cases (Commands + Queries) | 6 |
+| Handlers | 6 |
+| Abstractions (Interfaces) | 5 |
+| Validators | 3 (Application) + 2 (API) |
+| Domain Entities | 4 |
+| Domain Services | 2 |
+| Domain Exceptions | 2 (+1 base) |
+| Infrastructure Services | 4 |
+| Prompts | 2 |
+| Middlewares | 4 |
+| Pipeline Behaviors | 2 |
+| Models (Application) | 5 |

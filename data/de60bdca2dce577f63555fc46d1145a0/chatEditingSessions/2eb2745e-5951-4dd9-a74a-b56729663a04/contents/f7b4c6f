@@ -1,0 +1,37 @@
+using Sky.HubAI.Api.Contracts.IntentClassifications;
+using Sky.HubAI.Application.Models;
+using System.Linq;
+
+namespace Sky.HubAI.Api.Mappings
+{
+    public static class IntentClassificationMappingExtensions
+    {
+        /// <summary>
+        /// Maps IntentClassificationResult (Application layer) to IntentClassificationsResponse (API contract).
+        /// </summary>
+        public static IntentClassificationsResponse ToResponse(this IntentClassificationResult result)
+        {
+            return new IntentClassificationsResponse
+            {
+                Description = result.Description,
+                ClassifiedProducts = result.ClassifiedProducts
+                    .Select(p => new ClassifiedProductResponse(p.ProductCode, p.ProductName, p.Action))
+                    .ToList(),
+                Action = result.Action,
+                ProductDescription = string.Join(", ", result.ClassifiedProducts.Select(p => p.ProductName)),
+                ProductCode = string.Join(", ", result.ClassifiedProducts.Select(p => p.ProductCode)),
+                Keywords = result.Keywords,
+                Log = result.Log,
+                MatchedProducts = string.Join(", ", result.MatchedProducts),
+                UnmatchedProducts = string.Join(", ", result.UnmatchedProducts),
+                SearchQueries = result.SearchQueries
+                    .Select(q => new ProductSearchQueryResponse(
+                        q.Keywords,
+                        q.ProductsReturned
+                            .Select(p => new ProductCandidateResponse(p.ProductCode, p.ProductName, p.MatchPercentage))
+                            .ToList()))
+                    .ToList()
+            };
+        }
+    }
+}

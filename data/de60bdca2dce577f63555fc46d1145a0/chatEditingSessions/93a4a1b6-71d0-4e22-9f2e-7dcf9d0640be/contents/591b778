@@ -1,0 +1,34 @@
+# Contexto do Projeto — Sky HubAI
+
+Catálogo de contexto do projeto. O agente lê este índice primeiro e carrega subpastas sob demanda.
+
+---
+
+## Subtipos
+
+| Tipo | Pasta | Descrição | Arquivos |
+|------|-------|-----------|----------|
+| Architecture | `architecture/` | Clean Architecture + CQRS, camadas, DI, middleware stack, error handling | `system.md` |
+| Business Rules | `business-rules/` | Regras de matching de produtos, import, classificação de intenções, análise de documentos | `rules.md` |
+| Code Map | `code-map/` | Inventário completo: 4 controllers, 6 use cases, 5 abstractions, 4 entities, 4 middlewares | `index.md` |
+| Conventions | `conventions/` | Naming .NET, namespace patterns, estrutura de use cases, validação, mappings, DI | `standards.md` |
+| Infrastructure | `infrastructure/` | .NET 8, Azure OpenAI (GPT-4o), caching singleton, auth X-Client-Token, Azure App Service | `stack.md` |
+| Team Process | `team-process/` | — | — |
+
+## Resumo do Projeto
+
+**Objetivo**: API backend que integra Azure OpenAI (GPT-4o) para automação de tarefas operacionais da SKY: classificação de intenções de clientes, análise de documentos de identidade e gestão de catálogo de produtos.
+
+**Stack principal**: .NET 8 (C#) — Clean Architecture — CQRS (MediatR) — Azure OpenAI — Azure App Service
+
+**Capacidades**:
+- **Intent Classification** — Classifica texto em ações (product-add/remove/none) usando function calling
+- **Document Analysis** — Extrai e valida dados de documentos via GPT-4o Vision
+- **Product Management** — CRUD de catálogo (Excel→CSV) com cache in-memory e blocked keywords
+
+**Fase**: Manutenção
+
+## Última Atualização
+
+**Data**: 2026-02-18
+**Motivo**: Enriquecimento completo de contexto via `project-structure-analyze`

@@ -1,0 +1,23 @@
+{
+  "AllowedHosts": "*",
+  "AzureOpenAi": {
+    "Endpoint": "https://sk-sky-hubai.openai.azure.com/",
+    "ApiKey": "5HkFKNtvkI9cxeZwhsYZUVXRUWWya7T9J6CGQH3ayVvlPk6e1SvWJQQJ99CBACYeBjFXJ3w3AAABACOG31Cu",
+    "DeploymentName": "gpt-4o",
+    "MinMatchPercentage": 80
+  },
+  "FileStorage": {
+    "ProductCsvPath": "./products.csv",
+	"BlockedKeywordsPath": "./blocked_keywords.txt"
+  },
+  "Auth": {
+    "EnableClientToken": false,
+    "ClientToken": ""
+  },
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  }
+}

@@ -1,0 +1,147 @@
+# Regras de Negócio — Sky HubAI
+
+## Classificação de Intenções (Intent Classification)
+
+### Ações Possíveis
+
+| Ação | Código | Significado |
+|------|--------|------------|
+| Adicionar produto | `product-add` | Cliente quer contratar/ativar produto |
+| Remover produto | `product-remove` | Cliente quer cancelar/desativar produto |
+| Nenhuma ação | `none` | Texto não indica ação sobre produto |
+
+### Regras de Classificação
+
+- Suporte a **múltiplos produtos** em uma única classificação
+- Tratamento de abreviações: `DEG` → `DEGUSTAÇÃO`
+- Tracking de **unmatched products** — produtos mencionados mas não encontrados no catálogo
+- LLM usa **function calling** (`search_products`) para buscar dinamicamente no catálogo
+- Máximo de **5 iterações** de tool calls por classificação
+- Resposta final em JSON estruturado com: `ClassifiedProducts`, `Action`, `Keywords`, `Log`, `MatchedProducts`, `UnmatchedProducts`, `SearchQueries`
+
+### Busca de Produtos (Function Calling)
+
+- O modelo GPT-4o invoca `search_products` com termos de busca
+- A função local faz matching contra o catálogo in-memory
+- Estratégia de busca: combinada (termos juntos) vs. separada (termos individuais)
+- Produtos encontrados são retornados ao modelo para decisão final
+
+---
+
+## Matching de Produtos
+
+### Tokenização
+
+1. Remoção de diacríticos (acentos)
+2. Split por separadores (espaços, hifens, etc.)
+3. Comparação word-by-word
+
+### Scoring
+
+| Parâmetro | Valor | Config Key |
+|-----------|-------|-----------|
+| `MinMatchPercentage` | 85% | `AzureOpenAI:MinMatchPercentage` (appsettings) |
+| `TopCandidatesCount` | 10 | `AzureOpenAI:TopCandidatesCount` (appsettings) |
+| Fórmula | `matchCount / wordCount × 100` | — |
+
+- Score calculado por **word compatibility** (quantas palavras do query aparecem no produto)
+- **Levenshtein distance** disponível no `ProductMatchingService` mas não usado no fluxo principal
+- Retorna top N candidatos acima do threshold
+
+### Blocked Keywords Filtering
+
+- Produtos são filtrados no **read-time** do cache (não no import)
+- Matching via **regex word-boundary**: `\b{keyword}\b` (case-insensitive)
+- Se qualquer keyword é encontrada no nome do produto, o produto é excluído da lista retornada
+- Lista de keywords carregada do arquivo TXT e mantida em cache
+
+---
+
+## Import de Produtos
+
+### Fonte: Excel (.xlsx)
+
+| Coluna | Campo | Obrigatório |
+|--------|-------|-------------|
+| `PROD_CD` | Código do produto | Sim |
+| `PROD_DESC` | Descrição/nome do produto | Sim |
+| `STATUS_CD` | Status do produto | Sim (filtro) |
+| `CATEGORY_CD` | Categoria do produto | Sim (filtro) |
+
+### Filtros de Import
+
+| Filtro | Regra |
+|--------|-------|
+| Status | Apenas `STATUS_CD = Active` |
+| Categoria | Exclui `CATEGORY_CD = Faturavel` |
+
+### Processo
+
+1. Upload de arquivo `.xlsx` (max 10MB)
+2. Leitura via ClosedXML — colunas `PROD_CD` e `PROD_DESC`
+3. Aplicação de filtros (`Active`, não `Faturavel`)
+4. Conversão para CSV (delimitador `,`, headers: `Code`, `Name`)
+5. **Atomic file replace**: grava em arquivo temp → `File.Move` com retry
+6. Reload do cache in-memory
+7. Retorna contagem: `ImportedCount`, `SkippedCount`
+
+### Validações
+
+- **API level**: arquivo deve ser `.xlsx`, max 10MB
+- **Application level**: stream não-nulo e não-vazio
+
+---
+
+## Import de Blocked Keywords
+
+### Fonte: Arquivo texto (.txt)
+
+- Uma keyword por linha
+- Linhas vazias são ignoradas
+
+### Validações
+
+| Nível | Regra |
+|-------|-------|
+| API | Max 5MB |
+| Application | Stream não-nulo, não-vazio, max 5MB |
+| Application | **Detecção de magic bytes** — rejeita binários (ZIP, XLSX, PDF, PNG, JPEG, GIF) |
+
+### Processo
+
+1. Upload de arquivo `.txt`
+2. Validação de magic bytes (primeiros bytes do stream)
+3. Leitura linha a linha
+4. Atomic file replace (temp → `File.Move`)
+5. Reload do cache in-memory
+
+---
+
+## Análise de Documentos (Document Analysis)
+
+### Tipo de Documento
+
+- **Cédula de identidade uruguaia** (documento de ID)
+
+### Dados Extraídos via Vision (GPT-4o)
+
+| Campo | Key JSON |
+|-------|---------|
+| Nome completo | `fullName` |
+| Número do documento | `documentNumber` |
+| Data de nascimento | `birthDate` |
+
+### Processo
+
+1. Recebe imagens (multipart) + dados informados (`FullName`, `DocumentNumber`, `BirthDate`)
+2. Cada imagem é enviada ao GPT-4o Vision como `BinaryData`
+3. **Retry**: até 3 tentativas por imagem
+4. Normalização de chaves na resposta (Português → Inglês)
+5. Conversão de formatos de data de nascimento
+6. Comparação campo-a-campo: **dados informados vs. dados extraídos**
+
+### Comparação (Similarity)
+
+- Usa **Levenshtein distance** para calcular similaridade percentual por campo
+- Resultado: `Similarity` dictionary com % por campo + `similarityTotal`
+- Retorna 3 dicionários: `InformedData`, `ImageData`, `Similarity`

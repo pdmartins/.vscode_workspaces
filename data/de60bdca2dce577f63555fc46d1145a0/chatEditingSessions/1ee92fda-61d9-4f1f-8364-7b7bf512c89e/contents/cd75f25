@@ -1,0 +1,320 @@
+Option Explicit
+
+' =============================================================================
+' SCRIPT: Exportador de Notificacoes de Leitura/Entrega do Outlook
+' DESCRICAO: Processa ReportItems da Inbox, exporta para CSV e move para pasta
+' =============================================================================
+
+' ===== VARIAVEIS GLOBAIS =====
+Dim g_olApp, g_olNamespace, g_olInbox, g_olDestinationFolder
+Dim g_fso, g_csvFile
+Dim g_emailRegex
+Dim g_processedItems
+
+' ===== PARAMETROS DE CONFIGURACAO =====
+Dim CFG_CSV_PATH
+Dim CFG_DESTINATION_FOLDER
+Dim CFG_CSV_DELIMITER
+Dim CFG_CSV_HEADER
+Dim CFG_EMAIL_REGEX_PATTERN
+Dim CFG_INBOX_FOLDER_ID
+Dim CFG_MSG_EMAIL_NOT_FOUND
+Dim CFG_MSG_NO_BODY
+Dim CFG_MSG_COMPLETION
+
+' Prefixos para identificacao de tipo Leitura
+Dim CFG_READ_PREFIXES
+' Prefixos para identificacao de tipo Entrega
+Dim CFG_DELIVERY_PREFIXES
+' Tipos de relatorio
+Dim CFG_TYPE_READ
+Dim CFG_TYPE_DELIVERY
+Dim CFG_TYPE_OTHER
+
+' ===== INICIALIZACAO DE PARAMETROS =====
+Sub InitializeParameters()
+    ' Caminho do arquivo CSV de saida
+    CFG_CSV_PATH = "D:\Automation Anywhere\My Docs\Testes\notificacoes_leitura.csv"
+    
+    ' Nome da pasta de destino no Outlook
+    CFG_DESTINATION_FOLDER = "Processados"
+    
+    ' Delimitador do CSV
+    CFG_CSV_DELIMITER = ";"
+    
+    ' Cabecalho do CSV
+    CFG_CSV_HEADER = "AssuntoOriginal;Tipo;Email;DataHora"
+    
+    ' Expressao regular para extrair emails
+    CFG_EMAIL_REGEX_PATTERN = "[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
+    
+    ' ID da pasta Inbox no Outlook (6 = olFolderInbox)
+    CFG_INBOX_FOLDER_ID = 6
+    
+    ' Mensagens padrao
+    CFG_MSG_EMAIL_NOT_FOUND = "(nao encontrado)"
+    CFG_MSG_NO_BODY = "(sem corpo)"
+    CFG_MSG_COMPLETION = "Exportacao concluida!"
+    
+    ' Prefixos que identificam notificacao de Leitura (separados por |)
+    CFG_READ_PREFIXES = "Read:|Lida:"
+    
+    ' Prefixos que identificam notificacao de Entrega (separados por |)
+    CFG_DELIVERY_PREFIXES = "Delivered:|Entregue:|Relayed:|Retransmitida:"
+    
+    ' Nomes dos tipos de relatorio
+    CFG_TYPE_READ = "Leitura"
+    CFG_TYPE_DELIVERY = "Entrega"
+    CFG_TYPE_OTHER = "Outro"
+End Sub
+
+' ===== INICIALIZACAO DO OUTLOOK =====
+Sub InitializeOutlook()
+    Set g_olApp = CreateObject("Outlook.Application")
+    Set g_olNamespace = g_olApp.GetNamespace("MAPI")
+    Set g_olInbox = g_olNamespace.GetDefaultFolder(CFG_INBOX_FOLDER_ID)
+End Sub
+
+' ===== INICIALIZACAO DO ARQUIVO CSV =====
+Sub InitializeCsvFile()
+    Set g_fso = CreateObject("Scripting.FileSystemObject")
+    Set g_csvFile = g_fso.CreateTextFile(CFG_CSV_PATH, True)
+    g_csvFile.WriteLine CFG_CSV_HEADER
+End Sub
+
+' ===== INICIALIZACAO DO REGEX PARA EMAILS =====
+Sub InitializeEmailRegex()
+    Set g_emailRegex = New RegExp
+    g_emailRegex.Pattern = CFG_EMAIL_REGEX_PATTERN
+    g_emailRegex.Global = True
+    g_emailRegex.IgnoreCase = True
+End Sub
+
+' ===== OBTER OU CRIAR PASTA DE DESTINO =====
+Sub GetOrCreateDestinationFolder()
+    Dim subFolder
+    Dim folderFound
+    
+    folderFound = False
+    
+    ' Procura a pasta de destino dentro da Inbox
+    For Each subFolder In g_olInbox.Folders
+        If LCase(subFolder.Name) = LCase(CFG_DESTINATION_FOLDER) Then
+            Set g_olDestinationFolder = subFolder
+            folderFound = True
+            Exit For
+        End If
+    Next
+    
+    ' Se nao encontrou, cria a pasta
+    If Not folderFound Then
+        Set g_olDestinationFolder = g_olInbox.Folders.Add(CFG_DESTINATION_FOLDER)
+    End If
+End Sub
+
+' ===== IDENTIFICAR TIPO E EXTRAIR ASSUNTO ORIGINAL =====
+Function GetReportTypeAndSubject(subject, ByRef originalSubject)
+    Dim prefixes, prefix, pos
+    Dim reportType
+    
+    reportType = CFG_TYPE_OTHER
+    originalSubject = subject
+    
+    ' Verifica prefixos de Leitura
+    prefixes = Split(CFG_READ_PREFIXES, "|")
+    For Each prefix In prefixes
+        pos = InStr(1, subject, prefix, vbTextCompare)
+        If pos > 0 Then
+            reportType = CFG_TYPE_READ
+            originalSubject = Trim(Mid(subject, pos + Len(prefix)))
+            GetReportTypeAndSubject = reportType
+            Exit Function
+        End If
+    Next
+    
+    ' Verifica prefixos de Entrega
+    prefixes = Split(CFG_DELIVERY_PREFIXES, "|")
+    For Each prefix In prefixes
+        pos = InStr(1, subject, prefix, vbTextCompare)
+        If pos > 0 Then
+            reportType = CFG_TYPE_DELIVERY
+            originalSubject = Trim(Mid(subject, pos + Len(prefix)))
+            GetReportTypeAndSubject = reportType
+            Exit Function
+        End If
+    Next
+    
+    GetReportTypeAndSubject = reportType
+End Function
+
+' ===== EXTRAIR EMAILS DO CORPO =====
+Function ExtractEmailsFromBody(body)
+    Dim matches
+    Dim emailList
+    Dim match
+    
+    emailList = ""
+    
+    If body <> "" Then
+        Set matches = g_emailRegex.Execute(body)
+        If matches.Count > 0 Then
+            For Each match In matches
+                If emailList <> "" Then emailList = emailList & "|"
+                emailList = emailList & match.Value
+            Next
+        Else
+            emailList = CFG_MSG_EMAIL_NOT_FOUND
+        End If
+    Else
+        emailList = CFG_MSG_NO_BODY
+    End If
+    
+    ExtractEmailsFromBody = emailList
+End Function
+
+' ===== ESCREVER LINHA NO CSV =====
+Sub WriteCsvLine(originalSubject, reportType, email, creationTime)
+    Dim sanitizedSubject
+    
+    ' Remove delimitador do assunto para evitar problemas no CSV
+    sanitizedSubject = Replace(originalSubject, CFG_CSV_DELIMITER, ",")
+    
+    g_csvFile.WriteLine sanitizedSubject & CFG_CSV_DELIMITER & _
+                        reportType & CFG_CSV_DELIMITER & _
+                        email & CFG_CSV_DELIMITER & _
+                        creationTime
+End Sub
+
+' ===== OBTER EMAIL DO REMETENTE =====
+Function GetSenderEmail(olItem)
+    Dim senderEmail
+    
+    senderEmail = ""
+    On Error Resume Next
+    senderEmail = olItem.SenderEmailAddress
+    On Error GoTo 0
+    
+    GetSenderEmail = senderEmail
+End Function
+
+' ===== PROCESSAR ITEM DE RELATORIO =====
+Sub ProcessReportItem(olItem, itemIndex)
+    Dim subject, creationTime, reportType, originalSubject
+    Dim body, emailList, emails, email, senderEmail
+    
+    subject = olItem.Subject
+    creationTime = olItem.CreationTime
+    
+    ' Identifica tipo e extrai assunto original
+    reportType = GetReportTypeAndSubject(subject, originalSubject)
+    
+    ' Extrai corpo do email (com tratamento de erro)
+    body = ""
+    On Error Resume Next
+    body = olItem.Body
+    On Error GoTo 0
+    
+    ' Extrai emails do corpo
+    emailList = ExtractEmailsFromBody(body)
+    
+    ' Se nao encontrou email no corpo, usa o email do remetente
+    If emailList = CFG_MSG_EMAIL_NOT_FOUND Or emailList = CFG_MSG_NO_BODY Then
+        senderEmail = GetSenderEmail(olItem)
+        If senderEmail <> "" Then
+            emailList = senderEmail
+        End If
+    End If
+    
+    ' Escreve no CSV (uma linha por email encontrado)
+    If emailList = CFG_MSG_EMAIL_NOT_FOUND Or emailList = CFG_MSG_NO_BODY Then
+        WriteCsvLine originalSubject, reportType, emailList, creationTime
+    Else
+        emails = Split(emailList, "|")
+        For Each email In emails
+            WriteCsvLine originalSubject, reportType, email, creationTime
+        Next
+    End If
+    
+    ' Guarda item para mover depois
+    Set g_processedItems(itemIndex) = olItem
+End Sub
+
+' ===== PROCESSAR TODOS OS ITENS DE RELATORIO =====
+Sub ProcessAllReportItems()
+    Dim olItem
+    Dim itemIndex
+    
+    Set g_processedItems = CreateObject("Scripting.Dictionary")
+    itemIndex = 0
+    
+    ' Itera sobre todos os itens da Inbox
+    For Each olItem In g_olInbox.Items
+        If TypeName(olItem) = "ReportItem" Then
+            ProcessReportItem olItem, itemIndex
+            itemIndex = itemIndex + 1
+        End If
+    Next
+End Sub
+
+' ===== MOVER ITENS PROCESSADOS =====
+Sub MoveProcessedItems()
+    Dim key
+    
+    For Each key In g_processedItems.Keys
+        g_processedItems(key).Move g_olDestinationFolder
+    Next
+End Sub
+
+' ===== LIBERAR RECURSOS =====
+Sub Cleanup()
+    g_csvFile.Close
+    
+    Set g_processedItems = Nothing
+    Set g_emailRegex = Nothing
+    Set g_csvFile = Nothing
+    Set g_fso = Nothing
+    Set g_olDestinationFolder = Nothing
+    Set g_olInbox = Nothing
+    Set g_olNamespace = Nothing
+    Set g_olApp = Nothing
+End Sub
+
+' ===== EXIBIR MENSAGEM DE CONCLUSAO =====
+Sub ShowCompletionMessage()
+    WScript.Echo CFG_MSG_COMPLETION & vbCrLf & _
+                 "Arquivo CSV: " & CFG_CSV_PATH & vbCrLf & _
+                 "Emails movidos para: " & CFG_DESTINATION_FOLDER
+End Sub
+
+' ===== PONTO DE ENTRADA PRINCIPAL =====
+Sub Main()
+    ' 1. Inicializa parametros de configuracao
+    InitializeParameters
+    
+    ' 2. Inicializa conexao com Outlook
+    InitializeOutlook
+    
+    ' 3. Inicializa arquivo CSV para exportacao
+    InitializeCsvFile
+    
+    ' 4. Inicializa expressao regular para extrair emails
+    InitializeEmailRegex
+    
+    ' 5. Obtem ou cria pasta de destino para itens processados
+    GetOrCreateDestinationFolder
+    
+    ' 6. Processa todos os ReportItems da Inbox
+    ProcessAllReportItems
+    
+    ' 7. Move itens processados para pasta de destino
+    MoveProcessedItems
+    
+    ' 8. Libera recursos
+    Cleanup
+    
+    ' 9. Exibe mensagem de conclusao
+    ShowCompletionMessage
+End Sub
+
+' ===== EXECUTA O SCRIPT =====
+Main

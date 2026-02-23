@@ -1,0 +1,10 @@
+namespace Sky.HubAI.Domain.Entities
+{
+    public class Product(
+        string code,
+        string name)
+    {
+        public string Code { get; private set; } = code;
+        public string Name { get; private set; } = name;
+    }
+}

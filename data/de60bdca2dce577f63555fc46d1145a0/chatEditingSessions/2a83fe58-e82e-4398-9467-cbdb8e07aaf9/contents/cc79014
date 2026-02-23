@@ -1,0 +1,153 @@
+using Microsoft.Extensions.Logging;
+using Sky.HubAI.Domain.Entities;
+using Sky.HubAI.Domain.Services.Interfaces;
+using System;
+using System.Collections.Generic;
+using System.Globalization;
+using System.Linq;
+using System.Text;
+
+namespace Sky.HubAI.Domain.Services.Implementations
+{
+    /// <summary>
+    /// Domain service implementing product matching logic based on word compatibility.
+    /// Uses tokenization, normalization, and similarity algorithms.
+    /// </summary>
+    public class ProductMatchingService : IProductMatchingService
+    {
+        private readonly ILogger<ProductMatchingService> _logger;
+
+        public ProductMatchingService(ILogger<ProductMatchingService> logger)
+        {
+            _logger = logger;
+        }
+
+        public IReadOnlyList<Product> FindTopMatchingProducts(
+            IReadOnlyList<Product> allProducts,
+            string description,
+            int topCount)
+        {
+            if (allProducts == null || allProducts.Count == 0)
+            {
+                _logger.LogWarning("FindTopMatchingProducts chamado com lista de produtos vazia");
+                return Array.Empty<Product>();
+            }
+
+            if (string.IsNullOrWhiteSpace(description))
+            {
+                _logger.LogWarning("FindTopMatchingProducts chamado com descrição vazia");
+                return Array.Empty<Product>();
+            }
+
+            _logger.LogInformation(
+                "Iniciando busca de produtos compatíveis. Total de produtos: {ProductCount}, Top: {TopCount}",
+                allProducts.Count,
+                topCount);
+
+            var descTokens = Tokenize(description)
+                .Select(t => t.ToLowerInvariant())
+                .ToHashSet();
+
+            var scored = allProducts
+                .Select(product =>
+                {
+                    var nameTokens = Tokenize(product.Name)
+                        .Select(t => t.ToLowerInvariant())
+                        .ToArray();
+
+                    if (nameTokens.Length == 0)
+                        return (product, score: 0.0, matchCount: 0, wordCount: 0);
+
+                    int matchCount = nameTokens.Count(t => descTokens.Contains(t));
+                    int wordCount = nameTokens.Length;
+                    double score = wordCount == 0 ? 0.0 : (double)matchCount / wordCount;
+
+                    return (product, score, matchCount, wordCount);
+                })
+                .Where(x => x.matchCount > 0)
+                .OrderByDescending(x => x.score)
+                .ThenByDescending(x => x.matchCount)
+                .ThenBy(x => x.wordCount)
+                .Take(topCount)
+                .Select(x => x.product)
+                .ToList();
+
+            _logger.LogInformation(
+                "Busca concluída. Produtos encontrados com match: {MatchCount}",
+                scored.Count);
+
+            return scored;
+        }
+
+        /// <summary>
+        /// Tokenizes text by removing diacritics, splitting by separators, and filtering short tokens.
+        /// </summary>
+        private static IEnumerable<string> Tokenize(string text)
+        {
+            if (string.IsNullOrWhiteSpace(text))
+                return Enumerable.Empty<string>();
+
+            // Remove diacritics (acentos)
+            text = text.Normalize(NormalizationForm.FormD);
+            var sb = new StringBuilder();
+            foreach (var c in text)
+            {
+                var uc = CharUnicodeInfo.GetUnicodeCategory(c);
+                if (uc != UnicodeCategory.NonSpacingMark)
+                    sb.Append(c);
+            }
+            text = sb.ToString().Normalize(NormalizationForm.FormC);
+
+            // Split por separadores comuns
+            var separators = new[] { ' ', ',', ';', '.', ':', '\n', '\r', '\t', '-', '/', '+', '(', ')', '[', ']' };
+            return text.Split(separators, StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => s.Trim().ToLowerInvariant())
+                .Where(s => s.Length > 1)
+                .Distinct();
+        }
+
+        /// <summary>
+        /// Calculates similarity ratio between two strings using Levenshtein distance.
+        /// Returns value between 0.0 (completely different) and 1.0 (identical).
+        /// </summary>
+        private static double SimilarityRatio(string a, string b)
+        {
+            int distance = LevenshteinDistance(a, b);
+            int maxLen = Math.Max(a.Length, b.Length);
+            if (maxLen == 0) return 0;
+            return 1.0 - (double)distance / maxLen;
+        }
+
+        /// <summary>
+        /// Calculates Levenshtein distance (edit distance) between two strings.
+        /// </summary>
+        private static int LevenshteinDistance(string s, string t)
+        {
+            int n = s.Length;
+            int m = t.Length;
+            if (n == 0) return m;
+            if (m == 0) return n;
+
+            var d = new int[n + 1, m + 1];
+
+            for (int i = 0; i <= n; i++)
+                d[i, 0] = i;
+
+            for (int j = 0; j <= m; j++)
+                d[0, j] = j;
+
+            for (int i = 1; i <= n; i++)
+            {
+                for (int j = 1; j <= m; j++)
+                {
+                    int cost = s[i - 1] == t[j - 1] ? 0 : 1;
+                    d[i, j] = Math.Min(
+                        Math.Min(d[i - 1, j] + 1, d[i, j - 1] + 1),
+                        d[i - 1, j - 1] + cost);
+                }
+            }
+
+            return d[n, m];
+        }
+    }
+}

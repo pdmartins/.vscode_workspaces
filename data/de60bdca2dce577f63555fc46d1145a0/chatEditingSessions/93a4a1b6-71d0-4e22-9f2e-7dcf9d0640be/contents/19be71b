@@ -1,0 +1,85 @@
+# Stack — Sky HubAI
+
+## Runtime e Framework
+
+| Componente | Tecnologia | Versão |
+|-----------|-----------|--------|
+| **Runtime** | .NET | 8.0 |
+| **Tipo** | Backend REST API | — |
+| **Arquitetura** | Clean Architecture + CQRS | — |
+| **ImplicitUsings** | Desabilitado em todos os projetos (exceto Infrastructure.FileStorage) | — |
+
+## NuGet Packages
+
+| Package | Versão | Projeto | Propósito |
+|---------|--------|---------|-----------|
+| `Azure.AI.OpenAI` | 2.1.0 | Infrastructure.OpenAI | SDK Azure OpenAI (chat, vision, function calling) |
+| `MediatR` | 12.5.0 | Application | CQRS — Commands, Queries, Pipeline Behaviors |
+| `FluentValidation` | 11.9.0 | Application | Validação de requests e commands |
+| `FluentValidation.DependencyInjectionExtensions` | 11.9.0 | Application | Auto-registro de validators |
+| `ClosedXML` | 0.105.0 | Infrastructure.FileStorage | Leitura de Excel (.xlsx) |
+| `ClosedXML` | 0.102.2 | Infrastructure.OpenAI | Leitura de Excel (legado — alinhar versão) |
+| `Asp.Versioning.Mvc` | 8.1.0 | Api | Versionamento de API (URL, header, query string) |
+| `Asp.Versioning.Mvc.ApiExplorer` | 8.1.0 | Api | Swagger integration para versioning |
+| `Swashbuckle.AspNetCore` | 9.0.3 | Api | Documentação Swagger/OpenAPI |
+| `Microsoft.Extensions.Logging.Abstractions` | 8.0.3 | Domain | Logging no Domain sem acoplamento |
+
+## Integrações Externas
+
+### Azure OpenAI (GPT-4o)
+
+| Config | Valor |
+|--------|-------|
+| Endpoint | `sk-sky-hubai.openai.azure.com` |
+| Deployment | `gpt-4o` |
+| Settings section | `AzureOpenAI` |
+| Capabilities | Chat Completions, Vision (image analysis), Function Calling (tool use) |
+| MinMatchPercentage | 85% (configurável em appsettings) |
+| TopCandidatesCount | 10 (default) |
+
+### Storage (Arquivos Locais)
+
+| Tipo | Formato | Config Key |
+|------|---------|-----------|
+| Produtos | CSV (`,` delimitado, headers: `Code`, `Name`) | `FileStorage:ProductCsvPath` |
+| Blocked Keywords | TXT (uma por linha) | `FileStorage:BlockedKeywordsPath` |
+| Estratégia de escrita | Atomic file replace — temp file + `File.Move` com retry | — |
+
+> **Sem banco de dados** — todo storage é baseado em arquivos CSV/TXT locais.
+
+## Caching
+
+| Aspecto | Detalhe |
+|---------|---------|
+| Tipo | In-memory singleton (`Dictionary<string,Product>` + `List<string>`) |
+| Thread-safety | `Volatile.Read` / `Volatile.Write` |
+| Warm-up | `MemoryCacheWarmupHostedService` no startup |
+| Reload | Triggered por endpoints POST (update products/blocked-keywords) |
+| Retry | Exponential backoff, 5 tentativas para I/O de arquivos |
+| Filtragem | Blocked keywords aplicadas no read-time via regex word-boundary |
+
+## Autenticação
+
+| Aspecto | Detalhe |
+|---------|---------|
+| Mecanismo | Header `X-Client-Token` (API key) |
+| Comparação | Time-constant string comparison (anti timing attack) |
+| Config | `Auth:EnableClientToken` (bool), `Auth:ClientToken` (string) |
+| Bypass | Swagger endpoints + OPTIONS requests |
+
+## Hosting
+
+| Aspecto | Detalhe |
+|---------|---------|
+| Provider | Azure App Service |
+| Região | Brazil South |
+| HML URL | `sky-hubai-hml-*.brazilsouth-01.azurewebsites.net` |
+| Proxy | ForwardedHeaders habilitado (reverse proxy Azure) |
+| HTTPS | HSTS + HTTPS Redirection (non-dev only) |
+
+## Environments
+
+| Ambiente | Base URL |
+|----------|----------|
+| LOCAL | `https://localhost:5001` |
+| HML | `https://sky-hubai-hml-fuh6eydadvf0e7ey.brazilsouth-01.azurewebsites.net` |

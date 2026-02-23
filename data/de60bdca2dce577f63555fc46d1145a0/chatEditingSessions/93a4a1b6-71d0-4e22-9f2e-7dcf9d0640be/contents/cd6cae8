@@ -1,0 +1,134 @@
+# Arquitetura — Sky HubAI
+
+## Padrão
+
+**Clean Architecture** com **CQRS** (Command Query Responsibility Segregation) via MediatR.
+
+## Projetos e Dependências
+
+```
+Sky.HubAI.sln
+├── 1. Domain           → Sky.HubAI.Domain                      (sem refs)
+├── 2. Application      → Sky.HubAI.Application                 (→ Domain)
+├── 3. Infrastructure   → Sky.HubAI.Infrastructure.FileStorage   (→ Application, Domain)
+│                       → Sky.HubAI.Infrastructure.OpenAI        (→ Application, Domain)
+├── 4. Presentation     → Sky.HubAI.Api                          (→ Application, Infra.FileStorage, Infra.OpenAI)
+└── 5. Tests            → (vazio — sem projetos de teste)
+```
+
+### Regras de Dependência
+
+```
+API → Application → Domain ← Infrastructure.*
+```
+
+- **Domain** não depende de nenhuma outra camada
+- **Application** conhece apenas Domain (interfaces)
+- **Infrastructure** implementa interfaces de Application/Domain
+- **API** orquestra via DI — registra todas as camadas
+
+## Camadas
+
+| Camada | Projeto | Responsabilidade |
+|--------|---------|-----------------|
+| **Domain** | `Sky.HubAI.Domain` | Entidades, Domain Services, Exceptions, interfaces de serviço |
+| **Application** | `Sky.HubAI.Application` | Use Cases (Commands/Queries), Handlers, Validators, Models, Abstractions (interfaces de infra), Pipeline Behaviors |
+| **Infrastructure** | `Sky.HubAI.Infrastructure.FileStorage` | Cache in-memory, import/export de arquivos (Excel→CSV, TXT) |
+| **Infrastructure** | `Sky.HubAI.Infrastructure.OpenAI` | Integração Azure OpenAI (chat, vision, function calling), prompts |
+| **API** | `Sky.HubAI.Api` | Controllers, Contracts (Request/Response), Middlewares, DI, Routing, Settings |
+
+## DI — Lifetimes por Camada
+
+| Camada | Lifetime | Motivo |
+|--------|----------|--------|
+| Domain Services | **Scoped** | Stateless, per-request |
+| Application (MediatR, Validators) | **Transient** | MediatR default |
+| Infrastructure.FileStorage | **Singleton** | Cache in-memory, file importers |
+| Infrastructure.OpenAI | **Singleton** | OpenAI client reutilizável |
+
+### Registration Pattern
+
+Cada camada expõe **uma extension method** em `DependencyInjection/ServiceCollectionExtensions.cs`:
+
+```csharp
+// Program.cs
+builder.AddPresentation();                                  // API
+builder.Services.AddDomainServices();                       // Domain
+builder.Services.AddApplication();                          // Application
+builder.Services.AddFileStorageInfrastructure(config);      // Infrastructure.FileStorage
+builder.Services.AddOpenAiInfrastructure(config);           // Infrastructure.OpenAI
+```
+
+## CQRS via MediatR
+
+| Tipo | Propósito | Naming |
+|------|-----------|--------|
+| **Command** | Operações de escrita (mutations) | `{Action}Command` + `{Action}CommandHandler` |
+| **Query** | Operações de leitura | `{Action}Query` + `{Action}QueryHandler` |
+
+- Um handler por Command/Query (SRP)
+- Results são `record` types (imutáveis)
+- Handlers recebem dependências via constructor injection
+
+### Pipeline Behaviors (MediatR)
+
+Executados em ordem para **todo** request MediatR:
+
+| Ordem | Behavior | Propósito |
+|-------|----------|-----------|
+| 1 | `ValidationBehavior<TRequest, TResponse>` | Executa todos os `IValidator<TRequest>` registrados; lança `ValidationException` em falha |
+| 2 | `RequestResponseLoggingBehavior<TRequest, TResponse>` | Loga request e response via `ILogger` |
+
+## Error Handling
+
+### GlobalExceptionHandlerMiddleware (`IExceptionHandler`)
+
+Todas as exceções são convertidas em **RFC 7807 ProblemDetails**:
+
+| Exceção | HTTP Status | Detalhes |
+|---------|------------|----------|
+| `ProductImportException` | 400 | Error code do domínio |
+| `BlockedKeywordImportException` | 400 | Error code do domínio |
+| `FluentValidation.ValidationException` | 400 | Errors agrupados por campo |
+| `DomainException` (base) | 400 | Error code genérico |
+| `InvalidOperationException`, `ArgumentException`, `IOException` | 400 | — |
+| `UnauthorizedAccessException`, `NotSupportedException` | 400 | — |
+| Qualquer outra | 500 | Internal Server Error |
+
+- **Correlation ID** é injetado em `ProblemDetails.Extensions` para rastreabilidade
+
+## Middleware Stack (ordem de execução)
+
+```
+1. CorrelationIdMiddleware          → gera/propaga X-Correlation-Id
+2. ExceptionHandler                 → GlobalExceptionHandlerMiddleware
+3. ForwardedHeaders                 → Azure reverse proxy
+4. HSTS + HTTPS Redirection         → non-dev only
+5. Routing
+6. CORS                             → AllowAnyOrigin/Header/Method
+7. ClientTokenAuthMiddleware         → validação X-Client-Token
+8. HttpLoggingMiddleware             → log de request/response body
+9. Authorization
+10. MapControllers
+```
+
+## Mappings
+
+Conversão entre camadas via **extension methods estáticos** (sem AutoMapper):
+
+| Camada | Método | Direção |
+|--------|--------|---------|
+| API | `.ToResponse()` | Application Result → API Response |
+| API | `.ToQuery()` / `.ToCommand()` | API Request → Application Command/Query |
+| Application | `.ToResult()` | Domain Entity → Application DTO/Result |
+
+## API Versioning
+
+| Mecanismo | Exemplo |
+|-----------|---------|
+| URL segment | `/api/v1/products` |
+| Header | `x-api-version: 1.0` |
+| Query string | `?api-version=1.0` |
+
+- Controller base: `V1ControllerBase` com `[ApiVersion("1.0")]`
+- Rotas: kebab-case via `LowercaseRouteTransformer`

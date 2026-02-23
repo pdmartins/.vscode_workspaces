@@ -1,0 +1,2 @@
+# Force LF line endings for Git hooks (bash scripts)
+.github/.hooks/* text eol=lf

@@ -1,0 +1,22 @@
+namespace Sky.HubAI.Infrastructure.OpenAI.Settings
+{
+    public class AzureOpenAiSettings
+    {
+        public string Endpoint { get; set; } = string.Empty;
+        public string ApiKey { get; set; } = string.Empty;
+        public string DeploymentName { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Number of top candidate products to consider for intent classification.
+        /// Default: 10
+        /// </summary>
+        public int TopCandidatesCount { get; set; } = 10;
+
+        /// <summary>
+        /// Minimum match percentage threshold for a product to be considered a valid match.
+        /// Products with match percentage above this value will be included in results.
+        /// Default: 80
+        /// </summary>
+        public double MinMatchPercentage { get; set; } = 80;
+    }
+}

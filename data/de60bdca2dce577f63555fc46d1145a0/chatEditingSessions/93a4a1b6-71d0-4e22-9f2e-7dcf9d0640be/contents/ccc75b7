@@ -1,0 +1,147 @@
+# Convenções — Sky HubAI
+
+## Naming
+
+| Elemento | Padrão | Exemplo |
+|----------|--------|---------|
+| Classes | PascalCase | `ProductMatchingService` |
+| Interfaces | I + PascalCase | `IProductMemoryCacheService` |
+| Métodos | PascalCase | `ReloadProductsAsync()` |
+| Variáveis locais | camelCase | `matchResult` |
+| Constantes | PascalCase | `MaxRetryCount` |
+| Propriedades | PascalCase | `IsEnabled` |
+| Parâmetros | camelCase | `productStream` |
+| Async methods | Sufixo `Async` | `ClassifyIntentAsync()` |
+
+## Namespaces
+
+Formato: `Sky.HubAI.{Layer}.{Feature}.{SubFeature}`
+
+| Camada | Namespace | Exemplo |
+|--------|-----------|---------|
+| Domain | `Sky.HubAI.Domain.{Entities\|Services\|Exceptions}` | `Sky.HubAI.Domain.Entities` |
+| Application | `Sky.HubAI.Application.UseCases.{Feature}.{Action}` | `Sky.HubAI.Application.UseCases.Product.UpdateProductList` |
+| Infrastructure | `Sky.HubAI.Infrastructure.{Provider}.Services` | `Sky.HubAI.Infrastructure.OpenAI.Services` |
+| API | `Sky.HubAI.Api.{Controllers\|Contracts\|Middleware}` | `Sky.HubAI.Api.Controllers.V1` |
+
+## Estrutura de Use Cases
+
+Cada Use Case segue o padrão:
+
+```
+UseCases/
+└── {Feature}/
+    └── {Action}/
+        ├── {Action}Command.cs      (ou {Action}Query.cs)
+        ├── {Action}CommandHandler.cs (ou {Action}QueryHandler.cs)
+        ├── {Action}Result.cs        (record com resultado)
+        └── {Action}CommandValidator.cs (FluentValidation, opcional)
+```
+
+**Exemplo real:**
+```
+UseCases/
+└── Product/
+    ├── UpdateProductList/
+    │   ├── UpdateProductListCommand.cs
+    │   ├── UpdateProductListCommandHandler.cs
+    │   └── UpdateProductListResult.cs
+    └── GetProductList/
+        ├── GetProductListQuery.cs
+        └── GetProductListQueryHandler.cs
+```
+
+## Estrutura de Contracts (API)
+
+```
+Contracts/
+└── {Feature}/
+    ├── {Action}Request.cs
+    ├── {Action}Response.cs
+    └── {Action}RequestValidator.cs  (FluentValidation, opcional)
+```
+
+## DTOs e Records
+
+- **Commands e Queries**: `record` types (imutáveis)
+- **Results**: `record` types
+- **Contracts (Request/Response)**: `record` types
+- **Entities (Domain)**: `class` com primary constructor e private setters
+- **Models (Application)**: `record` types com sub-records
+
+## Mappings
+
+Extension methods estáticos — **sem AutoMapper**:
+
+| Local | Classe | Método | Direção |
+|-------|--------|--------|---------|
+| API | `{Feature}MappingExtensions` | `.ToResponse()` | Application → API |
+| API | `{Feature}MappingExtensions` | `.ToQuery()` / `.ToCommand()` | API → Application |
+| Application | `{Feature}MappingExtensions` | `.ToResult()` | Domain → Application |
+
+## Validação
+
+### Dois níveis de validação
+
+| Nível | Local | Propósito | Exemplos |
+|-------|-------|-----------|----------|
+| **API** | `Contracts/{Feature}/` | Validação HTTP (file type, size, formato) | `.xlsx` only, max 10MB |
+| **Application** | `UseCases/{Feature}/{Action}/` | Regras de negócio (stream, conteúdo) | Non-null stream, max 5MB, detecção de magic bytes |
+
+- `ValidationBehavior` no pipeline MediatR executa todos os validators automaticamente
+- `DocumentAnalysisController` usa validação manual (exceção ao padrão)
+
+### Magic Bytes Detection
+
+Validators de Application detectam arquivos binários via primeiros bytes:
+- ZIP: `50 4B`
+- PDF: `25 50 44 46`
+- PNG: `89 50 4E 47`
+- JPEG: `FF D8 FF`
+- GIF: `47 49 46`
+
+## Domain Exceptions
+
+Padrão: classe específica por feature, herda `DomainException` (abstract):
+
+```csharp
+public class ProductImportException : DomainException
+{
+    // ErrorCode: "PRODUCT_IMPORT_ERROR"
+    public static ProductImportException NoValidRecords() => ...
+    public static ProductImportException InvalidFormat() => ...
+    public static ProductImportException ProcessingFailed() => ...
+}
+```
+
+- Factory methods estáticos para cada cenário
+- `ErrorCode` string constante por tipo
+
+## Controllers
+
+- Herdam `V1ControllerBase` (abstract)
+- Injetam `IMediator` + `ILogger<T>` via base
+- Tag `[ApiVersion("1.0")]`
+- Despacham via `Mediator.Send(command/query)`
+- Nunca contêm lógica de negócio
+
+## DI Registration
+
+Cada camada expõe **uma extension method** em `DependencyInjection/ServiceCollectionExtensions.cs`:
+
+| Camada | Método | Registra |
+|--------|--------|----------|
+| API | `AddPresentation()` | Controllers, Swagger, Versioning, CORS, Auth, HostedService |
+| Domain | `AddDomainServices()` | Domain Services (Scoped) |
+| Application | `AddApplication()` | MediatR, Validators, Behaviors |
+| Infra.FileStorage | `AddFileStorageInfrastructure(config)` | Cache, Importers (Singleton) |
+| Infra.OpenAI | `AddOpenAiInfrastructure(config)` | OpenAI Services (Singleton) |
+
+## Organização de Arquivos
+
+- Uma classe por arquivo
+- Nome do arquivo = nome da classe
+- Interfaces no Application (`Abstractions/`) ou Domain (junto com entities)
+- Implementações no Infrastructure
+- Sem lógica de negócio em Controllers
+- Prompts em classes estáticas no Infrastructure (`Prompts/`)

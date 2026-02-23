@@ -1,0 +1,29 @@
+# Arquitetura — SHY HubAI
+
+## Padrão
+
+Microserviços com **Clean Architecture** (camadas separadas por responsabilidade).
+
+## Camadas (Clean Arch)
+
+| Camada | Responsabilidade |
+|--------|-----------------|
+| **Domain** | Entidades, Value Objects, interfaces de repositório |
+| **Application** | Use Cases, Commands, Queries, DTOs |
+| **Infrastructure** | Implementações concretas, integrações externas, AI providers |
+| **API/Presentation** | Controllers, middlewares, configuração |
+
+## Regras de Dependência
+
+```
+API → Application → Domain
+Infrastructure → Application → Domain
+```
+
+- Domain **não depende** de nenhuma outra camada
+- Application conhece apenas Domain (interfaces)
+- Infrastructure implementa interfaces de Application/Domain
+
+## Notas
+
+- Detalhes de pastas e módulos a mapear com `project-structure-analyze` após plugar

@@ -1,0 +1,36 @@
+#!/bin/bash
+# =============================================================================
+# Git Pre-Push Hook
+# Lembrete para fazer upload dos produtos ao fazer push para develop ou main
+# =============================================================================
+
+remote="$1"
+
+while read local_ref local_sha remote_ref remote_sha; do
+    branch_name=$(echo "$remote_ref" | sed 's|refs/heads/||')
+
+    if [ "$branch_name" = "develop" ] || [ "$branch_name" = "main" ]; then
+        echo ""
+        echo "============================================================"
+        echo "  ⚠️  ATENÇÃO: Push para a branch '$branch_name' detectado!"
+        echo "============================================================"
+        echo ""
+        echo "  🔔 Lembrete: Não esqueça de fazer o UPLOAD DOS PRODUTOS!"
+        echo ""
+        echo "============================================================"
+        echo ""
+        echo -n "  Deseja continuar com o push? (s/n): "
+        read -r response < /dev/tty
+        if [ "$response" != "s" ] && [ "$response" != "S" ] && [ "$response" != "y" ] && [ "$response" != "Y" ]; then
+            echo ""
+            echo "  ❌ Push cancelado."
+            echo ""
+            exit 1
+        fi
+        echo ""
+        echo "  ✅ Continuando com o push..."
+        echo ""
+    fi
+done
+
+exit 0

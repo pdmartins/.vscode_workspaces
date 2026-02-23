@@ -1,0 +1,535 @@
+# Sky.HubAI
+
+Plataforma .NET 8 para análise de documentos de identidade, classificação de intenções de texto e gestão de catálogo de produtos, com integração ao **Azure OpenAI (GPT-4o)**. Expõe uma API REST versionada com Swagger/OpenAPI, middlewares de observabilidade e autenticação por token.
+
+---
+
+## Índice
+
+- [Visão Geral](#visão-geral)
+- [Arquitetura](#arquitetura)
+- [Tech Stack & Dependências](#tech-stack--dependências)
+- [Pré-requisitos](#pré-requisitos)
+- [Configuração](#configuração)
+- [Como Executar](#como-executar)
+- [API Endpoints](#api-endpoints)
+  - [Intent Classifications](#1-intent-classifications--classificação-de-intenção)
+  - [Document Analysis](#2-document-analysis--análise-de-documentos)
+  - [Products](#3-products--produtos)
+  - [Blocked Keywords](#4-blocked-keywords--palavras-bloqueadas)
+- [Autenticação](#autenticação)
+- [Middlewares & Pipeline HTTP](#middlewares--pipeline-http)
+- [Estrutura do Projeto](#estrutura-do-projeto)
+- [Formatos Suportados](#formatos-suportados)
+- [Tratamento de Erros](#tratamento-de-erros)
+- [Bruno API Collection](#bruno-api-collection)
+- [Contribuição](#contribuição)
+
+---
+
+## Visão Geral
+
+O **Sky.HubAI** é uma API ASP.NET Core que oferece:
+
+| Funcionalidade | Descrição |
+|---|---|
+| **Classificação de Intenção** | Recebe uma descrição em texto livre e, usando Azure OpenAI, identifica a intenção (adicionar/remover produto) e associa aos produtos do catálogo |
+| **Análise de Documentos** | Recebe imagens de documentos de identidade e dados pessoais, usa Azure OpenAI Vision para extrair dados da imagem e compará-los com os dados informados |
+| **Gestão de Produtos** | Importa catálogo de produtos a partir de arquivos Excel (.xlsx), mantém cache em memória e expõe para consulta |
+| **Palavras Bloqueadas** | Gerencia lista de palavras bloqueadas para filtragem na classificação de intenções |
+
+---
+
+## Arquitetura
+
+A solução segue **Clean Architecture** em camadas com inversão de dependências:
+
+```
+┌─────────────────────────────────────────────────┐
+│  4. Presentation (Api)                          │
+│  Controllers, Middlewares, Contracts, Swagger    │
+├─────────────────────────────────────────────────┤
+│  2. Application                                 │
+│  Use Cases (MediatR), Validators (FluentValid.) │
+├──────────────────────┬──────────────────────────┤
+│  3a. Infra.OpenAI    │  3b. Infra.FileStorage   │
+│  Azure OpenAI Client │  ClosedXML, CSV, Cache   │
+├──────────────────────┴──────────────────────────┤
+│  1. Domain                                      │
+│  Entities, Domain Services, Exceptions          │
+└─────────────────────────────────────────────────┘
+```
+
+### Camadas
+
+| Camada | Projeto | Responsabilidade |
+|---|---|---|
+| **Domain** | `Sky.HubAI.Domain` | Entidades (`Document`, `DocumentAnalysis`), serviços de domínio (comparação de dados), exceções de domínio. Sem dependência de infra. |
+| **Application** | `Sky.HubAI.Application` | Orquestra casos de uso via MediatR (Queries/Commands + Handlers). Define interfaces de serviço (`IProductMemoryCacheService`, `IFileStorageImporterService`, `IOpenAiIntentClassifyService`, `IOpenAiDocumentAnalysisService`, `IIntentExcelReaderService`). Pipeline com `ValidationBehavior` e `RequestResponseLoggingBehavior`. |
+| **Infrastructure.OpenAI** | `Sky.HubAI.Infrastructure.OpenAI` | Implementa serviços de IA via `AzureOpenAIClient`. Prompts em `TextClassificationPrompt` e `DocumentVisionPrompt`. Classificação com function calling e top candidatos de produtos. Análise de documentos com Vision (imagem binária). |
+| **Infrastructure.FileStorage** | `Sky.HubAI.Infrastructure.FileStorage` | Importação de Excel (.xlsx) via ClosedXML → CSV. Cache de produtos em memória com escrita atômica (`AtomicReplace` + retry/backoff). Gerenciamento de palavras bloqueadas em arquivo .txt. |
+| **Presentation (Api)** | `Sky.HubAI.Api` | Controllers versionados (v1), middlewares (CorrelationId, logging, auth, error handling), Swagger, CORS, versionamento por URL segment. |
+
+### Fluxo típico (atualização de produtos)
+
+1. `ProductsController.UpdateProductList` recebe `multipart/form-data` com `.xlsx`
+2. Cria `UpdateProductListCommand` e envia via MediatR
+3. `FileStorageImporterService` lê Excel (ClosedXML) → gera `products.csv.tmp` → `AtomicReplace`
+4. `ProductMemoryCacheService.ReloadProductMemoryCacheAsync` recarrega cache em memória
+5. Controller retorna contagens (antes/depois/ignorados)
+
+---
+
+## Tech Stack & Dependências
+
+| Componente | Tecnologia / Pacote | Versão |
+|---|---|---|
+| **Runtime** | .NET 8.0 | `net8.0` |
+| **Framework Web** | ASP.NET Core | 8.0 |
+| **AI/LLM** | Azure.AI.OpenAI | 2.1.0 |
+| **Mediator** | MediatR | 12.5.0 |
+| **Validação** | FluentValidation | 11.9.0 |
+| **Excel** | ClosedXML | 0.102.2 / 0.105.0 |
+| **API Versioning** | Asp.Versioning.Mvc | 8.1.0 |
+| **Swagger** | Swashbuckle.AspNetCore | 9.0.3 |
+| **Logging** | Microsoft.Extensions.Logging.Abstractions | 8.0.3 |
+| **Configuration** | Microsoft.Extensions.Configuration.Abstractions | 8.0.0 |
+
+### Projetos da Solução
+
+```
+Sky.HubAI.sln
+├── 1. Domain
+│   └── Sky.HubAI.Domain
+├── 2. Application
+│   └── Sky.HubAI.Application  →  Domain
+├── 3. Infrastructure
+│   ├── Sky.HubAI.Infrastructure.OpenAI  →  Application, Domain
+│   └── Sky.HubAI.Infrastructure.FileStorage  →  Application, Domain
+├── 4. Presentation
+│   └── Sky.HubAI.Api  →  Application, Infra.OpenAI, Infra.FileStorage
+└── 5. Tests
+```
+
+---
+
+## Pré-requisitos
+
+- **.NET SDK 8.0+**
+- **Azure OpenAI**: Endpoint, Deployment (`gpt-4o`) e API Key
+- (Opcional) [Bruno](https://www.usebruno.com/) para testar os endpoints com a collection incluída
+
+---
+
+## Configuração
+
+Arquivo `src/Api/appsettings.json` (sobrescrito por `appsettings.Development.json`):
+
+```jsonc
+{
+  "AllowedHosts": "*",
+
+  "AzureOpenAi": {
+    "Endpoint": "",                    // URL do recurso Azure OpenAI
+    "ApiKey": "",                      // Chave de acesso
+    "DeploymentName": "gpt-4o",       // Nome do deployment
+    "MinMatchPercentage": 85          // % mínimo para considerar match de produto
+  },
+
+  "FileStorage": {
+    "ProductCsvPath": "./products.csv",           // Caminho do CSV de produtos (arquivo ou diretório)
+    "BlockedKeywordsPath": "./blocked_keywords.txt" // Caminho do arquivo de palavras bloqueadas
+  },
+
+  "Auth": {
+    "EnableClientToken": false,        // Se true, exige header X-Client-Token
+    "ClientToken": ""                  // Token esperado
+  },
+
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  }
+}
+```
+
+> **Nota:** Se `ProductCsvPath` apontar para um diretório, o sistema grava automaticamente `products.csv` nesse diretório.
+
+---
+
+## Como Executar
+
+```bash
+# Clone o repositório
+git clone <repo-url>
+cd Sky.HubAI
+
+# Restaurar dependências e executar
+cd src
+dotnet restore
+dotnet run --project Api
+```
+
+A API estará disponível em `https://localhost:5001` (ou conforme `launchSettings.json`).
+
+Em ambiente de desenvolvimento, o Swagger estará acessível em: `https://localhost:5001/swagger`
+
+---
+
+## API Endpoints
+
+**Base URL:** `/api/v1`  
+**Versionamento:** por segmento de URL (`/api/v{version}/...`), header (`x-api-version`) ou query string (`?api-version=`)  
+**Convenção de rotas:** kebab-case com `LowercaseRouteTransformer` (ex: `IntentClassifications` → `intent-classifications`)
+
+---
+
+### 1. Intent Classifications — Classificação de Intenção
+
+#### `POST /api/v1/intent-classifications`
+
+Classifica a intenção de uma descrição em texto livre, identificando ações (adicionar/remover produto) e associando aos produtos do catálogo.
+
+**Content-Type:** `application/json`
+
+**Request Body:**
+```json
+{
+  "description": "Cancelar produto: TELECINE HD | Tipo: @PAYTV"
+}
+```
+
+**Response `200 OK`:**
+```json
+{
+  "description": "texto original",
+  "classifiedProducts": [
+    {
+      "productCode": "ABC123",
+      "productName": "TELECINE HD",
+      "action": "product-remove"
+    }
+  ],
+  "action": "product-remove",
+  "productDescription": "TELECINE HD",
+  "productCode": "ABC123",
+  "keywords": ["cancelar", "telecine", "hd"],
+  "log": "reasoning from AI...",
+  "matchedProducts": "TELECINE HD",
+  "unmatchedProducts": "",
+  "searchQueries": [
+    {
+      "keywords": ["telecine"],
+      "productsReturned": [
+        {
+          "productCode": "ABC123",
+          "productName": "TELECINE HD",
+          "matchPercentage": 95.5
+        }
+      ]
+    }
+  ]
+}
+```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `description` | `string` | Texto original analisado |
+| `classifiedProducts` | `ClassifiedProductResponse[]` | Lista de produtos classificados com ação individual |
+| `action` | `string` | Ação do primeiro produto (backward compat): `product-add`, `product-remove`, `none` |
+| `productDescription` | `string` | Nomes dos produtos (comma-separated) |
+| `productCode` | `string` | Códigos dos produtos (comma-separated) |
+| `keywords` | `string[]` | Palavras-chave extraídas da descrição |
+| `log` | `string` | Log de raciocínio da IA |
+| `matchedProducts` | `string` | Produtos que tiveram match acima de `MinMatchPercentage` |
+| `unmatchedProducts` | `string` | Produtos mencionados sem match no catálogo |
+| `searchQueries` | `ProductSearchQueryResponse[]` | Queries de busca feitas pelo LLM via function calling |
+
+**Responses:** `200 OK` · `400 Bad Request` · `500 Internal Server Error`
+
+---
+
+### 2. Document Analysis — Análise de Documentos
+
+#### `POST /api/v1/document-analysis`
+
+Analisa imagens de documentos de identidade via Azure OpenAI Vision, extrai dados e compara com as informações fornecidas.
+
+**Content-Type:** `multipart/form-data`
+
+**Form Fields:**
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `Images` | `file[]` | Sim | Imagens do documento (JPG, PNG, etc.) |
+| `FullName` | `string` | Sim | Nome completo da pessoa |
+| `DocumentNumber` | `string` | Sim | Número do documento |
+| `BirthDate` | `date` | Sim | Data de nascimento (formato `YYYY-MM-DD`) |
+
+**Response `200 OK`:**
+```json
+{
+  "informedData": {
+    "fullName": "NELLY GRACIELA OBISPO PONZONI",
+    "documentNumber": "3088180-4",
+    "birthDate": "1954-06-24"
+  },
+  "imageData": {
+    "fullName": "NELLY GRACIELA OBISPO PONZONI",
+    "documentNumber": "3088180-4",
+    "birthDate": "1954-06-24"
+  },
+  "similarity": {
+    "fullName": 100,
+    "documentNumber": 100,
+    "birthDate": 100
+  }
+}
+```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `informedData` | `Dictionary<string, string>` | Dados informados pelo usuário |
+| `imageData` | `Dictionary<string, string>` | Dados extraídos da imagem pela IA |
+| `similarity` | `Dictionary<string, object>` | Percentual de similaridade entre dados informados e extraídos |
+
+**Responses:** `200 OK` · `400 Bad Request` · `500 Internal Server Error`
+
+---
+
+### 3. Products — Produtos
+
+#### `POST /api/v1/products`
+
+Atualiza o catálogo de produtos a partir de um arquivo Excel (.xlsx).
+
+**Content-Type:** `multipart/form-data`
+
+**Form Fields:**
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `File` | `file` | Sim | Arquivo Excel (.xlsx) com produtos |
+
+> Primeira planilha: coluna A = código do produto, coluna B = descrição. Se `A1 == "PROD_CD"`, é header e será ignorado.
+
+**Validação:** Arquivo obrigatório, extensão `.xlsx`, máximo **10 MB**.
+
+**Response `200 OK`:**
+```json
+{
+  "recordsSkipped": 0,
+  "recordsBeforeUpdate": 150,
+  "recordsAfterUpdate": 175
+}
+```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `recordsSkipped` | `int` | Registros ignorados na importação |
+| `recordsBeforeUpdate` | `int` | Total de produtos antes da atualização |
+| `recordsAfterUpdate` | `int` | Total de produtos após a atualização |
+
+---
+
+#### `GET /api/v1/products`
+
+Retorna a lista completa de produtos carregados em memória.
+
+**Response `200 OK`:**
+```json
+{
+  "products": [
+    { "code": "ABC123", "name": "TELECINE HD" },
+    { "code": "DEF456", "name": "HBO MAX" }
+  ]
+}
+```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `products` | `Product[]` | Lista de produtos (`code`, `name`) |
+
+**Responses:** `200 OK` · `400 Bad Request` · `500 Internal Server Error`
+
+---
+
+### 4. Blocked Keywords — Palavras Bloqueadas
+
+#### `POST /api/v1/blocked-keywords`
+
+Atualiza a lista de palavras bloqueadas a partir de um arquivo de texto (.txt).
+
+**Content-Type:** `multipart/form-data`
+
+**Form Fields:**
+
+| Campo | Tipo | Obrigatório | Descrição |
+|---|---|---|---|
+| `File` | `file` | Sim | Arquivo de texto (.txt) com palavras bloqueadas |
+
+**Validação:** Arquivo obrigatório, máximo **5 MB**.
+
+**Response `200 OK`:**
+```json
+{
+  "recordsSkipped": 0,
+  "recordsBeforeUpdate": 10,
+  "recordsAfterUpdate": 15
+}
+```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `recordsSkipped` | `int` | Registros ignorados na importação |
+| `recordsBeforeUpdate` | `int` | Total de keywords antes da atualização |
+| `recordsAfterUpdate` | `int` | Total de keywords após a atualização |
+
+---
+
+#### `GET /api/v1/blocked-keywords`
+
+Retorna a lista atual de palavras bloqueadas.
+
+**Response `200 OK`:**
+```json
+{
+  "blockedKeywords": ["palavra1", "palavra2", "palavra3"]
+}
+```
+
+| Campo | Tipo | Descrição |
+|---|---|---|
+| `blockedKeywords` | `string[]` | Lista de palavras bloqueadas |
+
+**Responses:** `200 OK` · `500 Internal Server Error`
+
+---
+
+## Autenticação
+
+A API suporta autenticação via **Client Token** (header `X-Client-Token`):
+
+- Habilitada quando `Auth:EnableClientToken = true` no `appsettings.json`
+- Quando ativa, todas as requisições devem incluir o header `X-Client-Token` com o valor configurado em `Auth:ClientToken`
+- Documentado no Swagger como esquema de segurança `ApiKey`
+
+---
+
+## Middlewares & Pipeline HTTP
+
+O pipeline HTTP é configurado na seguinte ordem:
+
+| Ordem | Middleware | Descrição |
+|---|---|---|
+| 1 | `CorrelationIdMiddleware` | Injeta/propaga header `correlation-id` em todas as requisições e respostas |
+| 2 | `UseExceptionHandler` + `GlobalExceptionHandlerMiddleware` | Tratamento global de exceções com RFC 7807 (ProblemDetails) |
+| 3 | `UseForwardedHeaders` | Suporte a reverse proxy (X-Forwarded-For, X-Forwarded-Proto) |
+| 4 | `UseHsts` + `UseHttpsRedirection` | HTTPS enforcement (apenas fora de Development) |
+| 5 | `UseRouting` | Roteamento de endpoints |
+| 6 | `UseCors` | CORS (AllowAnyOrigin, AllowAnyHeader, AllowAnyMethod) |
+| 7 | `ClientTokenAuthMiddleware` | Autenticação por token (se habilitada) |
+| 8 | `HttpLoggingMiddleware` | Logging de request/response com buffer |
+| 9 | `UseAuthorization` | Autorização |
+| 10 | `MapControllers` | Mapeamento de controllers |
+
+### Hosted Services
+
+- **`MemoryCacheWarmupHostedService`**: Carrega o cache de produtos na inicialização da aplicação a partir do CSV configurado.
+
+---
+
+## Estrutura do Projeto
+
+```
+Sky.HubAI/
+├── docs/
+│   └── api-collections/          # Bruno API collection para testes
+│       ├── BlockedKeywords/
+│       ├── Documents/
+│       ├── Intents/
+│       ├── Products/
+│       └── environments/         # Ambientes (LOCAL, HML, PRD)
+├── samples/
+│   ├── classify-intents/         # Dados de exemplo para classificação
+│   ├── identity-documents/       # Documentos e imagens de exemplo
+│   └── product-list/             # Arquivos de exemplo de produtos
+└── src/
+    ├── Sky.HubAI.sln
+    ├── Api/                      # Camada de Apresentação
+    │   ├── Controllers/V1/       # Controllers versionados
+    │   ├── Contracts/            # Request/Response models
+    │   ├── DependencyInjection/  # Configuração de serviços e pipeline
+    │   ├── HostedService/        # Background services
+    │   ├── Mappings/             # Mapeamentos Application ↔ API
+    │   ├── Middleware/           # Middlewares customizados
+    │   ├── Routing/              # Route transformers (kebab-case)
+    │   └── Settings/             # Modelos de configuração
+    ├── Application/              # Camada de Aplicação
+    │   ├── Abstractions/         # Interfaces de serviço
+    │   ├── Behaviors/            # MediatR pipeline behaviors
+    │   ├── Models/               # Modelos de aplicação
+    │   └── UseCases/             # Commands, Queries & Handlers
+    ├── Domain/                   # Camada de Domínio
+    │   ├── Entities/             # Entidades de domínio
+    │   ├── Exceptions/           # Exceções de domínio
+    │   └── Services/             # Serviços de domínio
+    ├── Infrastructure.FileStorage/ # Infra – Arquivos e Cache
+    │   ├── Services/             # Implementações (ClosedXML, CSV, Cache)
+    │   └── Settings/             # FileStorageSettings
+    └── Infrastructure.OpenAI/    # Infra – Azure OpenAI
+        ├── Prompts/              # Prompts (TextClassification, DocumentVision)
+        ├── Services/             # Implementações (AzureOpenAIClient)
+        └── Settings/             # AzureOpenAiSettings
+```
+
+---
+
+## Formatos Suportados
+
+| Formato | Uso | Detalhes |
+|---|---|---|
+| Excel (`.xlsx`) | Importação de produtos e classificação em lote | Lido via ClosedXML |
+| CSV | Armazenamento de produtos | UTF-8, separador `,`, header `Code,Name` |
+| TXT | Palavras bloqueadas | Uma palavra por linha |
+| Imagens (JPG, PNG, etc.) | Análise de documentos | Enviadas via multipart/form-data |
+
+---
+
+## Tratamento de Erros
+
+A API segue o padrão **RFC 7807 (Problem Details)** para respostas de erro:
+
+| Status | Cenário |
+|---|---|
+| `400 Bad Request` | Erros de validação (FluentValidation), `ArgumentException`, `IOException`, `InvalidOperationException`, exceções de domínio |
+| `500 Internal Server Error` | Erros inesperados |
+
+Todas as respostas de erro incluem o header `correlation-id` para rastreabilidade.
+
+---
+
+## Bruno API Collection
+
+O projeto inclui uma collection do [Bruno](https://www.usebruno.com/) em `docs/api-collections/` para testar todos os endpoints:
+
+| Request | Método | URL |
+|---|---|---|
+| Classify Intent | `POST` | `{{baseUrl}}/api/v1/intent-classifications` |
+| Document Analysis | `POST` | `{{baseUrl}}/api/v1/document-analysis` |
+| Update Products | `POST` | `{{baseUrl}}/api/v1/products` |
+| Get Products | `GET` | `{{baseUrl}}/api/v1/products` |
+| Update Blocked Keywords | `POST` | `{{baseUrl}}/api/v1/blocked-keywords` |
+| Get Blocked Keywords | `GET` | `{{baseUrl}}/api/v1/blocked-keywords` |
+
+**Ambientes disponíveis:** LOCAL (`https://localhost:5001`), HML, PRD
+
+---
+
+## Contribuição
+
+1. Crie uma branch `feat/<descrição>` a partir de `main`
+2. Abra PR com descrição clara das alterações
+3. Adicione testes e validações quando aplicável
